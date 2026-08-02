@@ -15,7 +15,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "seed:taxonomy": "tsx scripts/seed-taxonomy.ts"
+    "seed:taxonomy": "tsx scripts/seed-taxonomy.ts",
+    "search:rebuild": "tsx scripts/rebuild-search.ts",
+    "search:bench": "tsx scripts/search-bench.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
