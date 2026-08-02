@@ -1,0 +1,109 @@
+# Design System
+
+Derived from the two prototypes (`Dirección 1 — Antagning fiel`, `Dirección 4 — Comparador`) and reconciled against the `conversion-design` rules.
+
+## 1. The core decision: both mockups ship
+
+They are not competing designs — they are two views of one dataset, for two different moments in the student's journey.
+
+| | **Vista Tarjetas** (Dirección 1) | **Vista Tabla** (Dirección 4) |
+|---|---|---|
+| Moment | Exploration — "no sé qué estudiar" | Decision — "tengo 5 opciones" |
+| Density | ~6 results per screen, rich | ~15 rows per screen, scannable |
+| Actions | Favorito, Ver más, WhatsApp, Solicitar info | Multi-select → comparar |
+| Mobile | Cards, stacked | Compact cards with a 2×2 data grid |
+
+**Implementation:** one route `/carreras`, one filter state, one query, a toggle (`?vista=tarjetas|tabla`, default `tarjetas`). Comparador selection persists across both.
+
+This is also the marketing story: *"buscá como querés, compará como necesitás."*
+
+## 2. Tokens
+
+Reconciled from the two prototypes into one palette. Dirección 1's teal is the accent (warmer and more distinctive than D4's generic blue); D4's slate neutrals are the text scale (better contrast discipline).
+
+```
+--color-accent          #0d6e86   /* PRIMARY CTA ONLY */
+--color-accent-hover    #0a5e74
+--color-accent-subtle   #e6f0f3   /* badge backgrounds only, never a CTA */
+
+--color-ink             #0f172a   /* headings */
+--color-body            #334155   /* body text */
+--color-muted           #64748b   /* secondary */
+--color-faint           #94a3b8   /* meta, placeholders */
+
+--color-surface         #ffffff
+--color-canvas          #f2f4f6   /* page background */
+--color-card-alt        #f8fafc   /* zebra rows, filter rail */
+--color-border          #e4e8ec
+--color-border-strong   #cdd4dc
+
+/* semantic — status only, never decorative */
+--color-ok              #15803d   /* acreditada, gratuita, inscripciones abiertas */
+--color-ok-bg           #e7f4ec
+--color-warn            #b45309   /* en proceso, próximamente */
+--color-warn-bg         #fbf0e0
+--color-info            #4338ca   /* habilitada CONES */
+--color-info-bg         #eaeefb
+--color-danger          #b3261e   /* cerradas */
+--color-neutral-bg      #f1f4f8   /* sin datos */
+```
+
+**The accent rule is absolute:** `#0d6e86` appears only on primary CTAs ("Solicitar info", "Buscar carreras", "Comparar N carreras"). Sort links, active filters and focus rings use `--color-ink` with weight/underline, not the accent. In the D4 prototype the sortable column headers were accent-blue — that must change.
+
+## 3. Type
+
+- **IBM Plex Sans** — everything. 400 / 500 / 600 / 700.
+- **IBM Plex Mono** — 500 / 600, **numeric columns only**: arancel, duración, resolution numbers. This is the single best detail in the Dirección 4 prototype: monospace numbers make a comparison table scannable. Keep it.
+- Self-hosted via `next/font`, `display: swap`. Two families, six weights total — at the limit, no more.
+
+Scale (1.25 ratio): 12 / 14 / 16 / 20 / 25 / 31 / 39 / 49. Body 16px, line-height 1.6, max 70ch. Top two sizes via `clamp()`.
+
+Spacing: 8px grid — 8 / 16 / 24 / 32 / 48 / 64 / 96.
+
+## 4. Status badge vocabulary (fixed — do not invent variants)
+
+| Meaning | Label | Colour |
+|---|---|---|
+| ANEAES accredited, valid | `✓ Acreditada ANEAES` | ok |
+| Accreditation in process | `En proceso de acreditación` | warn |
+| CONES-habilitated only | `Habilitada CONES` | info |
+| No accreditation data | `Sin datos de acreditación` | neutral |
+| Enrolment open | `Inscripciones abiertas` + dot | ok |
+| Coming soon | `Próximamente` + dot | warn |
+| Closed | `Inscripciones cerradas` + dot | danger |
+| Free (public) | `Gratuita` | ok |
+| Institution-verified profile | `Perfil verificado` | accent-subtle bg, ink text |
+| Paid placement | `Destacado` | neutral bg, muted text — deliberately quiet |
+
+Every accreditation badge is a link to its source. **"Sin datos" is the default for unknown — never "No acreditada".** See `risks.md` §R-09.
+
+## 5. Component inventory
+
+**Primitives** (PR-03): Button (primary/secondary/ghost, 48px min height, full-width on mobile), Badge, Chip, Card, Checkbox (custom, from the prototypes), Select, Input, SearchInput, RangeSlider, Skeleton, Pagination, Tooltip.
+
+**Domain** (PR-08/09/10): `FilterRail` / `FilterSheet` (mobile), `ResultCard`, `ResultRow`, `ViewToggle`, `SortControl`, `CompareBar` (sticky), `CompareTable`, `AccreditationBadge`, `PriceBlock` (handles the staleness rule), `AdmissionCalendar`, `InstitutionMonogram` (the coloured 2–4 letter square from both prototypes — brand colour comes from `institutions.brand_color`), `LeadModal`, `WhatsAppButton`.
+
+## 6. Motion (the complete list)
+
+- 150–250 ms `ease-out` on button/card hover and active states.
+- One fade-up-on-scroll reveal, homepage only.
+- `scale(1.01)` row hover in the table view.
+- Nothing else. No carousels, no parallax, no scroll-hijacking, no custom cursors, no preloader.
+- `prefers-reduced-motion: reduce` disables all of it.
+
+## 7. Mobile rules (390px is the design target)
+
+- Filters live in a bottom sheet behind a `Filtrar (N)` chip — never a collapsed sidebar.
+- Result cards: title, status dot, institution, three badges max, then a full-width primary CTA plus a WhatsApp icon button. Exactly the Dirección 1 mobile prototype.
+- Table view on mobile becomes the D4 compact card: header row + a 2×2 grid of Gestión / Duración / Arancel / Acreditación. Never a horizontally scrolling table.
+- Compare bar is fixed to the bottom, above the safe area, showing count + "Comparar →".
+- Sticky WhatsApp affordance on program detail pages only — not on listing pages, where it would compete with the compare bar.
+
+## 8. Things in the prototypes to change
+
+1. **Accent discipline** — D4 used accent blue on sortable headers and the "Solicitar" outline buttons. Move those to ink/neutral so the accent means one thing.
+2. **Two competing CTAs** on the D1 card ("Solicitar info" + WhatsApp) — keep both, but WhatsApp becomes a secondary style (outline/green icon), not a peer.
+3. **The heart/favourites feature** implies accounts. Phase 1 has no student accounts: store favourites in `localStorage`, no login prompt. Revisit only if usage justifies it.
+4. **"Ver todos los filtros →"** in D1 needs a real destination — either it opens the full filter sheet or it goes. No dead links.
+5. **Hero** — D1's hero is 54px of gradient before any content. On mobile, compress hard: the search field must be reachable without scrolling at 390px.
+6. **Institution names** — D1's cards show the full official name (`Universidad Católica "Ntra. Sra. de la Asunción" (UC)`), which wraps badly. Use `name_short` in cards and tables, `name_official` on detail pages.
