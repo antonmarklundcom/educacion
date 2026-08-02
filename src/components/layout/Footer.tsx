@@ -1,0 +1,47 @@
+import Link from 'next/link';
+import { navLinks } from './nav-links';
+
+const legalLinks = [
+  { href: '/legal/privacidad', label: 'Privacidad' },
+  { href: '/legal/terminos', label: 'Términos' },
+  { href: '/legal/fuentes', label: 'Fuentes de datos' },
+] as const;
+
+/** The R-07 disclaimer is mandatory on every page — see CLAUDE.md rule 9. */
+export function Footer() {
+  return (
+    <footer className="border-t border-border bg-surface">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6">
+        <div className="flex flex-col gap-6 sm:flex-row sm:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">educacion.com.py</p>
+            <a href="mailto:contacto@educacion.com.py" className="text-sm text-body hover:underline">
+              contacto@educacion.com.py
+            </a>
+          </div>
+
+          <nav aria-label="Enlaces" className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+            {navLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="text-sm text-body hover:underline">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <nav aria-label="Legal" className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+            {legalLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="text-sm text-body hover:underline">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <p className="max-w-2xl text-xs text-muted">
+          educacion.com.py es un sitio privado e independiente. No es un portal oficial del MEC,
+          CONES ni ANEAES.
+        </p>
+      </div>
+    </footer>
+  );
+}

@@ -16,8 +16,14 @@ const ibmPlexMono = IBM_Plex_Mono({
   display: 'swap',
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 export const metadata: Metadata = {
-  title: 'educacion.com.py',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'educacion.com.py',
+    template: '%s | educacion.com.py',
+  },
   description: 'El índice completo, buscable y comparable de la educación superior en Paraguay.',
 };
 
