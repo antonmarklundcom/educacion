@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+@theme {
+  /* accent — PRIMARY CTA ONLY, see docs/design-system.md §2 */
+  --color-accent: #0d6e86;
+  --color-accent-hover: #0a5e74;
+  --color-accent-subtle: #e6f0f3;
+
+  --color-ink: #0f172a;
+  --color-body: #334155;
+  --color-muted: #64748b;
+  --color-faint: #94a3b8;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f2f4f6;
+  --color-card-alt: #f8fafc;
+  --color-border: #e4e8ec;
+  --color-border-strong: #cdd4dc;
+
+  /* semantic — status only, never decorative */
+  --color-ok: #15803d;
+  --color-ok-bg: #e7f4ec;
+  --color-warn: #b45309;
+  --color-warn-bg: #fbf0e0;
+  --color-info: #4338ca;
+  --color-info-bg: #eaeefb;
+  --color-danger: #b3261e;
+  --color-neutral-bg: #f1f4f8;
+
+  --font-sans: var(--font-ibm-plex-sans), sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), monospace;
+
+  /* type scale, 1.25 ratio — docs/design-system.md §3 */
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.875rem; /* 14 */
+  --text-base: 1rem; /* 16 */
+  --text-lg: 1.25rem; /* 20 */
+  --text-xl: 1.5625rem; /* 25 */
+  --text-2xl: 1.9375rem; /* 31 */
+  --text-3xl: 2.4375rem; /* 39 */
+  --text-4xl: 3.0625rem; /* 49 */
+}
+
+:root {
+  --background: var(--color-canvas);
+  --foreground: var(--color-body);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
