@@ -33,39 +33,34 @@ For MVP simplicity the UI treats an **offering** as "a carrera you can compare" 
 
 ### Taxonomy / reference
 
-```ts
-areas; // Salud, Ingeniería y Tecnología, Ciencias Empresariales, Derecho, ...
-(id, slug, name_es, description_md, sort_order, icon, created_at, updated_at);
-UNIQUE(slug);
+```
+areas            // Salud, Ingeniería y Tecnología, Ciencias Empresariales, Derecho, ...
+  id, slug, name_es, description_md, sort_order, icon, created_at, updated_at
+  UNIQUE (slug)
 
-careers; // canonical concepts, the SEO hubs
-(id,
-  slug,
-  name_es,
-  area_id,
-  level_default,
-  synonyms_json, // ["Medicina y Cirugía", "Doctor en Medicina"] — used by the matcher
-  description_md, // editorial, 150+ unique words (SEO requirement)
-  salida_laboral_md, // nullable — see risks R-11, never fabricated
-  status, // a career hub is not indexable until it has real copy
-  created_at,
-  updated_at);
-UNIQUE(slug);
+careers          // canonical concepts, the SEO hubs
+  id, slug, name_es, area_id, level_default,
+  synonyms_json,        // ["Medicina y Cirugía", "Doctor en Medicina"] — used by the matcher
+  description_md,       // editorial, 150+ unique words (SEO requirement)
+  salida_laboral_md,    // nullable — see risks R-11, never fabricated
+  status,               // a career hub is not indexable until it has real copy
+  created_at, updated_at
+  UNIQUE (slug)
 
-departments; // 17 departamentos + Asunción (code 0 = Distrito Capital)
-(id, slug, name_es, code);
-(UNIQUE(slug), UNIQUE(code));
+departments      // 17 departamentos + Asunción (code 0 = Distrito Capital)
+  id, slug, name_es, code
+  UNIQUE (slug), UNIQUE (code)
 
-cities;
-(id, slug, name_es, department_id, lat, lng);
-UNIQUE(slug);
+cities
+  id, slug, name_es, department_id, lat, lng
+  UNIQUE (slug)
 ```
 
 `cities.lat/lng` are nullable and **seeded NULL**. We have no sourced coordinate dataset, and plausible-looking coordinates are still fabricated coordinates.
 
 ### Institutions
 
-```ts
+```
 institutions
   id, slug, name_official,      // exactly as in the CONES register
   name_short,                   // "UNA", "UC" — display + monogram
@@ -93,7 +88,7 @@ campuses          // sedes / filiales — a real and frequently-ignored dimensio
 
 ### Programs & offerings
 
-```ts
+```
 programs
   id, institution_id, career_id,
   name_official,                // as habilitated: "Carrera de Medicina y Cirugía"
@@ -126,7 +121,7 @@ offerings         // what the user actually compares
 
 ### Money
 
-```ts
+```
 prices            // one current row per offering + history
   id, offering_id,
   currency enum('PYG','USD') default 'PYG',
@@ -158,7 +153,7 @@ prices            // one current row per offering + history
 
 ### Accreditation (the wedge — see plan.md §2)
 
-```ts
+```
 accreditations
   id,
   scope enum('institution','program','offering'),
@@ -189,7 +184,7 @@ No citation, no badge. Default display state for unknown is **`sin_datos`** ("Si
 
 ### Admissions
 
-```ts
+```
 admissions
   id, scope enum('institution','program','offering'),
   institution_id?, program_id?, offering_id?,
@@ -206,7 +201,7 @@ admissions
 
 ### Leads & engagement
 
-```ts
+```
 leads
   id, offering_id, institution_id,
   name, phone_e164, email, message,
@@ -229,7 +224,7 @@ events            // first-party analytics we can bill on
 
 ### Accounts, plans, ops
 
-```ts
+```
 users
   id, email, password_hash, name,
   role enum('admin','editor','institution_admin','institution_editor'),
@@ -277,7 +272,7 @@ activity_log
 
 ### The search table
 
-```ts
+```
 program_search     // denormalized, rebuilt by script — see architecture.md §4
   offering_id PK, program_id, institution_id, career_id, campus_id,
   city_id, department_id, area_id,
