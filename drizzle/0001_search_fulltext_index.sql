@@ -1,0 +1,15 @@
+-- FULLTEXT index on program_search.search_text.
+--
+-- drizzle-kit has no builder for FULLTEXT, so this lives in a hand-written
+-- migration. It is required by architecture.md §4: free-text search uses
+-- MATCH ... AGAINST in boolean mode against `search_text`, which is written
+-- accent-stripped and lowercased at index time — we never rely on collation
+-- for accent-insensitivity.
+--
+-- `npm run search:rebuild` truncates and refills this table; the index
+-- survives TRUNCATE, so the rebuild must not drop and recreate it.
+--
+-- Note for PR-07: InnoDB's default innodb_ft_min_token_size is 3, so tokens
+-- shorter than three characters are not indexed at all. Short queries need a
+-- LIKE fallback on institution_short.
+CREATE FULLTEXT INDEX `ps_search_text_ft` ON `program_search` (`search_text`);
