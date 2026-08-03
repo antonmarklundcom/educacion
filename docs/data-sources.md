@@ -39,7 +39,7 @@ scripts/import-<source>.ts
 
 ### 3.1 What PR-05 shipped (steps 1–2 and 6)
 
-Steps 3–5 are PR-06. The raw layer writes to `source_records` and `import_runs` and to nothing else — `src/lib/ingest/repository.test.ts` asserts that against a fake db, so a later PR cannot quietly reach into a curated table from here.
+Steps 3–5 shipped in PR-06 — see §4.6. The raw layer writes to `source_records` and `import_runs` and to nothing else — `src/lib/ingest/repository.test.ts` asserts that against a fake db, so a later PR cannot quietly reach into a curated table from here.
 
 | Module | Role |
 |---|---|
@@ -85,6 +85,41 @@ Approach, in order:
 Same approach for careers, using `careers.synonyms_json` as the alias store ("Medicina y Cirugía" → `medicina`).
 
 **Expect ~60–70% auto-match on the first run.** Budget a day of human review. Do not try to reach 100% automatically; the alias table gets you there over three cycles for a fraction of the effort.
+
+### 4.6 What PR-06 shipped, and what it refuses to do
+
+`npm run curate` reads `source_records`, matches every row, applies what is safe and queues the rest into `curation_conflicts`. CONES runs before ANEAES and the snapshot is reloaded between them, so an accreditation can attach to a program created earlier in the same command.
+
+| Module | Role |
+|---|---|
+| `src/lib/curate/match-key.ts` | §4.1 normalization, abbreviation expansion, acronym candidates, slugs |
+| `src/lib/curate/similarity.ts` | Levenshtein + trigram; the score is the higher of the two |
+| `src/lib/curate/match.ts` | The §4 resolution order for institutions, careers (via `synonyms_json`) and programs |
+| `src/lib/curate/staging.ts` | The source's own words → our enums. One file, auditable |
+| `src/lib/curate/classify.ts` | NEW / UNCHANGED / CHANGED / CONFLICT / AMBIGUOUS |
+| `src/lib/curate/apply-rules.ts` | The gates. Pure, so PR-20's "approve" action can reuse them |
+| `src/db/queries/curation.ts` | The only module that writes. Rule 5 keeps SQL out of `src/lib` |
+
+**Refusals, each one tested:**
+
+- **A new institution never auto-applies.** Neither register prints `management` (pública/privada), and that field appears on every card and in a facet. The proposal is honestly classified `new` and queued — the general rule is that a create whose NOT NULL fields the source does not supply is never invented into existence.
+- **A program with an unmapped level queues**, rather than defaulting to `grado`.
+- **An offering is not created without a stated modality**, and a campus is not created for a locality that is not in the seeded `cities`.
+- **No accreditation without a citation.** A positive status requires `resolution_number` or an `http(s)` `source_url`, and a row the ANEAES parser flagged `citable: false` can never produce one — including via the document URL, which is only used as a citation when the row was citable and the URL is not a local file path from a `--file` run.
+- **A negative never auto-applies.** `no_acreditada` is only ever written by a human, and absence of a row is `sin_datos` — represented by proposing *no accreditation row at all*.
+- **CONES never becomes an accreditation.** A CONES habilitación resolution lands in `programs.cones_resolution`; the staging layer for CONES has no accreditation field, and the apply gate rejects `agency = CONES` with `kind = acreditacion` regardless.
+- **Nothing in `PROTECTED_FIELDS` auto-updates**, even on a `cones_code` match. The classifier calls it a conflict and the writer strips those fields a second time.
+- **Fuzzy proposes, never applies.** Every fuzzy hit is classified `ambiguous_match` and queued with its candidates. So is a `match_key` that resolves to two institutions — which is the accepted cost of §4.1 dropping `NACIONAL`.
+
+Aliases are learned automatically: any spelling that resolved to an institution by cones_code, match_key or acronym is written to `institution_aliases`, so the next cycle resolves it in one lookup. Fuzzy matches never become aliases.
+
+Re-running is a no-op: the same proposals are re-derived, classified `unchanged`, and nothing is written. An already-open conflict is not queued twice.
+
+### 4.7 Do not report an auto-match rate you cannot stand behind
+
+`pr-plan.md` asks PR-06 to report ≥ 60% auto-match. `npm run curate` prints that number per source — but **as of PR-06 it has never been run against real data**: the parsers have not been validated against saved CONES/ANEAES pages (§3.1's `--dry-run --file` procedure), and no `source_records` exist yet.
+
+A rate measured against the synthetic fixtures is a measurement of the fixtures. The first honest number comes from: save the register pages → `--dry-run` each parser → import → `npm run curate -- --dry-run`. If the parsers turn out to need fixing against the real markup, do that **before** touching `FUZZY_PROPOSE_THRESHOLD` — a threshold tuned against a mis-parsed column is worse than the default.
 
 ## 5. Aranceles — the collection playbook
 
