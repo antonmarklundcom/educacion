@@ -16,6 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "seed:taxonomy": "tsx scripts/seed-taxonomy.ts",
+    "import:cones": "tsx scripts/import-cones.ts",
+    "import:aneaes": "tsx scripts/import-aneaes.ts",
     "search:rebuild": "tsx scripts/rebuild-search.ts",
     "search:bench": "tsx scripts/search-bench.ts"
   },
