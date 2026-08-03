@@ -18,6 +18,7 @@
     "seed:taxonomy": "tsx scripts/seed-taxonomy.ts",
     "import:cones": "tsx scripts/import-cones.ts",
     "import:aneaes": "tsx scripts/import-aneaes.ts",
+    "curate": "tsx scripts/curate.ts",
     "search:rebuild": "tsx scripts/rebuild-search.ts",
     "search:bench": "tsx scripts/search-bench.ts"
   },
