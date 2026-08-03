@@ -37,6 +37,34 @@ scripts/import-<source>.ts
 
 **Every importer is idempotent.** Re-running produces the same DB state. Use `onDuplicateKeyUpdate` keyed on a stable natural key (`cones_code`, or `institution_id + normalized_program_name`).
 
+### 3.1 What PR-05 shipped (steps 1–2 and 6)
+
+Steps 3–5 are PR-06. The raw layer writes to `source_records` and `import_runs` and to nothing else — `src/lib/ingest/repository.test.ts` asserts that against a fake db, so a later PR cannot quietly reach into a curated table from here.
+
+| Module | Role |
+|---|---|
+| `src/lib/ingest/checksum.ts` | Canonicalize (sorted keys, collapsed whitespace) then SHA-256. Idempotency depends on this being stable across parses. |
+| `src/lib/ingest/http.ts` | Polite fetch: identifying UA, per-host serialized delay, retries on transient status only. **A 403 is never retried** — §1 and §7. |
+| `src/lib/ingest/html.ts` · `csv.ts` | Dependency-free table and CSV readers. Columns are addressed by header text, so a reordered column does not silently shift the data. |
+| `src/lib/ingest/parsers/cones.ts` | Habilitación rows. Emits no accreditation field of any kind. |
+| `src/lib/ingest/parsers/aneaes.ts` | Accredited-program rows. Carries the source's own wording in `statusRaw` and flags `citable: false` when a row has neither resolution number nor source URL. |
+
+Two rules are enforced at the raw layer rather than deferred to PR-06:
+
+- **`citable: false` rows cannot support a positive accreditation status.** PR-06's apply step must refuse to write one from such a row (§R-09).
+- **Absence is never negative.** Nothing in either parser can emit "no acreditada"; a missing row is `sin datos`.
+
+**Running the importers when the sources 403 you.** They will (§1), including from CI. Both scripts take `--file`, so the documented procedure is: save the register page or CKAN export from a browser, then
+
+```
+npm run import:cones -- --dry-run --file ./tmp/carreras.html   # check the parse, no DB needed
+npm run import:cones -- --file ./tmp/carreras.html             # write raw records
+```
+
+`--dry-run` parses, prints a sample payload and writes nothing — this is how you verify a parser against a freshly saved page after the source changes its markup, which it will.
+
+**Fixtures contain no real data.** `src/lib/ingest/__fixtures__/documents.ts` uses `INSTITUCION DE PRUEBA A` and `RES-TEST-1`, deliberately: a fixture pairing a real university with an invented resolution number is the string that eventually gets copied into a seed script. The fixtures assert shape, which is all the parsers decide.
+
 **Nothing auto-publishes on a conflict.** A changed accreditation status is exactly the case where a silent bad write does reputational damage.
 
 ## 4. Entity matching (R-05 — plan for this to be annoying)
