@@ -63,6 +63,7 @@ export {
   MANAGEMENT_LABELS,
   MODALITY_LABELS,
   SHIFT_LABELS,
+  SORT_LABELS,
 } from './labels';
 
 export { FACET_GROUPS, type AreaOption, type FacetGroupDef } from './groups';
