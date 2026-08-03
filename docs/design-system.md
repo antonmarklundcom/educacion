@@ -6,16 +6,16 @@ Derived from the two prototypes (`Dirección 1 — Antagning fiel`, `Dirección 
 
 They are not competing designs — they are two views of one dataset, for two different moments in the student's journey.
 
-| | **Vista Tarjetas** (Dirección 1) | **Vista Tabla** (Dirección 4) |
-|---|---|---|
-| Moment | Exploration — "no sé qué estudiar" | Decision — "tengo 5 opciones" |
-| Density | ~6 results per screen, rich | ~15 rows per screen, scannable |
-| Actions | Favorito, Ver más, WhatsApp, Solicitar info | Multi-select → comparar |
-| Mobile | Cards, stacked | Compact cards with a 2×2 data grid |
+|         | **Vista Tarjetas** (Dirección 1)            | **Vista Tabla** (Dirección 4)      |
+| ------- | ------------------------------------------- | ---------------------------------- |
+| Moment  | Exploration — "no sé qué estudiar"          | Decision — "tengo 5 opciones"      |
+| Density | ~6 results per screen, rich                 | ~15 rows per screen, scannable     |
+| Actions | Favorito, Ver más, WhatsApp, Solicitar info | Multi-select → comparar            |
+| Mobile  | Cards, stacked                              | Compact cards with a 2×2 data grid |
 
 **Implementation:** one route `/carreras`, one filter state, one query, a toggle (`?vista=tarjetas|tabla`, default `tarjetas`). Comparador selection persists across both.
 
-This is also the marketing story: *"buscá como querés, compará como necesitás."*
+This is also the marketing story: _"buscá como querés, compará como necesitás."_
 
 ## 2. Tokens
 
@@ -62,18 +62,18 @@ Spacing: 8px grid — 8 / 16 / 24 / 32 / 48 / 64 / 96.
 
 ## 4. Status badge vocabulary (fixed — do not invent variants)
 
-| Meaning | Label | Colour |
-|---|---|---|
-| ANEAES accredited, valid | `✓ Acreditada ANEAES` | ok |
-| Accreditation in process | `En proceso de acreditación` | warn |
-| CONES-habilitated only | `Habilitada CONES` | info |
-| No accreditation data | `Sin datos de acreditación` | neutral |
-| Enrolment open | `Inscripciones abiertas` + dot | ok |
-| Coming soon | `Próximamente` + dot | warn |
-| Closed | `Inscripciones cerradas` + dot | danger |
-| Free (public) | `Gratuita` | ok |
-| Institution-verified profile | `Perfil verificado` | accent-subtle bg, ink text |
-| Paid placement | `Destacado` | neutral bg, muted text — deliberately quiet |
+| Meaning                      | Label                          | Colour                                      |
+| ---------------------------- | ------------------------------ | ------------------------------------------- |
+| ANEAES accredited, valid     | `✓ Acreditada ANEAES`          | ok                                          |
+| Accreditation in process     | `En proceso de acreditación`   | warn                                        |
+| CONES-habilitated only       | `Habilitada CONES`             | info                                        |
+| No accreditation data        | `Sin datos de acreditación`    | neutral                                     |
+| Enrolment open               | `Inscripciones abiertas` + dot | ok                                          |
+| Coming soon                  | `Próximamente` + dot           | warn                                        |
+| Closed                       | `Inscripciones cerradas` + dot | danger                                      |
+| Free (public)                | `Gratuita`                     | ok                                          |
+| Institution-verified profile | `Perfil verificado`            | accent-subtle bg, ink text                  |
+| Paid placement               | `Destacado`                    | neutral bg, muted text — deliberately quiet |
 
 Every accreditation badge is a link to its source. **"Sin datos" is the default for unknown — never "No acreditada".** See `risks.md` §R-09.
 
@@ -107,3 +107,17 @@ Every accreditation badge is a link to its source. **"Sin datos" is the default 
 4. **"Ver todos los filtros →"** in D1 needs a real destination — either it opens the full filter sheet or it goes. No dead links.
 5. **Hero** — D1's hero is 54px of gradient before any content. On mobile, compress hard: the search field must be reachable without scrolling at 390px.
 6. **Institution names** — D1's cards show the full official name (`Universidad Católica "Ntra. Sra. de la Asunción" (UC)`), which wraps badly. Use `name_short` in cards and tables, `name_official` on detail pages.
+
+## 9. What PR-08 settled (the card view)
+
+The rail and the cards survived implementation with four decisions worth not rediscovering.
+
+**Every filter control is a link, not a form control.** A facet option is an `<a>` to the same route with one value toggled in the query string. Filter state is already the URL (`architecture.md` §3), so the honest HTML for "change the filter state" is navigation. It works without JavaScript, the back button is correct for free, and `/carreras` ships one client component instead of a filter runtime. The checkbox look is cosmetic; the semantics are a link, so selection is exposed as `aria-current` plus an sr-only "(aplicar/quitar filtro)", never `aria-pressed` — which is invalid on a link.
+
+**The arancel slider became a numeric range.** A slider cannot report a value without JavaScript, and the value it reports is approximate. Two number inputs inside a plain GET form are exact, JS-free, and shareable. The prototype's slider does not come back. The bounds are labelled **"Arancel anual"** because that is what `annualCostMin/Max` filter on — labelling an annual bound "mensual" would be a wrong number wearing a right one's clothes.
+
+**Sort is a `<details>` disclosure of links**, not a `<select>`: a select needs script to navigate on change, and a sort choice deserves a URL. Wording lives in `SORT_LABELS` (`src/lib/search/labels.ts`) so the card view and the table view cannot paraphrase each other.
+
+**Two prototype controls are deliberately absent from the card until their backend exists.** "Solicitar info" is the lead modal (PR-14) and the WhatsApp button needs `institutions.whatsapp`, which is not on `OfferingSummary`. A control that does nothing is worse than no control (§8.4), so the card has one primary CTA — the program page — and gains the other two in PR-14. The favourites heart stays out of Phase 1 for the same reason it is flagged in §8.3: it would be the only client state on the page.
+
+**Empty states distinguish two situations and must keep doing so.** "No results for these filters" and "the index has nothing in it yet" are different facts. The second says so plainly and is never softened with sample rows (CLAUDE.md rule 1).

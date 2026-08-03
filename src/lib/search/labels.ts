@@ -16,6 +16,7 @@ import type {
   Management,
   Modality,
   Shift,
+  SortKey,
 } from './contract';
 
 export const LEVEL_LABELS: Record<Level, string> = {
@@ -65,4 +66,19 @@ export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
   proximamente: 'Próximamente',
   cerradas: 'Inscripciones cerradas',
   sin_datos: 'Sin datos',
+};
+
+/**
+ * Sort options, worded once. The card view and the table view offer the same
+ * seven and must not paraphrase each other — a user who switches views should
+ * see their sort survive under the same name.
+ */
+export const SORT_LABELS: Record<SortKey, string> = {
+  relevancia: 'Relevancia',
+  arancel_asc: 'Arancel: de menor a mayor',
+  arancel_desc: 'Arancel: de mayor a menor',
+  duracion_asc: 'Duración: más corta primero',
+  duracion_desc: 'Duración: más larga primero',
+  nombre_asc: 'Carrera: A–Z',
+  institucion_asc: 'Institución: A–Z',
 };
