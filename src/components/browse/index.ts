@@ -26,6 +26,12 @@ export { PriceLabel } from './PriceLabel';
 
 export { ResultCard } from './ResultCard';
 
+export { ResultTable } from './ResultTable';
+export type { ResultTableProps } from './ResultTable';
+
+export { ViewToggle } from './ViewToggle';
+export type { ViewToggleProps } from './ViewToggle';
+
 export { SearchBar } from './SearchBar';
 export type { SearchBarProps } from './SearchBar';
 

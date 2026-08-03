@@ -21,18 +21,26 @@ import {
   FilterRail,
   MobileFilterSheet,
   ResultCard,
+  ResultTable,
   SearchBar,
   SortControl,
-  countActiveFilters,
+  ViewToggle,
 } from '@/components/browse';
+import { countActiveFilters } from '@/components/browse/filter-model';
+import { CompareBar } from '@/components/compare/CompareBar';
+import { CompareProvider } from '@/components/compare/CompareProvider';
+import { compareLabel, parseCompareIds } from '@/lib/compare/state';
 import { Pagination } from '@/components/ui';
 import {
+  COMPARE_PARAM,
   DEFAULT_VIEW,
+  VIEW_MODES,
   VIEW_PARAM,
   hasActiveFilters,
   parseSearchFilters,
   searchHref,
   searchPrograms,
+  type ViewMode,
 } from '@/lib/search';
 
 export const dynamic = 'force-dynamic';
@@ -69,77 +77,106 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
   const filters = parseSearchFilters(params);
   const { results, facets, total, page, pageSize, sort } = await searchPrograms(filters);
 
-  // `vista` is not a filter, but it has to survive every facet toggle.
-  const view = typeof params[VIEW_PARAM] === 'string' ? params[VIEW_PARAM] : undefined;
-  const extra = view && view !== DEFAULT_VIEW ? { [VIEW_PARAM]: view } : undefined;
+  // `vista` and `comparar` are not filters, but both have to survive every
+  // facet toggle, every sort change and every page link.
+  const view = readView(params[VIEW_PARAM]);
+  const compareIds = parseCompareIds(params[COMPARE_PARAM]);
+  const extra = {
+    [VIEW_PARAM]: view === DEFAULT_VIEW ? undefined : view,
+    [COMPARE_PARAM]: compareIds.length ? compareIds.join(',') : undefined,
+  };
 
   const totalPages = Math.ceil(total / pageSize);
   const activeCount = countActiveFilters(filters);
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 lg:py-10">
-      <header className="flex flex-col gap-4">
-        <h1 className="text-ink text-xl font-bold lg:text-2xl">
-          Carreras universitarias en Paraguay
-        </h1>
-        <SearchBar filters={filters} basePath={BASE_PATH} extra={extra} />
-      </header>
+    <CompareProvider initialIds={compareIds} catalog={results.map(compareLabel)}>
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 lg:py-10">
+        <header className="flex flex-col gap-4">
+          <h1 className="text-ink text-xl font-bold lg:text-2xl">
+            Carreras universitarias en Paraguay
+          </h1>
+          <SearchBar filters={filters} basePath={BASE_PATH} extra={extra} />
+        </header>
 
-      <div className="border-border mt-6 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-body text-sm">
-          Mostrando <strong className="text-ink font-semibold">{formatTotal(total)}</strong>
-          {activeCount > 0 && (
-            <span className="text-muted">
-              {' · '}
-              {activeCount} {activeCount === 1 ? 'filtro aplicado' : 'filtros aplicados'}
-            </span>
-          )}
-        </p>
-        <div className="flex items-center gap-2">
-          <MobileFilterSheet activeCount={activeCount}>
-            <FilterRail
-              filters={filters}
-              facets={facets}
-              basePath={BASE_PATH}
-              extra={extra}
-              compact
-            />
-          </MobileFilterSheet>
-          <SortControl filters={filters} sort={sort} basePath={BASE_PATH} extra={extra} />
-        </div>
-      </div>
-
-      {activeCount > 0 && (
-        <div className="mt-4">
-          <ActiveFilters filters={filters} basePath={BASE_PATH} extra={extra} />
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-col gap-8 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
-        <aside className="border-border bg-card-alt hidden rounded-lg border p-5 lg:sticky lg:top-6 lg:block">
-          <FilterRail filters={filters} facets={facets} basePath={BASE_PATH} extra={extra} />
-        </aside>
-
-        <div className="flex flex-col gap-4">
-          {results.length === 0 ? (
-            <EmptyState filters={filters} basePath={BASE_PATH} extra={extra} />
-          ) : (
-            <>
-              {results.map((offering) => (
-                <ResultCard key={offering.offeringId} offering={offering} />
-              ))}
-              <Pagination
-                className="mt-2 justify-center"
-                currentPage={page}
-                totalPages={totalPages}
-                buildHref={(target) => searchHref(BASE_PATH, { ...filters, page: target }, extra)}
+        <div className="border-border mt-6 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-body text-sm">
+            Mostrando <strong className="text-ink font-semibold">{formatTotal(total)}</strong>
+            {activeCount > 0 && (
+              <span className="text-muted">
+                {' · '}
+                {activeCount} {activeCount === 1 ? 'filtro aplicado' : 'filtros aplicados'}
+              </span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <MobileFilterSheet activeCount={activeCount}>
+              <FilterRail
+                filters={filters}
+                facets={facets}
+                basePath={BASE_PATH}
+                extra={extra}
+                compact
               />
-            </>
-          )}
+            </MobileFilterSheet>
+            <ViewToggle view={view} filters={filters} basePath={BASE_PATH} extra={extra} />
+            <SortControl filters={filters} sort={sort} basePath={BASE_PATH} extra={extra} />
+          </div>
         </div>
-      </div>
-    </main>
+
+        {activeCount > 0 && (
+          <div className="mt-4">
+            <ActiveFilters filters={filters} basePath={BASE_PATH} extra={extra} />
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col gap-8 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+          <aside className="border-border bg-card-alt hidden rounded-lg border p-5 lg:sticky lg:top-6 lg:block">
+            <FilterRail filters={filters} facets={facets} basePath={BASE_PATH} extra={extra} />
+          </aside>
+
+          <div className="flex flex-col gap-4">
+            {results.length === 0 ? (
+              <EmptyState filters={filters} basePath={BASE_PATH} extra={extra} />
+            ) : (
+              <>
+                {view === 'tabla' ? (
+                  <ResultTable
+                    results={results}
+                    filters={filters}
+                    sort={sort}
+                    basePath={BASE_PATH}
+                    extra={extra}
+                  />
+                ) : (
+                  results.map((offering) => (
+                    <ResultCard key={offering.offeringId} offering={offering} />
+                  ))
+                )}
+                <Pagination
+                  className="mt-2 justify-center"
+                  currentPage={page}
+                  totalPages={totalPages}
+                  buildHref={(target) => searchHref(BASE_PATH, { ...filters, page: target }, extra)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Room for the sticky compare bar so it never covers the last row. */}
+        {compareIds.length > 0 && <div aria-hidden className="h-28" />}
+        <CompareBar />
+      </main>
+    </CompareProvider>
   );
+}
+
+function readView(raw: string | string[] | undefined): ViewMode {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return (VIEW_MODES as readonly string[]).includes(value ?? '')
+    ? (value as ViewMode)
+    : DEFAULT_VIEW;
 }
 
 function formatTotal(total: number): string {

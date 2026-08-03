@@ -78,7 +78,12 @@ describe('priceDisplay', () => {
 
   it('prefers the monthly fee, which is how aranceles are quoted here', () => {
     const display = priceDisplay(
-      price({ isDisplayable: true, currency: 'PYG', monthlyFee: 1_450_000, annualCost: 17_400_000 }),
+      price({
+        isDisplayable: true,
+        currency: 'PYG',
+        monthlyFee: 1_450_000,
+        annualCost: 17_400_000,
+      }),
     );
     expect(display.label).toBe('Gs. 1.450.000');
     expect(display.unit).toBe('/mes');
