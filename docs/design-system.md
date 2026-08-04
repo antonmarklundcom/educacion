@@ -121,3 +121,15 @@ The rail and the cards survived implementation with four decisions worth not red
 **Two prototype controls are deliberately absent from the card until their backend exists.** "Solicitar info" is the lead modal (PR-14) and the WhatsApp button needs `institutions.whatsapp`, which is not on `OfferingSummary`. A control that does nothing is worse than no control (§8.4), so the card has one primary CTA — the program page — and gains the other two in PR-14. The favourites heart stays out of Phase 1 for the same reason it is flagged in §8.3: it would be the only client state on the page.
 
 **Empty states distinguish two situations and must keep doing so.** "No results for these filters" and "the index has nothing in it yet" are different facts. The second says so plainly and is never softened with sample rows (CLAUDE.md rule 1).
+
+## 10. What PR-09 settled (the table view and the comparador)
+
+**Sortable headers are ink, not accent** — §8.1 called this out and it is now enforced: a column header cycles through the sort keys it owns (`Arancel` → asc → desc) as a link, and carries no accent. The only accent on `/carreras` is "Buscar carreras" and "Comparar N carreras".
+
+**The mobile table view is the D4 compact card**, not a horizontally scrolling table (§7): a header row plus a 2×2 grid of Gestión / Duración / Arancel / Acreditación. The comparador page goes further and stacks by attribute on mobile — one block per attribute, one line per program — which is what makes four compared programs readable at 390px.
+
+**Difference highlighting is the point of the comparison.** Rows whose columns agree are dimmed; rows that differ are ink and medium weight. Honest gaps are dimmed _and_ say "Sin datos": an empty cell reads as "free" or "none", and both would be a claim.
+
+**The per-row "Solicitar" button is not in the table** for the same reason it is not on the card — the lead modal is PR-14, and a control that does nothing is worse than no control.
+
+**Sharing is `wa.me` with no phone number**, which opens the sender's own contact picker. No institution number is involved, so nothing is invented, and the WhatsApp button keeps the secondary style §8.2 requires.

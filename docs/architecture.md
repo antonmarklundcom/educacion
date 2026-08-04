@@ -135,11 +135,25 @@ The shape above survived implementation. These are the decisions it forced, each
 
 ## 5. Comparador state
 
-- Selection = an ordered list of offering IDs, **max 4** (3 on mobile).
+- Selection = an ordered list of offering IDs, **max 4**.
 - Source of truth is the URL (`?comparar=a,b,c`) mirrored into `localStorage` so it survives navigation between the card and table views.
 - The sticky compare bar is a client component; everything else on the page stays a server component.
 - `/comparar?ids=a,b,c` renders server-side so the link previews correctly when shared on WhatsApp (OG image generated per comparison — this is a real growth loop in Paraguay).
 - Differences between compared programs are highlighted; identical values are dimmed. That is the whole value of a comparison table and it is cheap to implement.
+
+### 5.1 What PR-09 settled
+
+**Toggling a checkbox does not navigate.** The obvious implementation — `router.replace` on every check — refetches the whole RSC payload of a `force-dynamic` page, i.e. a database round-trip per click. Instead the selection lives in client state, is mirrored into `localStorage`, and the address bar is updated with `history.replaceState`. The URL stays shareable and the server tree is not re-rendered. The stated cost: links the server already rendered carry the selection as of page load, which is exactly what the `localStorage` mirror exists to repair on the next navigation.
+
+**The labels travel with the selection.** The URL carries ids because ids are what `/comparar` re-reads. The sticky bar has to _name_ what you picked, and a program selected three pages back is not in the current results — so the display string the user already saw is stored alongside the ids rather than costing a query. It is display text only; nothing is ever asserted from it, and an id whose label was never seen renders as "Carrera seleccionada", not as a guessed name.
+
+**The 3-on-mobile cap is dropped; 4 is the only ceiling.** `MAX_COMPARE_MOBILE` existed because a 4-column table does not fit a phone. `/comparar` does not render a table on mobile — it stacks by attribute (`design-system.md` §7), so four columns are usable at 390px and a second ceiling would only mean the same link showing different things on different devices. `MAX_COMPARE_MOBILE` remains in the contract, unused.
+
+**Overflowing the ceiling refuses, it does not evict.** Adding a fifth is rejected with a visible message rather than silently dropping the first pick. The checkbox is never `disabled` when full — a control that silently does nothing is worse than one that explains itself.
+
+**`src/lib/compare/` is a new module**, holding the selection rules as pure functions so the URL (server), the checkbox (browser) and the mirror obey the same ones.
+
+**Client components must import `@/lib/search/contract`, never the `@/lib/search` barrel.** The barrel re-exports `searchPrograms`, which pulls Drizzle and `mysql2` into whatever imports it; from a `'use client'` file that is a build failure (`Can't resolve 'net'`) and, worse, would have been a shipped server driver had it resolved. The contract is types and constants only.
 
 ---
 
