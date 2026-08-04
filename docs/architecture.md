@@ -298,3 +298,27 @@ So `src/db/queries/institutions.ts` (SQL, per rule 5) and `src/lib/institutions/
 **Query count is fixed at two, always.** One for the institutions, one grouped aggregate over `program_search` for every institution's counts at once, merged in JS. Never one query per row. The institution profile page is likewise two: the profile, and one `searchPrograms()` page for the program list.
 
 **Counts are facts about what we published, and the copy says so.** `aneaesAccreditedCount` is "how many of the carreras _we have published_ carry an ANEAES accreditation _we could verify_" — never "how many the institution has". A zero therefore reads "no encontramos", never "no tiene" (risks.md §R-09).
+
+---
+
+## 12. Analytics & the event log (settled in PR-17)
+
+PR-14 built the write path — `recordEvent()`, `POST /api/events`, the session hash. PR-17 adds the callers, the third-party half and the internal read.
+
+**There are two things called analytics here and they do not have the same standing.** The third-party script is a request to another company's server carrying the visitor's IP and the page they are on; that is what a cookie banner exists to govern, and it does not load until `hasAnalyticsConsent()` says so. The first-party `events` table is not gated: it sets no cookie and touches no client storage, the session hash is derived server-side and rotates daily (§6.4), and the row is a type, two foreign keys and a non-reversible digest. It is also what an institution's own numbers are computed from — a purpose we have to be able to state plainly rather than one that disappears when a banner is dismissed. `/legal/privacidad` (PR-15) names that purpose, the 24-month retention and the deletion path.
+
+**No cookie means no.** Nothing writes the consent cookie until PR-15's banner lands, so the third-party script does not load at all today. `src/lib/analytics/consent.ts` fixes the cookie name, its format and a `ec:consent-changed` window event the banner dispatches after writing it — that is the interface PR-15 builds against.
+
+**Plausible, not GA4** (§1 allowed either): cookieless, no cross-site profile, ~1 kb against GA4's ~50 kb on a 150 kb budget. It is a paid service, so with `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` unset the component renders nothing — no half-configured script reaches production.
+
+**Views are reported from the browser, not from the render.** Counting `offering_view` server-side during a page render counts every crawler, uptime check and prefetch as a student, and the number PR-28 shows an institution has to survive being questioned. The cost is stated: where JavaScript never runs a view is not counted. An undercount is honest; an overcount is not.
+
+**`compare_add` carries only an offering id**, because `CompareLabel` — a structure PR-09 persists to `localStorage` — has no institution on it, and widening a persisted client structure for an analytics need is the wrong trade. PR-28 resolves the institution by joining `events.offering_id` to `program_search`.
+
+**`lead_submit` is not client-reportable.** It is written server-side by the lead route, from the path that created the row (§6.3).
+
+**Every aggregate takes the same range and the same optional `institutionId`.** `countEventsByType`, `countEventsByDay` and `countEventsByInstitution` in `src/db/queries/events.ts` are the whole read surface; PR-28's dashboard is the same questions asked with that argument set. Because the scoping is a parameter of the query rather than a filter applied to its result, there is no shape in which "all institutions" leaks into an institution-scoped page. Ranges are UTC — the session hash buckets its day in UTC and `created_at` is stored UTC, so reading the range in `America/Asuncion` would put two numbers on the same page four hours out of step.
+
+**The query layer never invents a zero.** `countEventsByDay` returns only days that have events; `fillDays()` in `src/lib/analytics/range.ts` fills the rest, because there the caller knows the range it asked for and the zero is measured rather than guessed.
+
+**`/admin/stats` fails closed.** PR-18 owns authentication, and "internal" cannot mean "publicly readable because auth is a later PR". The route 404s unless `ADMIN_STATS_TOKEN` is set to a secret of at least 24 characters and matches, compared in constant time. It is not a session, not a role and not an audit trail — **PR-18 deletes `src/lib/analytics/admin-access.ts`** and replaces the call with `requireRole(session, ['admin'])`. Nothing else imports it.

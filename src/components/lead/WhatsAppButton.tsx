@@ -22,7 +22,7 @@
  * beside the primary CTA, it is not a peer of it.
  */
 
-import { EVENTS_ENDPOINT } from '@/lib/events/contract';
+import { sendEvent } from '@/lib/analytics/beacon';
 import { whatsappHref } from '@/lib/leads/whatsapp';
 
 export interface WhatsAppButtonProps {
@@ -50,18 +50,9 @@ export function WhatsAppButton({
   const href = whatsappHref({ whatsappE164, programName, institutionShort });
   if (!href) return null;
 
-  const report = () => {
-    try {
-      navigator.sendBeacon?.(
-        EVENTS_ENDPOINT,
-        new Blob([JSON.stringify({ type: 'whatsapp_click', offeringId, institutionId })], {
-          type: 'application/json',
-        }),
-      );
-    } catch {
-      // Never let analytics stand between a student and the chat.
-    }
-  };
+  // `sendBeacon` via the shared helper: a `fetch` fired while the browser is
+  // navigating to WhatsApp is routinely cancelled (`lib/analytics/beacon`).
+  const report = () => sendEvent('whatsapp_click', { offeringId, institutionId });
 
   const base =
     'border-border-strong bg-surface text-ink hover:bg-card-alt focus-visible:ring-ink inline-flex min-h-12 items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';

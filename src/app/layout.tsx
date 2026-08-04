@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@/components/analytics';
 import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="es-PY">
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} antialiased`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );

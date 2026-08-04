@@ -26,6 +26,7 @@ import {
   SortControl,
   countActiveFilters,
 } from '@/components/browse';
+import { EventBeacon } from '@/components/analytics';
 import { AccreditationSummary } from '@/components/institution/AccreditationSummary';
 import { ContactBlock } from '@/components/institution/ContactBlock';
 import { Badge, Pagination } from '@/components/ui';
@@ -85,6 +86,8 @@ export default async function InstitutionPage({
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      {/* Browser-reported, for the same reason as the program page's. */}
+      <EventBeacon key={institution.id} type="profile_view" institutionId={institution.id} />
       <header className="flex flex-col gap-4">
         <div className="flex items-start gap-3">
           <InstitutionMonogram
@@ -147,7 +150,14 @@ export default async function InstitutionPage({
           ) : (
             <>
               {results.map((offering) => (
-                <ResultCard key={offering.offeringId} offering={offering} />
+                <ResultCard
+                  key={offering.offeringId}
+                  offering={offering}
+                  /* This page already loaded the profile, so the number is in
+                     hand — no extra query, and no card here missing the CTA
+                     its twin on /carreras has. */
+                  whatsappE164={institution.whatsappE164}
+                />
               ))}
               <Pagination
                 className="mt-2 justify-center"

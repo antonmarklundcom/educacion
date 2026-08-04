@@ -34,6 +34,7 @@ import { AccreditationBlock } from '@/components/program/AccreditationBlock';
 import { AdmissionBlock } from '@/components/program/AdmissionBlock';
 import { OfferingsBlock } from '@/components/program/OfferingsBlock';
 import { PriceBlock } from '@/components/program/PriceBlock';
+import { EventBeacon } from '@/components/analytics';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
 import { Badge } from '@/components/ui';
@@ -116,6 +117,15 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      {/* Reported from the browser, not from this render: counting the view
+          server-side would count every crawler as a student, and PR-28 shows
+          this number to an institution (architecture.md §12). */}
+      <EventBeacon
+        key={primary.offeringId}
+        type="offering_view"
+        offeringId={primary.offeringId}
+        institutionId={primary.institutionId}
+      />
       <nav aria-label="Migas de pan" className="text-muted text-sm">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li>
