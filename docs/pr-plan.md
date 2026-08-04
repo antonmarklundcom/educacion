@@ -105,6 +105,7 @@ Hero + search, entry points by area, "carreras más buscadas", the accreditation
 "Solicitar info" modal, `POST /api/leads` with rate limiting (per IP + per phone), honeypot, origin check, versioned consent, `age_bracket`, `leads` persistence, email notification, WhatsApp deep links with per-program prefill, `events` logging for `whatsapp_click`.
 **Deps:** PR-10.
 **Accept:** consent checkbox unchecked by default and required; no lead stored without `consent_at` + `consent_text_version`; rate limits verified; only minimum fields collected (see `risks.md` §R-06); spam submission blocked in a manual test.
+**Shipped as:** as specified, plus the three CTA holes PR-08/PR-10/PR-11 left open — the result card gains "Solicitar info" (accent) and a WhatsApp icon button with "Ver carrera" dropping to secondary, and the detail hero's primary slot goes to the lead CTA with comparar moving beside it. Four design decisions are recorded rather than rediscovered: rate limiting is an in-process window plus a durable quota **derived from `leads` itself** rather than a `rate_limits` table (`architecture.md` §6.1); `whatsapp_e164` stays **off** the search contract and is fetched once per page (§6.2); the interfaces PR-23 and PR-28 build against are fixed now (§6.3); and both stored hashes are salted with a secret `PRIVACY_SALT`, the session one rotating daily and needing no cookie (§6.4). The table view still has no per-row "Solicitar" — its action is multi-select → comparar (`design-system.md` §13).
 
 ### PR-15 — Legal & trust pages · **Sonnet → Opus review**
 

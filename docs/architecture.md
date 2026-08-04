@@ -169,11 +169,63 @@ User clicks "Solicitar info"
   → institution marks contacted/qualified/discarded → feeds their dashboard stats
 ```
 
-WhatsApp CTA is a parallel, non-form path: `https://wa.me/<institution_whatsapp>?text=<prefilled>` with the program name pre-filled. That click is logged as a `lead_intent` event (we never see the conversation, but we can prove volume to the institution — this is the number that sells the plan).
+WhatsApp CTA is a parallel, non-form path: `https://wa.me/<institution_whatsapp>?text=<prefilled>` with the program name pre-filled. That click is logged as a `whatsapp_click` event (we never see the conversation, but we can prove volume to the institution — this is the number that sells the plan).
 
 **PII rules:** consent is explicit and versioned; phone/email are never exposed to any institution other than the one the lead was submitted to; leads are purged after 24 months; see `risks.md` §R-06 for the minors question.
 
----
+### 6.1 What PR-14 settled — rate limiting without Redis
+
+`architecture.md` §1 excluded Redis, so the limiter has to live on one Hostinger Node instance with a MySQL. Three designs were viable.
+
+**An in-process sliding window** is free — a `Map` of timestamps, no I/O — and it is the only tier that can see attempts which never become rows. But it is per-process and per-boot: Hostinger restarts the app on every deploy and on idle recycling, so a patient submitter waits one out, and the day the app runs behind two workers the effective limit silently doubles. **A dedicated `rate_limits` table** fixes durability with an atomic `INSERT … ON DUPLICATE KEY UPDATE`, at the cost of a table that exists only to be written to, a write on every request _including every rejected one_ — a cheap way for an attacker to make us do disk I/O — and rows that need another cron job to sweep.
+
+**What shipped is both halves of the problem solved separately.** An in-process sliding window (`src/lib/leads/rate-limit.ts`, 8/min and 30/hour per hashed IP) absorbs floods before the database is touched. Everything that survives it is checked against a durable quota **derived from `leads` itself**: how many rows carry this phone in the last 24 h (max 5), how many carry this `ip_hash` (max 25).
+
+The reason to derive rather than to count: the limit that actually matters is per _phone_ per day, and that is a fact about leads that exist. Deriving it means it survives a redeploy, survives a second worker, and cannot drift from what was really stored — there is no counter to reconcile and nothing to sweep. The cost is one `SELECT COUNT(*)` per surviving attempt and two additive indexes (`0002_lead_rate_limit_indexes.sql`), without which those counts are a table scan on the one path an attacker controls.
+
+**Stated limits.** `x-forwarded-for` is client-forgeable, so the per-IP tier is defeated by rotating it; that is why the durable tier is per phone, which a submitter has to keep for the lead to be worth anything to them. The per-IP numbers are deliberately loose because a school lab, a cyber café and a carrier NAT all put many genuine students behind one address.
+
+### 6.2 What PR-14 settled — `whatsapp_e164` is not on the search contract
+
+The CTA needs one value per _institution_; `program_search` is one row per _offering_. Denormalizing it would mean ~10 000 copies of ~59 values, and — the reason that actually decides it — the number's invalidation clock would become the nightly rebuild. A number corrected in the admin at 09:00 would stay wrong on every card until 03:00, and a wrong number under a WhatsApp CTA starts a conversation with a stranger. §11 already settled that institution contact fields live on `institutions`; this is the same field class.
+
+So `/carreras` calls `getWhatsappNumbers(institutionIds)` once per render, keyed by the ids the rows already carry — one extra query per page, never one per row — and a detail page reads the profile it already loads. **An institution with no published number renders no button.** There is no fallback to the landline and no guess (CLAUDE.md rule 1).
+
+### 6.3 What PR-14 settled — the interfaces PR-23 and PR-28 build against
+
+Fixed here so neither has to change when it lands (`agent-workflow.md` §2):
+
+```ts
+// @/lib/leads — PR-14 implements createLead, markLeadDelivered, submitLead.
+type LeadStatus = 'new' | 'sent' | 'contacted' | 'qualified' | 'discarded';
+interface LeadRecord {
+  id; institutionId; offeringId; name; phoneE164; email; message;
+  ageBracket; status; consentTextVersion; consentAt; sourcePage;
+  deliveredAt; createdAt;
+}
+createLead(input: LeadInsert): Promise<number>
+markLeadDelivered(id: number, at?: Date): Promise<void>
+listLeadsForInstitution(q: { institutionId; status?; limit?; offset? }): Promise<LeadRecord[]>
+```
+
+`ip_hash` and `user_agent` are **not** on `LeadRecord`. They are written and read inside `src/db/queries/leads.ts` for abuse control and nowhere else, so PR-23's inbox and its CSV export cannot include them by accident. There is no overload of `listLeadsForInstitution` that omits `institutionId`, so an unscoped inbox query cannot be written — the shape is the first half of the access-control story that PR-21's `requireRole()` completes.
+
+```ts
+// @/lib/events — PR-14 implements recordEvent + the session hash.
+recordEvent(e: { type: EventType; offeringId?; institutionId?; request: Request }): Promise<void>
+```
+
+`recordEvent` derives the session hash from the request itself, so no caller passes one and no caller can. PR-17 adds the remaining call sites (`offering_view`, `compare_add`, `profile_view`), the consent-banner interaction and `/admin/stats`; PR-28 aggregates by `(institution_id, type, day)`. PR-14 writes `whatsapp_click` from the browser and `lead_submit` server-side.
+
+**`lead_submit` is not in `CLIENT_EVENT_TYPES`.** `POST /api/events` accepts only what a browser may legitimately claim; the event that an institution is invoiced against is written by the lead route, from the path that created the row.
+
+### 6.4 What PR-14 settled — the two hashes
+
+`leads.ip_hash` and `events.session_hash` are both salted with a secret `PRIVACY_SALT` (`deployment.md` §6). A bare `sha256(ip)` is not anonymisation — IPv4 is 2^32 values and the whole space enumerates on a laptop — and a salt committed to the repository is a salt the attacker has.
+
+The session hash additionally mixes in the UTC date, so yesterday's cannot be joined to today's and a "session" is one device on one day. It needs **no cookie and no client-side storage**, which is what keeps first-party event counting outside the cookie-consent question entirely. The IP hash cannot rotate, because the window it answers for is 24 hours.
+
+With `PRIVACY_SALT` unset the module warns once and uses a random per-process salt rather than a constant: abuse control degrades across restarts (the per-phone quota, derived from `leads`, does not) and no reversible value is ever produced.
 
 ## 7. Authentication & roles
 

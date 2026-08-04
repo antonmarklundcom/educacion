@@ -46,19 +46,31 @@ See `risks.md` §R-08.
   ```
 - **Remote MySQL IP whitelisting** — home ISPs rotate IPs. `Access denied for user '...'@'<ip>'` almost always means your IP changed; re-add it in hPanel.
 - **If the hostname gives `ECONNREFUSED` with confirmed-correct credentials**, try the raw IP in `DATABASE_URL`. DNS/IPv6 flakiness on Hostinger is a recurring theme.
-- **Changing the MySQL password breaks the live app silently** — the deployed `DATABASE_URL` still holds the old password, and the site shows a generic "Application error / Digest:" page with nothing useful in the runtime logs. Always check the existing hPanel value *before* changing a password, update both, then redeploy.
+- **Changing the MySQL password breaks the live app silently** — the deployed `DATABASE_URL` still holds the old password, and the site shows a generic "Application error / Digest:" page with nothing useful in the runtime logs. Always check the existing hPanel value _before_ changing a password, update both, then redeploy.
 - **Windows:** `node --env-file=.env node_modules/.bin/tsx ...` fails (`.bin/tsx` is a bash shim). Use `$env:VAR = "..."` + `npx tsx`. Never create `.env` with `>` redirect — PowerShell writes UTF-16 and dotenv parsing fails silently; use `Set-Content -Encoding utf8`.
 - **npm/npx are not on the PATH over SSH**: `export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$PATH`.
 
-## 6. Cron
+## 6. Environment variables
+
+Beyond `DATABASE_URL` and `CRON_SECRET`, the lead pipeline reads four (`architecture.md` §6):
+
+| Var                    | Required                                        | What breaks without it                                                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PRIVACY_SALT`         | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate. |
+| `NEXT_PUBLIC_SITE_URL` | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                         |
+| `RESEND_API_KEY`       | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`, and the hourly `lead-retry` cron picks them up. Nothing is lost; the institution is just not told yet.                                                                    |
+| `LEAD_FROM_EMAIL`      | Same as above                                   | Same as above.                                                                                                                                                                                                                                   |
+
+## 7. Cron
 
 hPanel cron → `curl` the authenticated route handlers listed in `architecture.md` §10, passing `CRON_SECRET` as a header. All jobs are idempotent, so a double-fire is harmless.
 
-## 7. Post-deploy checklist
+## 8. Post-deploy checklist
 
 ```
 [ ] App loads on the Hostinger URL, then on https://educacion.com.py with valid SSL
 [ ] NEXT_PUBLIC_SITE_URL and all absolute-URL vars match the final domain; redeployed after
+[ ] PRIVACY_SALT set to a long random secret (see §6) — check the logs for the warning
 [ ] Admin login works with rotated credentials (never the bootstrap default)
 [ ] A test lead submits and appears in the DB
 [ ] Search returns results and facet counts are correct against live data

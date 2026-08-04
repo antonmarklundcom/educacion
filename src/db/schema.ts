@@ -630,6 +630,13 @@ export const leads = mysqlTable(
     index('leads_institution_created_idx').on(t.institutionId, t.createdAt),
     index('leads_offering_idx').on(t.offeringId),
     index('leads_status_idx').on(t.status),
+    /* The durable half of the rate limit is derived from this table rather
+     * than from a counter table of its own (architecture.md §6.1). These two
+     * indexes are what make "how many leads carry this phone / this ip_hash in
+     * the last 24 h" an index range scan instead of a table scan on the one
+     * path an attacker controls. */
+    index('leads_phone_created_idx').on(t.phoneE164, t.createdAt),
+    index('leads_ip_created_idx').on(t.ipHash, t.createdAt),
     check('leads_consent_required', sql`${t.consent} = 1`),
   ],
 );

@@ -35,7 +35,9 @@ import { AdmissionBlock } from '@/components/program/AdmissionBlock';
 import { OfferingsBlock } from '@/components/program/OfferingsBlock';
 import { PriceBlock } from '@/components/program/PriceBlock';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
+import { LeadModal, WhatsAppButton } from '@/components/lead';
 import { Badge } from '@/components/ui';
+import { getInstitutionBySlug } from '@/lib/institutions';
 import { formatDurationMonths } from '@/lib/format';
 import { findProgramOfferings, findRelatedOfferings } from '@/lib/programs/lookup';
 import {
@@ -91,11 +93,19 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
   if (!primary) notFound();
 
-  const related = await findRelatedOfferings(primary);
+  const [related, institution] = await Promise.all([
+    findRelatedOfferings(primary),
+    // The WhatsApp number lives on `institutions`, not on the index — one value
+    // per institution against ~10k offerings, and a number corrected in the
+    // admin has to be right now, not after the nightly rebuild
+    // (architecture.md §6.2). This page already reads one institution, so the
+    // cost is one query and the number is always current.
+    getInstitutionBySlug(instSlug),
+  ]);
 
-  // Pre-selects this program in the comparador and lands on the table view
-  // scoped to the same carrera — a real action, unlike a lead form that does
-  // not exist yet (PR-14 owns "Solicitar info" and the WhatsApp CTA).
+  // Secondary since PR-14: it pre-selects this program in the comparador and
+  // lands on the table view scoped to the same carrera. The primary slot now
+  // belongs to the lead CTA, which is what the page is for.
   const compareHref = (() => {
     const query = new URLSearchParams();
     if (primary.careerSlug) query.set('carrera', primary.careerSlug);
@@ -155,12 +165,30 @@ export default async function ProgramPage({ params }: { params: Params }) {
           <Badge tone="neutral">{LEVEL_LABELS[primary.level]}</Badge>
         </div>
 
-        <Link
-          href={compareHref}
-          className="bg-accent hover:bg-accent-hover focus-visible:ring-ink inline-flex min-h-12 w-full items-center justify-center rounded-md px-6 text-sm font-medium text-white transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:w-auto"
-        >
-          Comparar con otras universidades
-        </Link>
+        {/* The lead CTA is the primary slot and the only accent on the page
+            (design-system.md §2). Comparar is a real action too, so it stays —
+            as a secondary. WhatsApp renders only where the institution
+            published a number. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <LeadModal
+            offeringId={primary.offeringId}
+            programName={primary.programName}
+            institutionName={primary.institutionName}
+          />
+          <WhatsAppButton
+            whatsappE164={institution?.whatsappE164}
+            programName={primary.programName}
+            institutionShort={primary.institutionShort}
+            offeringId={primary.offeringId}
+            institutionId={primary.institutionId}
+          />
+          <Link
+            href={compareHref}
+            className="border-border-strong bg-surface text-ink hover:bg-card-alt focus-visible:ring-ink inline-flex min-h-12 w-full items-center justify-center rounded-md border px-6 text-sm font-medium transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:w-auto"
+          >
+            Comparar con otras universidades
+          </Link>
+        </div>
       </header>
 
       <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">

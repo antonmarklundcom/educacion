@@ -15,6 +15,13 @@
       "when": 1785658917993,
       "tag": "0001_search_fulltext_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1785836244916,
+      "tag": "0002_lead_rate_limit_indexes",
+      "breakpoints": true
     }
   ]
 }

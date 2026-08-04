@@ -25,6 +25,7 @@ export type { MobileFilterSheetProps } from './MobileFilterSheet';
 export { PriceLabel } from './PriceLabel';
 
 export { ResultCard } from './ResultCard';
+export type { ResultCardProps } from './ResultCard';
 
 export { ResultTable } from './ResultTable';
 export type { ResultTableProps } from './ResultTable';

@@ -212,6 +212,7 @@ leads
   status enum('new','sent','contacted','qualified','discarded'),
   delivered_at, created_at
   INDEX (institution_id, created_at)
+  INDEX (phone_e164, created_at), INDEX (ip_hash, created_at)   // the durable rate limit, PR-14
   CHECK leads_consent_required  // consent = 1; there is no such thing as a stored lead without it
 
 events            // first-party analytics we can bill on
