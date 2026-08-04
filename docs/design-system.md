@@ -147,3 +147,15 @@ The rail and the cards survived implementation with four decisions worth not red
 **Fields with no value say so and stay visible.** "Plan de estudio — sin datos publicados" and "Título que otorga — sin datos publicados" are rendered, not omitted: a missing título is exactly the fact a student needs to know we could not verify, and a hidden row reads as "not applicable".
 
 **The hero's primary CTA is "Comparar con otras universidades"** — it pre-selects this program in the comparador and lands on the table view scoped to the same carrera. It is a real action built on shipped machinery. "Solicitar info" and the WhatsApp CTA belong to PR-14, which owns the lead pipeline; the hero already has the slot laid out for them.
+
+## 12. What PR-11 settled (the institution pages)
+
+**Institutions with no published carreras are listed, not hidden.** They are in the CONES register; dropping them would make the register look smaller than it is. The card says "Todavía no cargamos las carreras de esta institución" and shows a zero.
+
+**The directory groups by tipo de institución, which is a property of the row** — universidad, instituto superior, instituto técnico, IFD. It is not a ranking, and there is no "top" anything: we have no ratings, no student numbers and no basis for an order beyond the alphabet.
+
+**"Inline filters" on a profile is the same `FilterRail`, pointed at the route.** Because `institutionSlug` is part of the query, the facet counts arrive already scoped to that institution — no scoped variant of the search semantics exists, and none should. The `institucion=` param never appears in a link the page builds, since the path already scopes it.
+
+**The contact block renders only what we have.** A missing website is omitted, never guessed from the slug — plenty of institutions have none, and a fabricated URL is a broken promise on the page that is meant to be the reliable one. With nothing at all it says so, and always invites a correction.
+
+**The accreditation summary is a ratio over what we published, worded as such.** "De las N carreras que publicamos, M tienen una acreditación de la ANEAES vigente según las fuentes que pudimos verificar." A zero reads "No encontramos… Eso no significa que no las tenga", never "no está acreditada".
