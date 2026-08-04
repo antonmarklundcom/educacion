@@ -230,3 +230,19 @@ Hostinger managed Node has no built-in scheduler you should rely on. Use hPanel 
 | Sitemap regeneration                                        | nightly           | `/api/cron/sitemap`        |
 
 All guarded by `CRON_SECRET` in a header. All idempotent.
+
+---
+
+## 11. The institution directory (settled in PR-11)
+
+`searchPrograms()` is still the only way to read the _index_, and every program list on the site — including the one on an institution profile — goes through it. `/universidades` is the first page that is not a list of offerings, and it needed one thing the search contract does not have.
+
+**Why a second query module exists.** The contract has no institution facet: `institutionSlug` narrows a search, it is not counted. Deriving ~59 institutions from the index would mean paging through every offering in the country (~100 queries), and adding a ninth facet group would reopen a layer PR-07 deliberately closed. The institution _profile_ fields settle it either way — `website`, `email`, `phone_e164`, `whatsapp_e164`, `description_md`, `founded_year` live on `institutions` and should not be denormalized into `program_search`, which is one row per offering.
+
+So `src/db/queries/institutions.ts` (SQL, per rule 5) and `src/lib/institutions/` (the typed surface components import) exist alongside the search layer.
+
+**What it deliberately does not do.** It returns no price, no accreditation status and no program. Those still come from `searchPrograms()`, which is the only place the 12-month arancel rule and the accreditation precedence rule are applied. The institution module knows about institutions and counts, and nothing else — so there is no second implementation of a rule that must never have two.
+
+**Query count is fixed at two, always.** One for the institutions, one grouped aggregate over `program_search` for every institution's counts at once, merged in JS. Never one query per row. The institution profile page is likewise two: the profile, and one `searchPrograms()` page for the program list.
+
+**Counts are facts about what we published, and the copy says so.** `aneaesAccreditedCount` is "how many of the carreras _we have published_ carry an ANEAES accreditation _we could verify_" — never "how many the institution has". A zero therefore reads "no encontramos", never "no tiene" (risks.md §R-09).
