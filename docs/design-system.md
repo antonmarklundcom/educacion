@@ -133,3 +133,17 @@ The rail and the cards survived implementation with four decisions worth not red
 **The per-row "Solicitar" button is not in the table** for the same reason it is not on the card — the lead modal is PR-14, and a control that does nothing is worse than no control.
 
 **Sharing is `wa.me` with no phone number**, which opens the sender's own contact picker. No institution number is involved, so nothing is invented, and the WhatsApp button keeps the secondary style §8.2 requires.
+
+## 11. What PR-10 settled (the program detail page)
+
+**One route, several rows.** `/universidades/[inst]/[program]` is one program, but a program is offered at several sedes and in several turnos, and each of those is its own row with its own arancel and its own convocatoria. The page shows the program once and lists its offerings in a "Sedes y turnos" block. Collapsing to the first row would quietly hide a cheaper sede or an open convocatoria.
+
+**The arancel block explains the gap instead of hiding it.** When the 12-month rule has stripped the amounts, `verifiedAt` survives and the block says _"El último dato que verificamos es de {mes año}. No lo mostramos porque tiene más de 12 meses."_ That is honest provenance — it tells the student the number they may find elsewhere is stale — and it is the reason `PriceSummary` keeps `verifiedAt` on a non-displayable price.
+
+**The accreditation block explains what the status means**, in four different ways for four different statuses, and it says out loud that a CONES _habilitación_ is not an ANEAES _acreditación_. `sin_datos` reads "No encontramos un registro… Eso no significa que no esté acreditado: significa que no lo pudimos verificar." Never "no acreditada" (risks.md §R-09).
+
+**The map link is a search, not a pin.** We do not store coordinates, and dropping a marker somewhere plausible would be inventing a location for a real building. "Buscar la sede en el mapa" opens a Google Maps _search_ for the sede's name and city.
+
+**Fields with no value say so and stay visible.** "Plan de estudio — sin datos publicados" and "Título que otorga — sin datos publicados" are rendered, not omitted: a missing título is exactly the fact a student needs to know we could not verify, and a hidden row reads as "not applicable".
+
+**The hero's primary CTA is "Comparar con otras universidades"** — it pre-selects this program in the comparador and lands on the table view scoped to the same carrera. It is a real action built on shipped machinery. "Solicitar info" and the WhatsApp CTA belong to PR-14, which owns the lead pipeline; the hero already has the slot laid out for them.
