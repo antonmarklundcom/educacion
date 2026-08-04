@@ -35,7 +35,17 @@
  * would otherwise have to assert.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import { sendEvent } from '@/lib/analytics/beacon';
 
 import {
   COMPARE_LABELS_STORAGE_KEY,
@@ -127,13 +137,28 @@ export function CompareProvider({ initialIds, catalog = [], children }: CompareP
     window.history.replaceState(null, '', url.toString());
   }, [ids, labels, hydrated]);
 
+  // `compare_add` is reported from `toggle`, not from inside the state updater:
+  // React invokes an updater twice in development strict mode, and an event
+  // that double-counts is worse than one that is not recorded at all. The ref
+  // is what lets a pure updater stay pure (architecture.md §12).
+  const idsRef = useRef(ids);
+  useEffect(() => {
+    idsRef.current = ids;
+  }, [ids]);
+
   const toggle = useCallback((label: CompareLabel) => {
+    const isAdd = !idsRef.current.includes(label.id) && idsRef.current.length < MAX_COMPARE;
+
     setLabels((current) => ({ ...current, [label.id]: label }));
     setIds((current) => {
       const result = toggleCompareId(current, label.id, MAX_COMPARE);
       setLimitMessage(result.rejected ? compareFullMessage(MAX_COMPARE) : null);
       return result.ids;
     });
+
+    // Only a real addition counts. A removal is not an event we have a use for,
+    // and a rejected fifth pick is not an addition at all.
+    if (isAdd) sendEvent('compare_add', { offeringId: label.id });
   }, []);
 
   const remove = useCallback((id: number) => {

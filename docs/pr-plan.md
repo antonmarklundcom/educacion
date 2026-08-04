@@ -124,6 +124,7 @@ Hero + search, entry points by area, "carreras más buscadas", the accreditation
 Plausible/GA4, `events` table writes for `offering_view`, `whatsapp_click`, `compare_add`, `lead_submit`, `profile_view`, session hashing, and an internal `/admin/stats` read-only view.
 **Deps:** PR-14.
 **Accept:** events recorded without PII; session hash not reversible; analytics respects the consent banner.
+**Shipped as:** as specified. PR-14 had already built the write path (`recordEvent`, `POST /api/events`, the salted daily session hash), so this adds the callers — `offering_view`, `profile_view`, `compare_add` — the Plausible half and `/admin/stats`. Four decisions in `architecture.md` §12: the banner governs the **third-party** script and not the first-party `events` table, and why; views are reported from the browser rather than the render, so crawlers are not counted; the aggregation surface takes an optional `institutionId` so PR-28 needs no second set of queries; and `/admin/stats` **fails closed** behind `ADMIN_STATS_TOKEN` until PR-18 replaces the gate with `requireRole()`. The consent cookie, its format and the `ec:consent-changed` event are fixed now as the interface PR-15's banner writes against.
 
 **Phase 1 exit:** live on educacion.com.py, indexed, complete index browsable and comparable, leads landing in the DB.
 

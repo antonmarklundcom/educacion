@@ -198,6 +198,26 @@ export async function getInstitutionContacts(
 }
 
 /**
+ * Just the short names, for a page that has ids and needs labels — the admin
+ * stats view. Deliberately not `getInstitutionContacts`: a page that only
+ * renders names has no business holding email addresses in memory.
+ */
+export async function getInstitutionNames(
+  institutionIds: number[],
+  database: Db = defaultDb,
+): Promise<Map<number, string>> {
+  const unique = [...new Set(institutionIds)].filter((id) => Number.isInteger(id) && id > 0);
+  if (unique.length === 0) return new Map();
+
+  const rows = await database
+    .select({ id: institutions.id, nameShort: institutions.nameShort })
+    .from(institutions)
+    .where(inArray(institutions.id, unique));
+
+  return new Map(rows.map((row) => [row.id, row.nameShort]));
+}
+
+/**
  * Just the WhatsApp numbers, for pages that render a CTA and have no business
  * seeing an institution's email address. An institution that published no
  * number is simply absent from the map, and the CTA is not rendered.
