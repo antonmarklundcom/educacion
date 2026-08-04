@@ -159,3 +159,17 @@ The rail and the cards survived implementation with four decisions worth not red
 **The contact block renders only what we have.** A missing website is omitted, never guessed from the slug — plenty of institutions have none, and a fabricated URL is a broken promise on the page that is meant to be the reliable one. With nothing at all it says so, and always invites a correction.
 
 **The accreditation summary is a ratio over what we published, worded as such.** "De las N carreras que publicamos, M tienen una acreditación de la ANEAES vigente según las fuentes que pudimos verificar." A zero reads "No encontramos… Eso no significa que no las tenga", never "no está acreditada".
+
+## 13. What PR-14 settled (the lead CTAs)
+
+**The result card's CTA row is now three controls, and the accent moved.** "Solicitar info" is the primary — the card exists to produce a lead — "Ver carrera" drops to the secondary outline it should always have been, and the WhatsApp icon button sits beside them as an outline with a green glyph, never as a peer of the accent (§8.2). At 390px the two text buttons split the row and the WhatsApp button is a 48px square, which is the Dirección 1 mobile prototype (§7).
+
+**The program detail hero's primary CTA is "Solicitar info".** §11 recorded "Comparar con otras universidades" holding the slot because the lead form did not exist; it does now, so comparar becomes a secondary alongside WhatsApp. All three are above the fold at 390px.
+
+**The table view still has no per-row "Solicitar".** §10 gave the reason as "PR-14 has not shipped", which is no longer true — but §1 has the real one: the table's moment is decision and its action is multi-select → comparar. A lead button on fifteen dense rows competes with the compare checkboxes and buys nothing the card view does not already offer.
+
+**A WhatsApp button with no number renders nothing.** `institutions.whatsapp_e164` is absent for most rows until the data is collected, and there is no fallback to the landline: a plausible-looking wrong number under a CTA sends a student to a stranger. This is the same rule as §12's contact block, applied to an action instead of a fact.
+
+**The consent checkbox is unchecked, required, and names the institution in its label.** Declaring `menor_18` reveals a second line about parent/guardian awareness rather than blocking the form (`risks.md` §R-06). The modal collects nombre, teléfono, email, mensaje and an age bracket — nothing else, ever.
+
+**The institution profile's contact block is unchanged.** Its WhatsApp row is a contact _detail_ in a definition list, not a CTA, and it is not program-scoped, so a per-program prefill would be a lie about what the student is asking about.

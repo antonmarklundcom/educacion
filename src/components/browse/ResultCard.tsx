@@ -5,14 +5,19 @@
  * us. Where the index has no value the card says so — "Duración sin datos" is
  * a worse-looking card and a truer one.
  *
- * Two deliberate omissions against the prototype, both because Phase 1 has not
- * built the thing behind them yet and a control that does nothing is worse
- * than no control (design-system.md §8.4):
+ * ### The CTA row (settled in PR-14)
  *
- *  - **"Solicitar info"** is the lead modal, which is PR-14. Until then the
- *    card's single primary CTA is the program page.
- *  - **The WhatsApp button** needs the institution's number, which is not on
- *    `OfferingSummary` and is not ours to guess. It arrives with PR-14.
+ * Three controls, in the order design-system.md §7 and §8.2 ask for: the accent
+ * primary is **"Solicitar info"**, because the lead is what the card is for;
+ * "Ver carrera" drops to a secondary link; and the WhatsApp icon button sits
+ * beside them as an outline, not as a peer of the accent.
+ *
+ * **The WhatsApp number is a prop, not a field on `OfferingSummary`.** It is
+ * one value per institution and the index is one row per offering, so it is not
+ * denormalized into `program_search` — the page fetches the numbers for the
+ * institutions in its results in a single query and passes them down
+ * (`architecture.md` §6.2). With no number the button is simply absent; nothing
+ * is guessed.
  *
  * The favourites heart is Phase-1-optional per design-system.md §8.3 and is
  * not implemented here: it would be the only client state on the page.
@@ -20,6 +25,7 @@
 
 import Link from 'next/link';
 
+import { LeadModal, WhatsAppButton } from '@/components/lead';
 import { Badge, Card } from '@/components/ui';
 import { formatDurationMonths } from '@/lib/format';
 import {
@@ -35,7 +41,13 @@ import { InstitutionMonogram } from './InstitutionMonogram';
 import { PriceLabel } from './PriceLabel';
 import { offeringHref } from './hrefs';
 
-export function ResultCard({ offering }: { offering: OfferingSummary }) {
+export interface ResultCardProps {
+  offering: OfferingSummary;
+  /** The institution's published WhatsApp number, when it has one. */
+  whatsappE164?: string | null;
+}
+
+export function ResultCard({ offering, whatsappE164 }: ResultCardProps) {
   const href = offeringHref(offering);
 
   return (
@@ -88,12 +100,28 @@ export function ResultCard({ offering }: { offering: OfferingSummary }) {
 
       <div className="border-border mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <PriceLabel price={offering.price} />
-        <Link
-          href={href}
-          className="bg-accent hover:bg-accent-hover focus-visible:ring-ink inline-flex min-h-12 w-full items-center justify-center rounded-md px-5 text-sm font-medium text-white transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:w-auto"
-        >
-          Ver carrera
-        </Link>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Link
+            href={href}
+            className="border-border-strong bg-surface text-ink hover:bg-card-alt focus-visible:ring-ink inline-flex min-h-12 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:flex-none"
+          >
+            Ver carrera
+          </Link>
+          <LeadModal
+            offeringId={offering.offeringId}
+            programName={offering.programName}
+            institutionName={offering.institutionName}
+            className="flex-1 sm:flex-none"
+          />
+          <WhatsAppButton
+            whatsappE164={whatsappE164}
+            programName={offering.programName}
+            institutionShort={offering.institutionShort}
+            offeringId={offering.offeringId}
+            institutionId={offering.institutionId}
+            size="icon"
+          />
+        </div>
       </div>
     </Card>
   );

@@ -1,10 +1,53 @@
+/**
+ * `POST /api/leads` — the only way a lead enters the system.
+ *
+ * The handler is thin on purpose: origin check, rate limits, validation,
+ * consent, offering resolution and persistence all live in `@/lib/leads`, where
+ * they can be reasoned about in one place and tested without HTTP
+ * (`architecture.md` §6).
+ *
+ * **The response never explains more than it must.** A rejected submission gets
+ * a machine code from a fixed list and nothing about which check failed
+ * internally; the honeypot gets the same `{ ok: true }` a real lead gets. There
+ * is no `GET`: leads are not readable through the public API at all, and
+ * PR-23's inbox reads them through an authenticated panel route instead.
+ */
+
 import { NextResponse } from 'next/server';
 
-/** Routing skeleton only — real lead capture (rate limiting, consent, persistence) ships in PR-14. */
-export async function GET() {
-  return NextResponse.json({ status: 'not_implemented' });
-}
+import { submitLead } from '@/lib/leads';
+import type { LeadResponse } from '@/lib/leads/contract';
 
-export async function POST() {
-  return NextResponse.json({ status: 'not_implemented' });
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: Request): Promise<NextResponse<LeadResponse>> {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: 'invalid_payload' }, { status: 400 });
+  }
+
+  let result;
+  try {
+    result = await submitLead(request, payload);
+  } catch (error) {
+    console.error('[leads] submission failed', error);
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
+  }
+
+  if (result.ok) return NextResponse.json({ ok: true }, { status: 201 });
+
+  const status =
+    result.error === 'rate_limited' ? 429 : result.error === 'invalid_origin' ? 403 : 400;
+
+  return NextResponse.json(
+    { ok: false, error: result.error },
+    {
+      status,
+      headers: result.retryAfterSeconds
+        ? { 'retry-after': String(result.retryAfterSeconds) }
+        : undefined,
+    },
+  );
 }

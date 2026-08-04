@@ -145,6 +145,75 @@ export async function listInstitutions(database: Db = defaultDb): Promise<Instit
   return rows.map((row) => ({ ...row, ...(counts.get(row.id) ?? EMPTY_COUNTS) }));
 }
 
+/* -------------------------------------------------------------------------- */
+/* Contact details (PR-14)                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The contact fields the lead pipeline needs, keyed by institution id.
+ *
+ * ### Why this is not on `OfferingSummary`
+ *
+ * `whatsapp_e164` is one value per institution and `program_search` is one row
+ * per offering, so denormalizing it would mean ~10 000 copies of ~59 values
+ * whose invalidation clock becomes the nightly rebuild. A number corrected in
+ * the admin at 09:00 would stay wrong on every card until 03:00 the next day,
+ * and a wrong number under a WhatsApp CTA sends a student to a stranger — worse
+ * than no CTA. §11 already settled that institution contact fields live on
+ * `institutions`; this is the same field class, read the same way.
+ *
+ * ### Why it is bounded
+ *
+ * One query for every institution on the page, keyed by the ids that are
+ * already on the rows the index returned. One extra query per render, never one
+ * per row.
+ */
+export interface InstitutionContact {
+  id: number;
+  nameShort: string;
+  nameOfficial: string;
+  email: string | null;
+  whatsappE164: string | null;
+}
+
+export async function getInstitutionContacts(
+  institutionIds: number[],
+  database: Db = defaultDb,
+): Promise<Map<number, InstitutionContact>> {
+  const unique = [...new Set(institutionIds)].filter((id) => Number.isInteger(id) && id > 0);
+  if (unique.length === 0) return new Map();
+
+  const rows = await database
+    .select({
+      id: institutions.id,
+      nameShort: institutions.nameShort,
+      nameOfficial: institutions.nameOfficial,
+      email: institutions.email,
+      whatsappE164: institutions.whatsappE164,
+    })
+    .from(institutions)
+    .where(and(eq(institutions.status, 'published'), inArray(institutions.id, unique)));
+
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+/**
+ * Just the WhatsApp numbers, for pages that render a CTA and have no business
+ * seeing an institution's email address. An institution that published no
+ * number is simply absent from the map, and the CTA is not rendered.
+ */
+export async function getWhatsappNumbers(
+  institutionIds: number[],
+  database: Db = defaultDb,
+): Promise<Map<number, string>> {
+  const contacts = await getInstitutionContacts(institutionIds, database);
+  const numbers = new Map<number, string>();
+  for (const [id, contact] of contacts) {
+    if (contact.whatsappE164) numbers.set(id, contact.whatsappE164);
+  }
+  return numbers;
+}
+
 /** One institution's full profile, or `null` — which the route turns into a 404. */
 export async function getInstitutionBySlug(
   slug: string,

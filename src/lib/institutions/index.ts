@@ -11,6 +11,7 @@
 
 export {
   getInstitutionBySlug,
+  getWhatsappNumbers,
   listInstitutions,
   type InstitutionCounts,
   type InstitutionProfile,

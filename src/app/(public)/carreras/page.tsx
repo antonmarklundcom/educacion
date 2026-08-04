@@ -30,6 +30,7 @@ import { countActiveFilters } from '@/components/browse/filter-model';
 import { CompareBar } from '@/components/compare/CompareBar';
 import { CompareProvider } from '@/components/compare/CompareProvider';
 import { compareLabel, parseCompareIds } from '@/lib/compare/state';
+import { getWhatsappNumbers } from '@/lib/institutions';
 import { Pagination } from '@/components/ui';
 import {
   COMPARE_PARAM,
@@ -85,6 +86,17 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
     [VIEW_PARAM]: view === DEFAULT_VIEW ? undefined : view,
     [COMPARE_PARAM]: compareIds.length ? compareIds.join(',') : undefined,
   };
+
+  // The card's WhatsApp CTA needs a number per institution, and the number is
+  // not on `OfferingSummary` — it is one value per institution against ~10k
+  // offerings, so denormalizing it into `program_search` would tie a phone
+  // number's correctness to the nightly rebuild (architecture.md §6.2). One
+  // query for the institutions on this page, keyed by ids the rows already
+  // carry; never one query per row.
+  const whatsappNumbers =
+    view === 'tabla' || results.length === 0
+      ? new Map<number, string>()
+      : await getWhatsappNumbers(results.map((offering) => offering.institutionId));
 
   const totalPages = Math.ceil(total / pageSize);
   const activeCount = countActiveFilters(filters);
@@ -150,7 +162,11 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
                   />
                 ) : (
                   results.map((offering) => (
-                    <ResultCard key={offering.offeringId} offering={offering} />
+                    <ResultCard
+                      key={offering.offeringId}
+                      offering={offering}
+                      whatsappE164={whatsappNumbers.get(offering.institutionId) ?? null}
+                    />
                   ))
                 )}
                 <Pagination
