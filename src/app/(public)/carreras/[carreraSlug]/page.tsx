@@ -1,10 +1,220 @@
-import { PagePlaceholder } from '@/components/layout/PagePlaceholder';
+/**
+ * `/carreras/[carreraSlug]` — the career hub, the primary SEO surface
+ * (seo.md §1, "medicina en paraguay").
+ *
+ * Structurally this is `/universidades/[instSlug]` with the scope flipped:
+ * one `searchPrograms({ careerSlugs: [slug] })` for the offering list (so the
+ * 12-month arancel rule and the accreditation precedence rule are inherited,
+ * never reimplemented), and two small reads from `@/lib/careers` for the
+ * career record and its country-wide stats.
+ *
+ * `careerSlugs` is dropped from `railFilters` for the same reason
+ * `institutionSlug` was on the institution page: it is what the *path* fixes,
+ * not a filter this page's chips or facets should ever show as removable.
+ */
 
-export default async function CarreraHubPage({
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { cache } from 'react';
+
+import {
+  ActiveFilters,
+  EmptyState,
+  FilterRail,
+  ResultCard,
+  SortControl,
+  areaHref,
+  careerHref,
+  countActiveFilters,
+} from '@/components/browse';
+import { Pagination } from '@/components/ui';
+import {
+  buildCareerIntro,
+  getCareerBySlug,
+  getCareerCitySupply,
+  getCareerStats,
+  hasEditorialCopy,
+  listRelatedCareers,
+  passesCityGate,
+} from '@/lib/careers';
+import { formatMonthYear } from '@/lib/format';
+import { getWhatsappNumbers } from '@/lib/institutions';
+import { parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
+
+export const dynamic = 'force-dynamic';
+
+type Params = Promise<{ carreraSlug: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+const loadCareer = cache(async (slug: string) => {
+  const career = await getCareerBySlug(slug);
+  if (!career) return null;
+  const [stats, citySupply, related] = await Promise.all([
+    getCareerStats(career.id),
+    getCareerCitySupply(career.id),
+    career.areaId ? listRelatedCareers(career.areaId, career.id, 6) : Promise.resolve([]),
+  ]);
+  return { career, stats, citySupply, related };
+});
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { carreraSlug } = await params;
+  const loaded = await loadCareer(carreraSlug);
+  if (!loaded) return { title: 'Carrera no encontrada' };
+
+  const { career, stats } = loaded;
+
+  return {
+    title: `${career.nameEs} en Paraguay – ${stats.institutionCount} universidades y aranceles`,
+    description: `Compará ${stats.institutionCount || 'las'} opciones para estudiar ${career.nameEs} en Paraguay: aranceles, duración, modalidad y acreditación ANEAES.`,
+    alternates: { canonical: careerHref(career.slug) },
+    // A hub with no hand-written overview yet is thin by seo.md's own anti-doorway
+    // standard, so it stays crawlable but out of the index until real copy lands
+    // (docs/careers/copy.ts) — the page never fabricates the words to avoid this.
+    robots: hasEditorialCopy(career.descriptionMd) ? undefined : { index: false, follow: true },
+  };
+}
+
+export default async function CareraHubPage({
   params,
+  searchParams,
 }: {
-  params: Promise<{ carreraSlug: string }>;
+  params: Params;
+  searchParams: SearchParams;
 }) {
   const { carreraSlug } = await params;
-  return <PagePlaceholder title={carreraSlug} detail="Ficha de carrera." />;
+  const loaded = await loadCareer(carreraSlug);
+  if (!loaded) notFound();
+  const { career, stats, citySupply, related } = loaded;
+
+  const basePath = careerHref(career.slug);
+  const railFilters = { ...parseSearchFilters(await searchParams), careerSlugs: undefined };
+  const { results, facets, total, page, pageSize, sort } = await searchPrograms({
+    ...railFilters,
+    careerSlugs: [career.slug],
+  });
+
+  const totalPages = Math.ceil(total / pageSize);
+  const activeCount = countActiveFilters(railFilters);
+  const intro = buildCareerIntro(career, stats);
+
+  const linkableCities = citySupply.filter(passesCityGate);
+
+  const latestVerifiedAt = results
+    .map((offering) => offering.price.verifiedAt)
+    .filter((date): date is Date => date != null)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+
+  const whatsappNumbers =
+    results.length === 0
+      ? new Map<number, string>()
+      : await getWhatsappNumbers(results.map((offering) => offering.institutionId));
+
+  return (
+    <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      <header className="flex flex-col gap-3">
+        {career.areaName && career.areaSlug && (
+          <Link
+            href={areaHref(career.areaSlug)}
+            className="text-muted hover:text-ink w-fit text-xs underline underline-offset-2"
+          >
+            {career.areaName}
+          </Link>
+        )}
+        <h1 className="text-ink text-xl font-bold lg:text-2xl">{career.nameEs} en Paraguay</h1>
+
+        <div className="flex flex-col gap-2">
+          {intro.map((paragraph, index) => (
+            <p key={index} className="text-body max-w-prose text-sm">
+              {paragraph.text}
+            </p>
+          ))}
+        </div>
+
+        {latestVerifiedAt && (
+          <p className="text-faint text-xs">Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.</p>
+        )}
+      </header>
+
+      {linkableCities.length > 0 && (
+        <section className="mt-6 flex flex-col gap-2">
+          <h2 className="text-ink text-sm font-semibold">Estudiá {career.nameEs} en tu ciudad</h2>
+          <div className="flex flex-wrap gap-2">
+            {linkableCities.map((city) => (
+              <Link
+                key={city.citySlug}
+                href={`${basePath}/${city.citySlug}`}
+                className="border-border-strong bg-surface text-body hover:text-ink hover:border-ink rounded-full border px-3 py-1.5 text-sm"
+              >
+                {city.cityName}{' '}
+                <span className="text-faint font-mono text-xs">({city.offeringCount})</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-ink text-base font-semibold">
+          Universidades{' '}
+          <span className="text-muted font-mono text-sm">
+            ({new Intl.NumberFormat('es-PY').format(total)})
+          </span>
+        </h2>
+        <SortControl filters={railFilters} sort={sort} basePath={basePath} />
+      </div>
+
+      {activeCount > 0 && (
+        <div className="mt-4">
+          <ActiveFilters filters={railFilters} basePath={basePath} />
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-col gap-8 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+        <aside className="border-border bg-card-alt rounded-lg border p-5 lg:sticky lg:top-6">
+          <FilterRail filters={railFilters} facets={facets} basePath={basePath} compact />
+        </aside>
+
+        <div className="flex flex-col gap-4">
+          {results.length === 0 ? (
+            <EmptyState filters={railFilters} basePath={basePath} />
+          ) : (
+            <>
+              {results.map((offering) => (
+                <ResultCard
+                  key={offering.offeringId}
+                  offering={offering}
+                  whatsappE164={whatsappNumbers.get(offering.institutionId) ?? null}
+                />
+              ))}
+              <Pagination
+                className="mt-2 justify-center"
+                currentPage={page}
+                totalPages={totalPages}
+                buildHref={(target) => searchHref(basePath, { ...railFilters, page: target })}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {related.length > 0 && (
+        <section className="border-border mt-10 flex flex-col gap-3 border-t pt-6">
+          <h2 className="text-ink text-base font-semibold">Otras carreras del área</h2>
+          <div className="flex flex-wrap gap-2">
+            {related.map((relatedCareer) => (
+              <Link
+                key={relatedCareer.slug}
+                href={careerHref(relatedCareer.slug)}
+                className="border-border-strong bg-surface text-body hover:text-ink hover:border-ink rounded-full border px-3 py-1.5 text-sm"
+              >
+                {relatedCareer.nameEs}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+  );
 }

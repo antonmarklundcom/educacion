@@ -65,6 +65,12 @@ Rules: exactly one H1 per page containing the primary keyword; H2s are real subt
 
 Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city pages with a swapped name is a doorway-page pattern and it will suppress the whole directory. Enforce the gate in `generateStaticParams`, not by discipline.
 
+### 4.1 What PR-12 settled
+
+**The gate is enforced at request time, not in `generateStaticParams`.** `architecture.md` §3 already has every detail route as `force-dynamic` until a build-time database exists — CI's `npm run build` has no `DATABASE_URL` to enumerate cities from — so `/carreras/[carrera]/[ciudad]` calls the same `getCareerCitySupply()` the hub used to link it and `notFound()`s if the city fails the gate. Same numbers, same query, so a city can never appear as a link on the hub and 404 underneath it.
+
+**A career or area hub with no editorial `description_md` ships `noindex, follow`, not fabricated copy.** Nobody has written the 150 words yet — there is no admin UI to write them before PR-19/20, and §8 below lists this copy as first-90-days content work, not something PR-12 auto-generates. Inventing enthusiastic career-outlook prose to hit the word count would be exactly the fabrication CLAUDE.md rule 1 bans. Instead the hub renders an honest paragraph built only from real `program_search` counts (`src/lib/careers/copy.ts`) and stays out of the index until `description_md` clears `MIN_EDITORIAL_WORDS` (150) — at which point it starts indexing itself, no code change required. The gated city page has no such gap and ships indexed immediately: its intro is composed entirely from the offerings already fetched for that city (real institution names, modalities, price range, accreditation counts), which is genuinely unique per city without being hand-written.
+
 ## 5. Structured data
 
 | Page | JSON-LD |
