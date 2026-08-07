@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Analytics } from '@/components/analytics';
+import { ConsentBanner } from '@/components/consent';
 import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -34,6 +35,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} antialiased`}>
         {children}
         <Analytics />
+        {/* Beside `Analytics`, not inside the public layout: the script it
+            governs is mounted here, so the banner that governs it has to reach
+            every route the script does. */}
+        <ConsentBanner />
       </body>
     </html>
   );

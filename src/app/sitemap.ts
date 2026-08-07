@@ -12,6 +12,7 @@ const staticRoutes = [
   '/legal/privacidad',
   '/legal/terminos',
   '/legal/fuentes',
+  '/legal/contacto',
 ];
 
 /**

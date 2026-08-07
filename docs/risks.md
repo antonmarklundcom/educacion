@@ -70,6 +70,22 @@ Much of the audience is 16–18. Paraguay has no comprehensive general data-prot
 - Institutions receive leads under a written commitment not to resell them. Put it in the plan terms.
 - Never sell or share lead data with anyone other than the institution the lead chose.
 
+**Status after PR-15.** Everything above is in place except the retention *enforcement*, and that gap is stated rather than papered over:
+
+| Mitigation | State |
+|---|---|
+| Unchecked consent checkbox naming the recipient | Shipped (PR-14) |
+| `consent_text_version` + `consent_at` stored | Shipped (PR-14) |
+| Minimum collection — no birthdate, document, address | Shipped (PR-14); `/legal/privacidad` §2 lists the stored fields one by one |
+| `age_bracket` + guardian notice for `menor_18` | Shipped (PR-14) |
+| `/legal/privacidad` with purpose, recipients, retention and a deletion path | Shipped (PR-15) |
+| Institutions told not to resell | In the delivery email (PR-14); the contractual version waits for the plan terms (Phase 3) |
+| **24-month deletion of leads** | **Policy only — nothing enforces it.** No purge job exists and `architecture.md` §10 lists none. Until one lands, expiry is a manual sweep. **PR-33 owns it** (data-freshness system, all crons): `/api/cron/purge-leads`, `CRON_SECRET`-guarded and idempotent, deleting `leads` where `created_at < now() - 24 months`. |
+
+**The deletion request path is deliberately not self-service.** One address — `contacto@educacion.com.py`, already in the footer — read by the operator, keyed on the phone number the person submitted, answered within 10 working days. There is no student account and no `/panel` before Phase 2, so a self-service button would be a promise the product cannot keep. `/legal/contacto` documents the channel, what to include and the window; `src/lib/legal/contact.ts` holds the constants so the pages cannot drift from each other.
+
+**One limit is stated to the user rather than hidden:** the institution received a copy of the lead by email at submission time. We delete our row and forward the request; we cannot delete from their inbox, and the policy says so instead of implying otherwise.
+
 ---
 
 ## R-07 — The domain looks official
@@ -78,6 +94,8 @@ Much of the audience is 16–18. Paraguay has no comprehensive general data-prot
 `educacion.com.py` plus a serious institutional design (Dirección 1 is deliberately government-adjacent) plus republished official register data can read as a state portal. MEC/CONES could reasonably object, and users could be misled.
 
 **Mitigation:** persistent footer disclaimer on every page — *"educacion.com.py es un sitio privado e independiente. No es un portal oficial del MEC, CONES ni ANEAES."* A `/legal/fuentes` page listing every data source with links. No official crests, seals or `.gov.py` visual cues. Consider a courtesy introduction letter to CONES/ANEAES before launch — being known and transparent is much cheaper than being discovered.
+
+**Status after PR-15 (verified, not re-implemented).** The disclaimer ships once, from `Footer` (PR-04). The audit found exactly one reachable page without it — the root `not-found`, which renders inside the root layout and therefore had no footer; `error.tsx` had the same shape. Both now mount the same `Footer`, so the sentence still lives in one file. `/admin` and `/panel` already mounted it. `/legal/fuentes` is now the real page: every source linked, plus what each source *cannot* be used to say — the half that keeps "we republish the register" from reading as "we speak for the register". The courtesy letter to CONES/ANEAES is still open and should go out before launch.
 
 ---
 
