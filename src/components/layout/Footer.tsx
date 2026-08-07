@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { CONTACT_EMAIL } from '@/lib/legal/contact';
 import { navLinks } from './nav-links';
 
 const legalLinks = [
   { href: '/legal/privacidad', label: 'Privacidad' },
   { href: '/legal/terminos', label: 'Términos' },
   { href: '/legal/fuentes', label: 'Fuentes de datos' },
+  { href: '/legal/contacto', label: 'Contacto' },
 ] as const;
 
 /** The R-07 disclaimer is mandatory on every page — see CLAUDE.md rule 9. */
@@ -15,8 +17,8 @@ export function Footer() {
         <div className="flex flex-col gap-6 sm:flex-row sm:justify-between">
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold text-ink">educacion.com.py</p>
-            <a href="mailto:contacto@educacion.com.py" className="text-sm text-body hover:underline">
-              contacto@educacion.com.py
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-sm text-body hover:underline">
+              {CONTACT_EMAIL}
             </a>
           </div>
 
