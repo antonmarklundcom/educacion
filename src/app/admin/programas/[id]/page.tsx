@@ -28,11 +28,14 @@ export default async function EditProgramPage({ params }: { params: Promise<{ id
   const program = await getProgramForEdit(user, id);
   if (!program) notFound();
 
-  const [institutions, careers] = await Promise.all([listInstitutionOptions(), listCareerOptions()]);
+  const [institutions, careers] = await Promise.all([
+    listInstitutionOptions(),
+    listCareerOptions(),
+  ]);
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-ink">Editá {program.nameOfficial}</h1>
+      <h1 className="text-ink text-2xl font-bold">Editá {program.nameOfficial}</h1>
       <AdminForm
         fields={programFields(institutions, careers)}
         defaultValues={{ ...program }}
@@ -40,8 +43,8 @@ export default async function EditProgramPage({ params }: { params: Promise<{ id
         submitLabel="Guardá"
         cancelHref="/admin/programas"
       />
-      <form action={archiveProgramAction.bind(null, id)} className="border-t border-border pt-6">
-        <button type="submit" className="text-sm text-danger underline underline-offset-4">
+      <form action={archiveProgramAction.bind(null, id)} className="border-border border-t pt-6">
+        <button type="submit" className="text-danger text-sm underline underline-offset-4">
           Eliminá este programa (lo archiva; no borra su historial)
         </button>
       </form>

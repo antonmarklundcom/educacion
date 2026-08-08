@@ -70,7 +70,10 @@ export async function listCampusesAdmin(
       .where(where);
 
   const [rows, [{ count }]] = await Promise.all([
-    base().orderBy(asc(institutions.nameShort), asc(campuses.name)).limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE),
+    base()
+      .orderBy(asc(institutions.nameShort), asc(campuses.name))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
     database
       .select({ count: sql<number>`count(*)` })
       .from(campuses)
@@ -106,7 +109,8 @@ export async function createCampus(
 ): Promise<number> {
   const user = requireRole(actor, ['editor']);
 
-  const slug = input.slug ?? uniqueSlug(input.name, await existingSlugs(database, input.institutionId));
+  const slug =
+    input.slug ?? uniqueSlug(input.name, await existingSlugs(database, input.institutionId));
   const row: typeof campuses.$inferInsert = {
     institutionId: input.institutionId,
     name: input.name,
@@ -207,7 +211,11 @@ export async function isCampusSlugTaken(
   database: Db = defaultDb,
 ): Promise<boolean> {
   const where = excludeId
-    ? and(eq(campuses.institutionId, institutionId), eq(campuses.slug, slug), ne(campuses.id, excludeId))
+    ? and(
+        eq(campuses.institutionId, institutionId),
+        eq(campuses.slug, slug),
+        ne(campuses.id, excludeId),
+      )
     : and(eq(campuses.institutionId, institutionId), eq(campuses.slug, slug));
   const [row] = await database.select({ id: campuses.id }).from(campuses).where(where).limit(1);
   return Boolean(row);

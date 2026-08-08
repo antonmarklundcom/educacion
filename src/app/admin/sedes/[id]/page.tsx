@@ -32,7 +32,7 @@ export default async function EditCampusPage({ params }: { params: Promise<{ id:
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-ink">Editá {campus.name}</h1>
+      <h1 className="text-ink text-2xl font-bold">Editá {campus.name}</h1>
       <AdminForm
         fields={campusFields(institutions, cities)}
         defaultValues={{ ...campus }}
@@ -40,8 +40,8 @@ export default async function EditCampusPage({ params }: { params: Promise<{ id:
         submitLabel="Guardá"
         cancelHref="/admin/sedes"
       />
-      <form action={archiveCampusAction.bind(null, id)} className="border-t border-border pt-6">
-        <button type="submit" className="text-sm text-danger underline underline-offset-4">
+      <form action={archiveCampusAction.bind(null, id)} className="border-border border-t pt-6">
+        <button type="submit" className="text-danger text-sm underline underline-offset-4">
           Eliminá esta sede (la archiva; no borra su historial)
         </button>
       </form>

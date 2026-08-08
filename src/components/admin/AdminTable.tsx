@@ -37,38 +37,47 @@ export function AdminTable<Row extends { id: number }>({
   buildPageHref,
 }: AdminTableProps<Row>) {
   if (rows.length === 0) {
-    return <p className="rounded-md border border-border bg-card-alt px-4 py-6 text-sm text-muted">{emptyLabel}</p>;
+    return (
+      <p className="border-border bg-card-alt text-muted rounded-md border px-4 py-6 text-sm">
+        {emptyLabel}
+      </p>
+    );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-md border border-border">
+      <div className="border-border overflow-x-auto rounded-md border">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border bg-card-alt text-left">
+            <tr className="border-border bg-card-alt border-b text-left">
               {columns.map((column) => (
-                <th key={column.header} className="px-4 py-3 font-medium text-muted">
+                <th key={column.header} className="text-muted px-4 py-3 font-medium">
                   {column.header}
                 </th>
               ))}
-              <th className="px-4 py-3 text-right font-medium text-muted">
+              <th className="text-muted px-4 py-3 text-right font-medium">
                 <span className="sr-only">Editar</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0 hover:bg-card-alt">
+              <tr key={row.id} className="border-border hover:bg-card-alt border-b last:border-0">
                 {columns.map((column) => (
                   <td
                     key={column.header}
-                    className={column.numeric ? 'px-4 py-3 font-mono text-body' : 'px-4 py-3 text-body'}
+                    className={
+                      column.numeric ? 'text-body px-4 py-3 font-mono' : 'text-body px-4 py-3'
+                    }
                   >
                     {column.cell(row)}
                   </td>
                 ))}
                 <td className="px-4 py-3 text-right">
-                  <a href={editHref(row)} className="text-sm font-medium text-ink underline underline-offset-4">
+                  <a
+                    href={editHref(row)}
+                    className="text-ink text-sm font-medium underline underline-offset-4"
+                  >
                     Editá
                   </a>
                 </td>

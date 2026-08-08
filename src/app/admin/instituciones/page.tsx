@@ -34,7 +34,7 @@ export default async function AdminInstitutionsPage({
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">Instituciones</h1>
+        <h1 className="text-ink text-2xl font-bold">Instituciones</h1>
         <Button href="/admin/instituciones/nueva">Agregá una institución</Button>
       </div>
 
@@ -53,11 +53,17 @@ export default async function AdminInstitutionsPage({
 
       <AdminTable
         rows={rows}
-        emptyLabel={q ? 'Ninguna institución coincide con esa búsqueda.' : 'Todavía no hay instituciones cargadas.'}
+        emptyLabel={
+          q
+            ? 'Ninguna institución coincide con esa búsqueda.'
+            : 'Todavía no hay instituciones cargadas.'
+        }
         editHref={(row) => `/admin/instituciones/${row.id}`}
         page={page}
         totalPages={totalPages}
-        buildPageHref={(p) => `/admin/instituciones?${q ? `q=${encodeURIComponent(q)}&` : ''}page=${p}`}
+        buildPageHref={(p) =>
+          `/admin/instituciones?${q ? `q=${encodeURIComponent(q)}&` : ''}page=${p}`
+        }
         columns={[
           { header: 'Nombre corto', cell: (row) => row.nameShort },
           { header: 'Nombre oficial', cell: (row) => row.nameOfficial },

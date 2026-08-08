@@ -166,7 +166,13 @@ describe('parseOfferingInput', () => {
 
   it('accepts a minimal valid offering with no duration given', () => {
     const result = parseOfferingInput(
-      fd({ programId: '1', campusId: '1', modality: 'presencial', shift: 'manana', status: 'draft' }),
+      fd({
+        programId: '1',
+        campusId: '1',
+        modality: 'presencial',
+        shift: 'manana',
+        status: 'draft',
+      }),
     );
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.durationMonths).toBeNull();

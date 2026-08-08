@@ -20,11 +20,14 @@ export default async function NewProgramPage() {
     notFound();
   }
 
-  const [institutions, careers] = await Promise.all([listInstitutionOptions(), listCareerOptions()]);
+  const [institutions, careers] = await Promise.all([
+    listInstitutionOptions(),
+    listCareerOptions(),
+  ]);
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-ink">Agregá un programa</h1>
+      <h1 className="text-ink text-2xl font-bold">Agregá un programa</h1>
       <AdminForm
         fields={programFields(institutions, careers)}
         action={createProgramAction}

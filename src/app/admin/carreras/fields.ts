@@ -31,7 +31,12 @@ export function careerFields(areaOptions: Option[]): FieldDef[] {
       name: 'synonyms',
       label: 'Sinónimos (separados por coma) — usados por el emparejador',
     },
-    { type: 'textarea', name: 'descriptionMd', label: 'Descripción (editorial, 150+ palabras)', rows: 8 },
+    {
+      type: 'textarea',
+      name: 'descriptionMd',
+      label: 'Descripción (editorial, 150+ palabras)',
+      rows: 8,
+    },
     {
       type: 'textarea',
       name: 'salidaLaboralMd',

@@ -250,6 +250,10 @@ export async function isInstitutionSlugTaken(
   const where = excludeId
     ? and(eq(institutions.slug, slug), ne(institutions.id, excludeId))
     : eq(institutions.slug, slug);
-  const [row] = await database.select({ id: institutions.id }).from(institutions).where(where).limit(1);
+  const [row] = await database
+    .select({ id: institutions.id })
+    .from(institutions)
+    .where(where)
+    .limit(1);
   return Boolean(row);
 }

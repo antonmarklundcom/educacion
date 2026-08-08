@@ -65,7 +65,10 @@ export async function listProgramsAdmin(
       .orderBy(asc(institutions.nameShort), asc(programs.nameOfficial))
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
-    database.select({ count: sql<number>`count(*)` }).from(programs).where(where),
+    database
+      .select({ count: sql<number>`count(*)` })
+      .from(programs)
+      .where(where),
   ]);
 
   return { rows, total: Number(count), page, pageSize: PAGE_SIZE };
@@ -97,7 +100,8 @@ export async function createProgram(
   const user = requireRole(actor, ['editor']);
 
   const slug =
-    input.slug ?? uniqueSlug(input.nameOfficial, await existingSlugs(database, input.institutionId));
+    input.slug ??
+    uniqueSlug(input.nameOfficial, await existingSlugs(database, input.institutionId));
   const row: typeof programs.$inferInsert = {
     institutionId: input.institutionId,
     careerId: input.careerId,
@@ -203,7 +207,11 @@ export async function isProgramSlugTaken(
   database: Db = defaultDb,
 ): Promise<boolean> {
   const where = excludeId
-    ? and(eq(programs.institutionId, institutionId), eq(programs.slug, slug), ne(programs.id, excludeId))
+    ? and(
+        eq(programs.institutionId, institutionId),
+        eq(programs.slug, slug),
+        ne(programs.id, excludeId),
+      )
     : and(eq(programs.institutionId, institutionId), eq(programs.slug, slug));
   const [row] = await database.select({ id: programs.id }).from(programs).where(where).limit(1);
   return Boolean(row);

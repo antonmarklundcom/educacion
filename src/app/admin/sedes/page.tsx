@@ -30,7 +30,7 @@ export default async function AdminCampusesPage({ searchParams }: { searchParams
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">Sedes</h1>
+        <h1 className="text-ink text-2xl font-bold">Sedes</h1>
         <Button href="/admin/sedes/nueva">Agregá una sede</Button>
       </div>
 
@@ -49,7 +49,9 @@ export default async function AdminCampusesPage({ searchParams }: { searchParams
 
       <AdminTable
         rows={rows}
-        emptyLabel={q ? 'Ninguna sede coincide con esa búsqueda.' : 'Todavía no hay sedes cargadas.'}
+        emptyLabel={
+          q ? 'Ninguna sede coincide con esa búsqueda.' : 'Todavía no hay sedes cargadas.'
+        }
         editHref={(row) => `/admin/sedes/${row.id}`}
         page={page}
         totalPages={totalPages}

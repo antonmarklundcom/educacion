@@ -42,7 +42,10 @@ export async function listCareersAdmin(
       .orderBy(asc(careers.nameEs))
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
-    database.select({ count: sql<number>`count(*)` }).from(careers).where(where),
+    database
+      .select({ count: sql<number>`count(*)` })
+      .from(careers)
+      .where(where),
   ]);
 
   return { rows, total: Number(count), page, pageSize: PAGE_SIZE };

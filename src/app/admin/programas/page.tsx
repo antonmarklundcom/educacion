@@ -31,7 +31,7 @@ export default async function AdminProgramsPage({ searchParams }: { searchParams
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">Programas</h1>
+        <h1 className="text-ink text-2xl font-bold">Programas</h1>
         <Button href="/admin/programas/nueva">Agregá un programa</Button>
       </div>
 
@@ -50,7 +50,9 @@ export default async function AdminProgramsPage({ searchParams }: { searchParams
 
       <AdminTable
         rows={rows}
-        emptyLabel={q ? 'Ningún programa coincide con esa búsqueda.' : 'Todavía no hay programas cargados.'}
+        emptyLabel={
+          q ? 'Ningún programa coincide con esa búsqueda.' : 'Todavía no hay programas cargados.'
+        }
         editHref={(row) => `/admin/programas/${row.id}`}
         page={page}
         totalPages={totalPages}

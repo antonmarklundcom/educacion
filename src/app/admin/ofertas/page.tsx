@@ -31,7 +31,7 @@ export default async function AdminOfferingsPage({ searchParams }: { searchParam
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">Ofertas</h1>
+        <h1 className="text-ink text-2xl font-bold">Ofertas</h1>
         <Button href="/admin/ofertas/nueva">Agregá una oferta</Button>
       </div>
 
@@ -50,7 +50,8 @@ export default async function AdminOfferingsPage({ searchParams }: { searchParam
           { header: 'Turno', cell: (row) => SHIFT_LABELS[row.shift] },
           {
             header: 'Duración',
-            cell: (row) => (row.durationMonths ? formatDurationMonths(row.durationMonths) : 'Sin datos'),
+            cell: (row) =>
+              row.durationMonths ? formatDurationMonths(row.durationMonths) : 'Sin datos',
           },
           { header: 'Estado', cell: (row) => <StatusBadge status={row.status} /> },
         ]}

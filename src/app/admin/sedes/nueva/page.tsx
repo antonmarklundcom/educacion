@@ -24,7 +24,7 @@ export default async function NewCampusPage() {
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-ink">Agregá una sede</h1>
+      <h1 className="text-ink text-2xl font-bold">Agregá una sede</h1>
       <AdminForm
         fields={campusFields(institutions, cities)}
         action={createCampusAction}

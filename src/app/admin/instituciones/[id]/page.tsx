@@ -41,7 +41,7 @@ export default async function EditInstitutionPage({
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Editá {institution.nameShort}</h1>
+        <h1 className="text-ink text-2xl font-bold">Editá {institution.nameShort}</h1>
         {institution.logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- external host, decided per R-08
           <img
@@ -49,13 +49,13 @@ export default async function EditInstitutionPage({
             alt={`Logo de ${institution.nameShort}`}
             width={64}
             height={64}
-            className="mt-3 size-16 rounded-md border border-border object-contain"
+            className="border-border mt-3 size-16 rounded-md border object-contain"
           />
         )}
       </div>
 
       {logoError && (
-        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
+        <p role="alert" className="bg-danger/10 text-danger rounded-md px-4 py-3 text-sm">
           La institución se guardó, pero el logo no se pudo subir: {logoError}
         </p>
       )}
@@ -68,11 +68,11 @@ export default async function EditInstitutionPage({
         cancelHref="/admin/instituciones"
       />
 
-      <form action={archiveInstitutionAction.bind(null, id)} className="border-t border-border pt-6">
-        <button
-          type="submit"
-          className="text-sm text-danger underline underline-offset-4"
-        >
+      <form
+        action={archiveInstitutionAction.bind(null, id)}
+        className="border-border border-t pt-6"
+      >
+        <button type="submit" className="text-danger text-sm underline underline-offset-4">
           Eliminá esta institución (la archiva; no borra su historial)
         </button>
       </form>

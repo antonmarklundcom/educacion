@@ -87,7 +87,7 @@ function renderField(
     <div key={field.name} className="flex flex-col gap-1.5">
       {node}
       {error && (
-        <p id={errorId} className="text-sm text-danger">
+        <p id={errorId} className="text-danger text-sm">
           {error}
         </p>
       )}
@@ -143,17 +143,17 @@ function renderField(
 
   if (field.type === 'file') {
     return wrapper(
-      <div className="flex flex-col gap-1.5 text-sm text-body">
+      <div className="text-body flex flex-col gap-1.5 text-sm">
         <label htmlFor={field.name}>{field.label}</label>
         <input
           id={field.name}
           name={field.name}
           type="file"
           accept={field.accept}
-          className="text-sm text-body file:mr-3 file:min-h-10 file:rounded-md file:border file:border-border-strong file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink"
+          className="text-body file:border-border-strong file:bg-surface file:text-ink text-sm file:mr-3 file:min-h-10 file:rounded-md file:border file:px-3 file:py-1.5 file:text-sm file:font-medium"
           aria-describedby={errorId}
         />
-        {field.hint && <p className="text-xs text-faint">{field.hint}</p>}
+        {field.hint && <p className="text-faint text-xs">{field.hint}</p>}
       </div>,
     );
   }
@@ -192,7 +192,7 @@ export function AdminForm({
       className="flex flex-col gap-5"
     >
       {state.formError && (
-        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
+        <p role="alert" className="bg-danger/10 text-danger rounded-md px-4 py-3 text-sm">
           {state.formError}
         </p>
       )}

@@ -16,7 +16,14 @@
  * programs and offerings have no accreditation input — that table is PR-20's.
  */
 
-import { MANAGEMENT, MODALITY, PROGRAM_LEVEL, PUBLICATION_STATUS, SHIFT, INSTITUTION_TYPE } from '@/db/schema';
+import {
+  MANAGEMENT,
+  MODALITY,
+  PROGRAM_LEVEL,
+  PUBLICATION_STATUS,
+  SHIFT,
+  INSTITUTION_TYPE,
+} from '@/db/schema';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
 
 export type Management = (typeof MANAGEMENT)[number];
