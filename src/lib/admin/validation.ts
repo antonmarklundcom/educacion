@@ -406,3 +406,343 @@ export function parseOfferingInput(formData: FormData): ParseResult<OfferingInpu
     errors,
   );
 }
+
+/* ========================================================================== */
+/* PR-20 — prices, accreditations, admissions                                 */
+/* ========================================================================== */
+
+/**
+ * The three record types that carry a `verified_at` clock and, between them,
+ * every fact on the site a student could act on: what it costs, whether the
+ * title will be worth anything, and when to enrol.
+ *
+ * Two rules live here rather than only in the database, because a CHECK
+ * constraint produces a stack trace and a form needs to produce a sentence:
+ *
+ * 1. **A positive accreditation status needs a citation.** `sourceUrl` or
+ *    `resolutionNumber`, and `no_acreditada` is held to the same bar because
+ *    asserting an unverified negative is the legally dangerous one
+ *    (`risks.md` §R-09). The form *refuses to save*; it does not warn.
+ * 2. **A price must be coherent.** `is_free` with a matrícula is not a
+ *    discount, it is two contradictory claims; a cuota without a number of
+ *    installments cannot produce an annual cost, and `computeAnnualCost`
+ *    returns null rather than a number the comparador would sort on.
+ *
+ * Both delegate to `src/db/invariants.ts` rather than restating the rule, so
+ * there is exactly one definition of each and the admin cannot drift from the
+ * importer.
+ */
+
+import {
+  ACCREDITATION_AGENCY,
+  ACCREDITATION_KIND,
+  ACCREDITATION_SCOPE,
+  ACCREDITATION_STATUS,
+  CURRENCY,
+  PRICE_SOURCE,
+} from '@/db/schema';
+import {
+  InvariantError,
+  assertAccreditationStatusIsSafe,
+  assertPriceIsCoherent,
+} from '@/db/invariants';
+
+export type AccreditationScope = (typeof ACCREDITATION_SCOPE)[number];
+export type AccreditationAgency = (typeof ACCREDITATION_AGENCY)[number];
+export type AccreditationKind = (typeof ACCREDITATION_KIND)[number];
+export type AccreditationStatus = (typeof ACCREDITATION_STATUS)[number];
+export type Currency = (typeof CURRENCY)[number];
+export type PriceSource = (typeof PRICE_SOURCE)[number];
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A `YYYY-MM-DD` from `<input type="date">`, or null. Stored as a string. */
+function optionalDate(
+  formData: FormData,
+  name: string,
+  errors: Record<string, string>,
+  label: string,
+): string | null {
+  const raw = str(formData, name);
+  if (!raw) return null;
+  if (!DATE_PATTERN.test(raw) || Number.isNaN(Date.parse(raw))) {
+    errors[name] = `${label} tiene que ser una fecha válida.`;
+    return null;
+  }
+  return raw;
+}
+
+/**
+ * Guaraníes are integers with no minor unit, so a decimal point in an arancel
+ * is a typo — usually a thousands separator typed as a dot. Rejecting it is
+ * safer than rounding a number families budget against.
+ */
+function optionalMoney(
+  formData: FormData,
+  name: string,
+  errors: Record<string, string>,
+  label: string,
+): number | null {
+  const raw = str(formData, name).replace(/[.\s]/g, '');
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    errors[name] = `${label} tiene que ser un número entero de guaraníes, sin centavos.`;
+    return null;
+  }
+  return value;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Prices                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface PriceInputData {
+  offeringId: number;
+  currency: Currency;
+  matricula: number | null;
+  monthlyFee: number | null;
+  installmentsPerYear: number | null;
+  admissionFee: number | null;
+  isFree: boolean;
+  notesMd: string | null;
+  source: PriceSource;
+  sourceUrl: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+}
+
+export function parsePriceInput(formData: FormData): ParseResult<PriceInputData> {
+  const errors: Record<string, string> = {};
+
+  const offeringId = requireInt(formData, 'offeringId', errors, 'La oferta');
+  const currency = requireEnum(formData, 'currency', CURRENCY, errors, 'la moneda');
+  const source = requireEnum(formData, 'source', PRICE_SOURCE, errors, 'el origen del dato');
+  const isFree = checkbox(formData, 'isFree');
+  const matricula = optionalMoney(formData, 'matricula', errors, 'La matrícula');
+  const monthlyFee = optionalMoney(formData, 'monthlyFee', errors, 'La cuota');
+  const admissionFee = optionalMoney(formData, 'admissionFee', errors, 'El derecho de examen');
+  const installmentsPerYear = optInt(formData, 'installmentsPerYear', errors, 'Las cuotas por año');
+  const sourceUrl = optionalUrl(formData, 'sourceUrl', errors, 'La URL de la fuente');
+  const validFrom = optionalDate(formData, 'validFrom', errors, 'La vigencia desde');
+  const validTo = optionalDate(formData, 'validTo', errors, 'La vigencia hasta');
+  const notesMd = optStr(formData, 'notesMd');
+
+  const data: PriceInputData = {
+    offeringId,
+    currency,
+    matricula,
+    monthlyFee,
+    installmentsPerYear,
+    admissionFee,
+    isFree,
+    notesMd,
+    source,
+    sourceUrl,
+    validFrom,
+    validTo,
+  };
+
+  // One definition of coherence, in `src/db/invariants.ts`, reported here as a
+  // sentence instead of a stack trace.
+  try {
+    assertPriceIsCoherent(data);
+  } catch (error) {
+    if (!(error instanceof InvariantError)) throw error;
+    if (error.rule === 'prices_free_has_no_fees') {
+      errors.isFree =
+        'Una carrera gratuita no puede tener matrícula ni cuota. El derecho de examen sí.';
+    } else if (error.rule === 'prices_installments_range') {
+      errors.installmentsPerYear = 'Las cuotas por año tienen que estar entre 1 y 24.';
+    } else {
+      errors.matricula = error.message;
+    }
+  }
+
+  if (!isFree && monthlyFee != null && installmentsPerYear == null) {
+    // Not a database constraint — `annual_cost` would simply be NULL. But a
+    // cuota with no number of cuotas cannot be compared with anything, and the
+    // comparador is the product, so the form asks rather than storing a number
+    // that will never be sortable.
+    errors.installmentsPerYear =
+      'Indicá cuántas cuotas por año. Sin eso no se puede calcular el costo anual y el arancel no entra en el comparador.';
+  }
+
+  if (validFrom && validTo && validTo < validFrom) {
+    errors.validTo = 'La vigencia hasta no puede ser anterior a la vigencia desde.';
+  }
+
+  return finish(data, errors);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Accreditations                                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface AccreditationInputData {
+  scope: AccreditationScope;
+  institutionId: number | null;
+  programId: number | null;
+  offeringId: number | null;
+  agency: AccreditationAgency;
+  kind: AccreditationKind;
+  status: AccreditationStatus;
+  model: string | null;
+  resolutionNumber: string | null;
+  resolutionDate: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  sourceUrl: string | null;
+}
+
+/**
+ * The form that must refuse, not warn (PR-20 acceptance criterion).
+ *
+ * `assertAccreditationStatusIsSafe` is the same function the importer's write
+ * path calls, so an accreditation typed by a human and one derived from ANEAES
+ * are held to one rule. The extra thing this adds is the *message*: a moderator
+ * who is told "poné el número de resolución o el enlace" fixes it, and one who
+ * gets a 500 opens a ticket.
+ */
+export function parseAccreditationInput(formData: FormData): ParseResult<AccreditationInputData> {
+  const errors: Record<string, string> = {};
+
+  const scope = requireEnum(formData, 'scope', ACCREDITATION_SCOPE, errors, 'el alcance');
+  const agency = requireEnum(formData, 'agency', ACCREDITATION_AGENCY, errors, 'la agencia');
+  const kind = requireEnum(formData, 'kind', ACCREDITATION_KIND, errors, 'el tipo');
+  const status = requireEnum(formData, 'status', ACCREDITATION_STATUS, errors, 'el estado');
+
+  const institutionId = optInt(formData, 'institutionId', errors, 'La institución');
+  const programId = optInt(formData, 'programId', errors, 'El programa');
+  const offeringId = optInt(formData, 'offeringId', errors, 'La oferta');
+
+  const resolutionNumber = optStr(formData, 'resolutionNumber');
+  const sourceUrl = optionalUrl(formData, 'sourceUrl', errors, 'La URL de la fuente');
+  const resolutionDate = optionalDate(formData, 'resolutionDate', errors, 'La fecha de resolución');
+  const validFrom = optionalDate(formData, 'validFrom', errors, 'La vigencia desde');
+  const validTo = optionalDate(formData, 'validTo', errors, 'La vigencia hasta');
+
+  // Exactly one target, matching the scope. Mirrors the
+  // `accreditations_scope_target` CHECK; stated per field so the form can point
+  // at the select the moderator has to fix.
+  const target = { institution: institutionId, program: programId, offering: offeringId }[scope];
+  const targetField = {
+    institution: 'institutionId',
+    program: 'programId',
+    offering: 'offeringId',
+  }[scope];
+  if (targetField && target == null) {
+    errors[targetField] = 'Elegí a qué se aplica esta acreditación.';
+  }
+
+  // CONES habilita, ANEAES acredita. Conflating them is the single most
+  // damaging mistake this dataset allows (`plan.md` §2), and the importer
+  // already refuses it — so the form does too rather than letting a human do
+  // by hand what the pipeline is forbidden to do automatically.
+  if (agency === 'CONES' && kind === 'acreditacion') {
+    errors.kind =
+      'El CONES habilita, no acredita. Usá "habilitacion" para el CONES; "acreditacion" es de la ANEAES o ARCU-SUR.';
+  }
+
+  if (validFrom && validTo && validTo < validFrom) {
+    errors.validTo = 'La vigencia hasta no puede ser anterior a la vigencia desde.';
+  }
+
+  const data: AccreditationInputData = {
+    scope,
+    // Only the field the scope names is kept; the other two are dropped rather
+    // than sent to a CHECK that would reject the row for a reason the operator
+    // did not cause.
+    institutionId: scope === 'institution' ? institutionId : null,
+    programId: scope === 'program' ? programId : null,
+    offeringId: scope === 'offering' ? offeringId : null,
+    agency,
+    kind,
+    status,
+    model: optStr(formData, 'model'),
+    resolutionNumber,
+    resolutionDate,
+    validFrom,
+    validTo,
+    sourceUrl,
+  };
+
+  try {
+    assertAccreditationStatusIsSafe({ status, sourceUrl, resolutionNumber });
+  } catch (error) {
+    if (!(error instanceof InvariantError)) throw error;
+    errors.sourceUrl =
+      status === 'no_acreditada'
+        ? '"No acreditada" afirma algo negativo y necesita una fuente. Si no lo verificaste, usá "Sin datos".'
+        : 'Un estado positivo necesita el número de resolución o el enlace a la fuente. Sin fuente no hay insignia.';
+  }
+
+  return finish(data, errors);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admissions                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface AdmissionInputData {
+  scope: AccreditationScope;
+  institutionId: number | null;
+  programId: number | null;
+  offeringId: number | null;
+  periodLabel: string;
+  registrationOpens: string | null;
+  registrationCloses: string | null;
+  examDate: string | null;
+  classesStart: string | null;
+  requirementsMd: string | null;
+  processMd: string | null;
+  url: string | null;
+  isActive: boolean;
+}
+
+export function parseAdmissionInput(formData: FormData): ParseResult<AdmissionInputData> {
+  const errors: Record<string, string> = {};
+
+  const scope = requireEnum(formData, 'scope', ACCREDITATION_SCOPE, errors, 'el alcance');
+  const periodLabel = requireStr(formData, 'periodLabel', errors, 'El período', 160);
+
+  const institutionId = optInt(formData, 'institutionId', errors, 'La institución');
+  const programId = optInt(formData, 'programId', errors, 'El programa');
+  const offeringId = optInt(formData, 'offeringId', errors, 'La oferta');
+
+  const target = { institution: institutionId, program: programId, offering: offeringId }[scope];
+  const targetField = {
+    institution: 'institutionId',
+    program: 'programId',
+    offering: 'offeringId',
+  }[scope];
+  if (targetField && target == null) {
+    errors[targetField] = 'Elegí a qué se aplica esta convocatoria.';
+  }
+
+  const registrationOpens = optionalDate(formData, 'registrationOpens', errors, 'La apertura');
+  const registrationCloses = optionalDate(formData, 'registrationCloses', errors, 'El cierre');
+  if (registrationOpens && registrationCloses && registrationCloses < registrationOpens) {
+    // The `admissions_window_order` CHECK, said in Spanish before MySQL says it
+    // in English.
+    errors.registrationCloses = 'El cierre no puede ser anterior a la apertura.';
+  }
+
+  const data: AdmissionInputData = {
+    scope,
+    institutionId: scope === 'institution' ? institutionId : null,
+    programId: scope === 'program' ? programId : null,
+    offeringId: scope === 'offering' ? offeringId : null,
+    periodLabel,
+    registrationOpens,
+    registrationCloses,
+    examDate: optionalDate(formData, 'examDate', errors, 'La fecha de examen'),
+    classesStart: optionalDate(formData, 'classesStart', errors, 'El inicio de clases'),
+    requirementsMd: optStr(formData, 'requirementsMd'),
+    processMd: optStr(formData, 'processMd'),
+    url: optionalUrl(formData, 'url', errors, 'La URL de la convocatoria'),
+    isActive: checkbox(formData, 'isActive'),
+  };
+
+  return finish(data, errors);
+}
