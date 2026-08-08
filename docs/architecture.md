@@ -262,7 +262,7 @@ scopeToInstitution(user, requested?): number   // the ONLY id that may reach a W
 
 **Password hashing is `crypto.scrypt`, not bcrypt** — a deliberate deviation from `pr-plan.md`. bcrypt is a native module compiled against the Node ABI at install time, and this deploys to Hostinger's managed Node, where a platform upgrade would turn every login into a 500 until someone SSHs in and rebuilds. scrypt is in the standard library at OWASP parameters (N=2^17, r=8, p=1 — note `maxmem` must be raised or Node silently runs at N=16384). The stored string is self-describing, `scrypt$N$r$p$salt$key`, so the cost can be raised later without invalidating a single existing hash; `needsRehash` tells the login path when to upgrade one in place.
 
-**Login answers one message for every failure.** Unknown address, wrong password, suspended account and never-set password are indistinguishable in the response — and in the *timing*: a miss verifies against a decoy hash of the same cost, because returning early on "no such user" is a user-enumeration oracle over a slow KDF.
+**Login answers one message for every failure.** Unknown address, wrong password, suspended account and never-set password are indistinguishable in the response — and in the _timing_: a miss verifies against a decoy hash of the same cost, because returning early on "no such user" is a user-enumeration oracle over a slow KDF.
 
 **Password reset by email is not built.** It needs a `password_reset_tokens` table and the codebase's first Resend integration, neither of which is verifiable from the environment PR-18 was written in, so shipping a half-tested credential-recovery path was the worse option. `/cambiar-contrasena` closes the loop the bootstrap opens — re-authenticate with the current password, clear the flag, re-issue the cookie — and until reset lands a locked-out user is recovered by an admin. **PR-21 must not open `/panel` to real institutions without it**; telling a university to email us for a password is acceptable for staff and not for customers.
 
@@ -347,3 +347,85 @@ PR-14 built the write path — `recordEvent()`, `POST /api/events`, the session 
 **The query layer never invents a zero.** `countEventsByDay` returns only days that have events; `fillDays()` in `src/lib/analytics/range.ts` fills the rest, because there the caller knows the range it asked for and the zero is measured rather than guessed.
 
 **`/admin/stats` is admin-only.** PR-17 gated it on a URL token because authentication did not exist, and said PR-18 would delete that file. PR-18 did: `src/lib/analytics/admin-access.ts` and `ADMIN_STATS_TOKEN` are gone, and the page calls `requireRole(user, ['admin'])`, 404ing rather than 403ing so an admin surface does not confirm its own existence. A token in a query string was a token in a browser history, a proxy log and a shared screenshot; a session cookie is none of those.
+
+---
+
+## 13. Admin CRUD, uploads and the reindex (settled in PR-19)
+
+`/admin` stopped being a placeholder. Five decisions are recorded here because
+each of them is a thing PR-20, PR-21 and PR-24 build on rather than re-derive.
+
+**One route, one form, one action — `/admin/[entity]`.** Institutions, sedes,
+carreras, programas and ofertas are five entities × (list + create + edit) =
+fifteen screens if each is hand-written, and fifteen places for a required-field
+rule or an enum vocabulary to drift. `src/lib/admin/entities.ts` describes each
+entity once as a list of field descriptors; `EntityTable` and `EntityForm` read
+that description. The registry is **pure**, so the parsing, the E.164 and URL
+checks and the slug/`match_key` derivation are unit-tested without a browser or
+a database (`entities.test.ts`). The segment is `[entity]` with Spanish keys
+(`/admin/instituciones`), which also means `/admin/stats` keeps working — Next
+resolves the static segment first.
+
+**`saveEntityAction` is one action for create and edit**, told which by a hidden
+`__id`, and it is the only write path. That is not a convenience: it is what
+makes "every mutation calls `requireRole`" and "every write logs before/after"
+properties of _one_ function instead of ten. `requireRole` runs first, from the
+server, on every call — a server action is a POST endpoint with a generated URL
+and is reachable without ever rendering the layout that gates `/admin`, so the
+layout guard stays a backstop (CLAUDE.md rule 4).
+
+**Derived fields are never read from the form.** `enrollment_status` is
+`readOnly` in the registry and `parseEntityForm` skips read-only fields
+entirely, so a forged field cannot become a column write — the daily cron owns
+that value (`data-model.md` §2). `slug` and `match_key` are the inverse: the
+system fills them in from the title unless a slug was deliberately typed, and a
+program is keyed with the **career** stopword list, the same split
+`src/lib/curate/staging.ts` uses, or a hand-created program would never match
+the rows the importer writes.
+
+**The reindex is debounced, not immediate** (`src/lib/admin/reindex.ts`). The
+rebuild replaces every row of `program_search` inside a transaction; running it
+per keystroke-save would hold a write transaction over the table the public site
+is reading, five times, while an operator works down a list. A 5 s trailing
+window collapses a burst into one rebuild and rebuilds are serialized so two can
+never overlap. The trade is stated: for up to 5 s the public index is one edit
+stale. The admin's own screens read the curated tables directly, so the operator
+never sees that lag on the row they just saved. A failed rebuild logs and leaves
+the previous index serving (§4.1) — the nightly cron is the retry.
+
+**Uploads go to object storage, and the decision is R2** — `risks.md` §R-08 is
+now closed, see §13.1.
+
+### 13.1 The upload decision (R-08)
+
+**Cloudflare R2, over its S3-compatible API, signed in-process with
+`node:crypto`.** The alternative R-08 offered — a persistent path outside the
+deploy directory — survives a redeploy but not a slot migration or a container
+recycle, and couples the app to one box's home directory. R2 takes the bytes off
+the app server entirely and is CDN-fronted, which is what lets `§9` budget 20 kB
+per logo without putting image traffic through a shared-hosting Node process.
+
+It is **not** `@aws-sdk/client-s3`: ~3 MB of dependency to produce one signed
+`PUT`, against a documented hash chain that `node:crypto` already implements.
+Same reasoning that kept the Resend SDK out (§6).
+
+Three details that are load-bearing:
+
+- **Configuration is `S3_*`, not `R2_*`.** `.env.example` has carried those five
+  names since PR-01, and keeping them means Bunny Storage — R-08's other
+  candidate — is a change of one value rather than a change of code.
+- **Object keys are content-addressed**: `logos/<slug>-<16 hex of sha256>.<ext>`.
+  Different bytes always mean a different URL, so `immutable, max-age=1y` is
+  safe and nobody has to think about CDN invalidation.
+- **No SVG.** An SVG is a document that can carry script, served back from an
+  origin we control. PNG/JPG/WebP, 256 kB.
+
+With `S3_*` unset — local development, or a deploy before the bucket exists —
+uploads fall back to `UPLOADS_DIR` (default `~/educacion-uploads`), served
+through `/api/uploads/[...path]`. **Both** adapters refuse a root inside
+`process.cwd()`, loudly, at configuration time. That refusal is the acceptance
+criterion "the uploaded logo survives a simulated redeploy" stated as the
+property that makes it true: a Hostinger deploy replaces the application
+directory, so a file survives exactly when it was never written there, and
+`storage.test.ts` asserts that neither adapter can be pointed at one — including
+the specific case of `public/uploads`.

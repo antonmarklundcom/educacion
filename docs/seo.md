@@ -6,29 +6,29 @@ Applies `seo-web-builds` to this project. Locale: `es-PY`, voseo, single languag
 
 There is no paid-acquisition budget and no captive traffic (see `risks.md` §R-01). Every visitor arrives from a search or a shared WhatsApp link. The two consequences:
 
-1. **The index must be exhaustive.** Long-tail coverage *is* the traffic model — thousands of `[carrera] + [ciudad]` and `[universidad] + [carrera]` queries, each tiny, collectively the business.
+1. **The index must be exhaustive.** Long-tail coverage _is_ the traffic model — thousands of `[carrera] + [ciudad]` and `[universidad] + [carrera]` queries, each tiny, collectively the business.
 2. **OG images matter as much as titles.** In Paraguay, links are shared in WhatsApp groups. A shared comparison or program page is an ad. Every public route needs a real 1200×630 OG image.
 
 ## 2. URL map
 
-| Route | Intent | Indexed |
-|---|---|---|
-| `/` | brand + "buscar carreras en Paraguay" | ✅ |
-| `/carreras` | browse (base, unfiltered) | ✅ |
-| `/carreras?...filters` | filtered combinations | ❌ `noindex,follow`, canonical → `/carreras` |
-| `/carreras/[carrera]` | **"medicina en paraguay"** — primary money page | ✅ |
-| `/carreras/[carrera]/[ciudad]` | "medicina en encarnación" | ✅ **only above the supply gate (§4)** |
-| `/areas/[area]` | "carreras de salud en paraguay" | ✅ |
-| `/universidades` | "universidades de paraguay" | ✅ |
-| `/universidades/[inst]` | "universidad católica carreras" | ✅ |
-| `/universidades/[inst]/[program]` | "medicina una arancel" — the lead page | ✅ |
-| `/acreditacion` + children | **"carreras acreditadas aneaes"** — the wedge | ✅ |
-| `/becas`, `/becas/[slug]` | "becas para estudiar en paraguay" | ✅ |
-| `/blog/[slug]` | informational, feeds the money pages | ✅ |
-| `/comparar` | shareable, not searchable | ❌ `noindex` |
-| `/para-instituciones` | B2B | ✅ |
-| `/legal/*` | trust | ✅ (low priority) |
-| `/panel`, `/admin` | private | ❌ `noindex, nofollow` + auth |
+| Route                             | Intent                                          | Indexed                                      |
+| --------------------------------- | ----------------------------------------------- | -------------------------------------------- |
+| `/`                               | brand + "buscar carreras en Paraguay"           | ✅                                           |
+| `/carreras`                       | browse (base, unfiltered)                       | ✅                                           |
+| `/carreras?...filters`            | filtered combinations                           | ❌ `noindex,follow`, canonical → `/carreras` |
+| `/carreras/[carrera]`             | **"medicina en paraguay"** — primary money page | ✅                                           |
+| `/carreras/[carrera]/[ciudad]`    | "medicina en encarnación"                       | ✅ **only above the supply gate (§4)**       |
+| `/areas/[area]`                   | "carreras de salud en paraguay"                 | ✅                                           |
+| `/universidades`                  | "universidades de paraguay"                     | ✅                                           |
+| `/universidades/[inst]`           | "universidad católica carreras"                 | ✅                                           |
+| `/universidades/[inst]/[program]` | "medicina una arancel" — the lead page          | ✅                                           |
+| `/acreditacion` + children        | **"carreras acreditadas aneaes"** — the wedge   | ✅                                           |
+| `/becas`, `/becas/[slug]`         | "becas para estudiar en paraguay"               | ✅                                           |
+| `/blog/[slug]`                    | informational, feeds the money pages            | ✅                                           |
+| `/comparar`                       | shareable, not searchable                       | ❌ `noindex`                                 |
+| `/para-instituciones`             | B2B                                             | ✅                                           |
+| `/legal/*`                        | trust                                           | ✅ (low priority)                            |
+| `/panel`, `/admin`                | private                                         | ❌ `noindex, nofollow` + auth                |
 
 **One page = one intent.** The most likely cannibalization here is `/carreras/medicina` vs a blog post "¿Qué se estudia en Medicina?" — the hub owns the transactional intent, the post owns the informational intent and links to the hub. Never let a post target "medicina en paraguay".
 
@@ -59,6 +59,7 @@ Rules: exactly one H1 per page containing the primary keyword; H2s are real subt
 ## 4. The city-page gate (anti-doorway rule)
 
 `/carreras/[carrera]/[ciudad]` generates **only if** all three hold:
+
 1. ≥ 3 published offerings of that career in that city, **and**
 2. ≥ 2 distinct institutions, **and**
 3. unique intro copy exists (≥ 120 words about that city's supply — not the career description with the city name swapped in).
@@ -73,15 +74,15 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 
 ## 5. Structured data
 
-| Page | JSON-LD |
-|---|---|
-| All | `Organization` (educacion.com.py) + `WebSite` with `SearchAction` |
-| `/carreras/[carrera]`, `/areas/[area]`, `/universidades` | `ItemList` + `BreadcrumbList` |
-| `/universidades/[inst]` | `CollegeOrUniversity` (or `EducationalOrganization` for institutos) + `BreadcrumbList` |
-| `/universidades/[inst]/[program]` | `Course` + `CourseInstance` (with `courseMode` and duration) + `BreadcrumbList`, plus `Offer` **only where we have a verified, non-stale price** |
-| `/becas/[slug]` | `ItemList` parent, `Offer`-style detail |
-| `/blog/[slug]` | `Article` + author `Person` |
-| FAQ sections | `FAQPage` — only where the Q&As are visible on the page |
+| Page                                                     | JSON-LD                                                                                                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| All                                                      | `Organization` (educacion.com.py) + `WebSite` with `SearchAction`                                                                                |
+| `/carreras/[carrera]`, `/areas/[area]`, `/universidades` | `ItemList` + `BreadcrumbList`                                                                                                                    |
+| `/universidades/[inst]`                                  | `CollegeOrUniversity` (or `EducationalOrganization` for institutos) + `BreadcrumbList`                                                           |
+| `/universidades/[inst]/[program]`                        | `Course` + `CourseInstance` (with `courseMode` and duration) + `BreadcrumbList`, plus `Offer` **only where we have a verified, non-stale price** |
+| `/becas/[slug]`                                          | `ItemList` parent, `Offer`-style detail                                                                                                          |
+| `/blog/[slug]`                                           | `Article` + author `Person`                                                                                                                      |
+| FAQ sections                                             | `FAQPage` — only where the Q&As are visible on the page                                                                                          |
 
 **Never** emit `aggregateRating` or `review` — we have no reviews, and inventing them violates the anti-fabrication rule the whole product rests on. **Never** emit an `Offer` price that the UI is hiding as stale; schema must mirror what is visible.
 

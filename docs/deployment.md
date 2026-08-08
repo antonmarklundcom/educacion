@@ -27,13 +27,34 @@ Follows the `nextjs-deploy-hostinger` and `nodejs-mysql-hostinger-stack` playboo
 - `connectionLimit: 8` in the pool. Hostinger caps concurrent connections per user; a bigger pool buys nothing and fails loudly under load.
 - `timezone: "Z"` — store UTC, render `America/Asuncion`.
 
-## 4. Uploads (institution logos & photos) — decide in PR-19
+## 4. Uploads (institution logos) — decided in PR-19
 
 Hostinger's git deploy **replaces the application directory**. Anything written under the app dir is destroyed on the next deploy, silently.
 
-- **Preferred:** Cloudflare R2 or Bunny Storage. CDN-fronted, survives deploys, keeps image bytes off the app server.
-- **Alternative:** a persistent path outside the deploy dir (e.g. `~/uploads`) served through a route handler.
-- **Never** `public/uploads`.
+**The decision: Cloudflare R2**, addressed through its S3-compatible API and signed in-process with `node:crypto` (no SDK). Rationale in `architecture.md` §13.1; risk closed in `risks.md` §R-08.
+
+### Provisioning
+
+1. Cloudflare dashboard → R2 → **Create bucket** (`educacion-uploads`, automatic region).
+2. R2 → **Manage API tokens** → create an _Object Read & Write_ token scoped to that bucket. Copy the Access Key ID, the Secret Access Key and the S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
+3. Make reads public: either **Settings → Public access → r2.dev subdomain**, or attach a custom domain (`cdn.educacion.com.py`). The custom domain is preferable — the `r2.dev` URL is rate-limited by Cloudflare and is not meant for production traffic.
+4. Set the five variables in hPanel (**both** env-var pages, §5):
+
+   | Var                    | Value                                                                 |
+   | ---------------------- | --------------------------------------------------------------------- |
+   | `S3_ENDPOINT`          | `https://<account-id>.r2.cloudflarestorage.com` — no bucket, no path  |
+   | `S3_BUCKET`            | `educacion-uploads`                                                   |
+   | `S3_ACCESS_KEY_ID`     | from step 2                                                           |
+   | `S3_SECRET_ACCESS_KEY` | from step 2                                                           |
+   | `S3_PUBLIC_BASE_URL`   | `https://cdn.educacion.com.py` (or the r2.dev URL), no trailing slash |
+
+5. Redeploy. Upload a logo in `/admin/instituciones/<id>` and confirm the resulting `institutions.logo_url` is on the CDN host, not `/api/uploads/…`.
+
+### The fallback, and the one thing that must never be configured
+
+With **any** of those five unset the app writes to `UPLOADS_DIR` (default `~/educacion-uploads`) and serves through `/api/uploads/*`. That is the development path. It survives a redeploy because it is outside the app directory — and the app **refuses to start an upload** if `UPLOADS_DIR` resolves inside `process.cwd()`, so `public/uploads` is not a mistake that can be made quietly.
+
+Object keys are content-addressed (`logos/<slug>-<sha256 prefix>.<ext>`), so objects are served `immutable, max-age=1y` and nothing ever needs a cache purge. Uploaded logos are PNG/JPG/WebP only, ≤ 256 kB; SVG is refused because it can carry script.
 
 See `risks.md` §R-08.
 
@@ -56,13 +77,15 @@ See `risks.md` §R-08.
 
 Beyond `DATABASE_URL` and `CRON_SECRET`, the lead pipeline and the event log read these (`architecture.md` §6, §12):
 
-| Var                            | Required                                        | What breaks without it                                                                                                                                                                                                                                                                                                |
-| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIVACY_SALT`                 | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate.                                                                      |
-| `NEXT_PUBLIC_SITE_URL`         | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                                                                                              |
-| `RESEND_API_KEY`               | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`. Nothing is lost, but **nothing retries either until PR-23 ships the hourly `lead-retry` cron** — `/api/cron/[job]` is a routing stub today. Until then an undelivered lead is only visible in the DB, so set these before taking real traffic. |
-| `LEAD_FROM_EMAIL`              | Same as above                                   | Same as above. Sending domain must be verified in Resend first.                                                                                                                                                                                                                                                       |
-| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | No                                              | Unset means the Plausible script never loads. That is the correct state until someone subscribes — nothing is half-configured.                                                                                                                                                                                        |
+| Var                                                                                          | Required                                        | What breaks without it                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIVACY_SALT`                                                                               | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate.                                                                      |
+| `NEXT_PUBLIC_SITE_URL`                                                                       | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                                                                                              |
+| `RESEND_API_KEY`                                                                             | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`. Nothing is lost, but **nothing retries either until PR-23 ships the hourly `lead-retry` cron** — `/api/cron/[job]` is a routing stub today. Until then an undelivered lead is only visible in the DB, so set these before taking real traffic. |
+| `LEAD_FROM_EMAIL`                                                                            | Same as above                                   | Same as above. Sending domain must be verified in Resend first.                                                                                                                                                                                                                                                       |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`                                                               | No                                              | Unset means the Plausible script never loads. That is the correct state until someone subscribes — nothing is half-configured.                                                                                                                                                                                        |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL` | Yes in production                               | All five or none. Unset, logo uploads fall back to `UPLOADS_DIR` on the app server's home directory — which survives a redeploy but not a slot migration, and puts image bytes on the Node process. See §4.                                                                                                           |
+| `UPLOADS_DIR`                                                                                | No                                              | The fallback root, default `~/educacion-uploads`. Must be outside the application directory; the app throws at upload time if it is not (`risks.md` §R-08).                                                                                                                                                           |
 
 ## 7. Cron
 
