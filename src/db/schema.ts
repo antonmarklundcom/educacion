@@ -692,6 +692,16 @@ export const claims = mysqlTable(
     userId: int('user_id', { unsigned: true }).references(() => users.id),
     email: varchar('email', { length: 255 }).notNull(),
     emailDomain: varchar('email_domain', { length: 255 }).notNull(),
+    /** Who says they are asking, for the admin-approval path (PR-22). */
+    contactName: varchar('contact_name', { length: 160 }),
+    /** What they told us, so a mismatched domain is decidable by a human. */
+    note: varchar('note', { length: 500 }),
+    /**
+     * The claimant's address is on the institution's own verified domain
+     * (PR-22). False means the claim needs an explicit admin decision, which is
+     * `decided_by_user_id`. One of the two must hold before a token is usable.
+     */
+    domainVerified: boolean('domain_verified').notNull().default(false),
     /** Hashed at rest, single-use, expires in 72 h (PR-22). */
     tokenHash: varchar('token_hash', { length: 64 }).notNull(),
     expiresAt: timestamp('expires_at').notNull(),

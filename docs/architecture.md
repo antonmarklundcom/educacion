@@ -576,3 +576,150 @@ Before the first real institution is given a login, PR-18's reset flow —
 `password_reset_tokens` plus the Resend integration — has to land. Telling a
 university to email us for a password is acceptable for staff and not for
 customers.
+
+---
+
+## 16. The claim flow (settled in PR-22)
+
+An institution's only door into `/panel` that does not start with us creating
+their account. It is credential-adjacent by construction — a completed claim
+mints a login — so the decisions below are stated rather than left to the code.
+
+### 16.1 The token
+
+**Opaque, random, hashed, single-use, 72 h.** 32 bytes of `randomBytes` as
+base64url in the link; `sha256(token)` in `claims.token_hash`, which is exactly
+64 characters wide and carries the unique index redemption looks up by.
+
+Two alternatives were live. A **signed token** (HMAC/JWT) carries its own claim
+id and expiry and needs no row to verify — until single-use is required, at
+which point a used-token store has to exist anyway; and it cannot be revoked, so
+an admin who rejects a claim after the mail went out has nothing to delete. A
+**short numeric code** typed back into the form is friendlier to mangled mail
+clients, but 6–8 digits is a brute-force surface that then needs per-claim
+attempt counters and lockout — more state, and more state that has to be right,
+to buy back the entropy the link already had. The opaque token has all three
+properties as columns on a row that already existed in the schema.
+
+**The token hash deliberately does not use `lib/privacy/hash.ts`.** That module
+salts with `PRIVACY_SALT` and falls back to a _random per-process salt_ when it
+is unset — correct for IP hashes, where instability costs a rate-limit window,
+and quietly catastrophic here: every outstanding claim link would stop working
+on the next deploy or idle recycle, and a university would be told their
+brand-new link was invalid. The salt buys nothing in this case either. It exists
+because an IP address has ~2^32 values and is enumerable against a bare digest;
+a 256-bit token is not. The property that matters — the database never holds the
+token, so a leaked backup or a read-only injection cannot mint a login — is
+fully delivered by the unsalted digest.
+
+### 16.2 The domain rule
+
+The claimant's email domain is compared against **`institutions.website`**, and
+never against `institutions.email`. The website is a fact we hold _before_
+anyone asks to claim, which is what makes it evidence; `institutions.email` is
+frequently a `gmail.com` or a `tigo.com.py` address, and matching against it
+would let anyone who can open a Gmail account claim that institution.
+
+Three outcomes were possible and only two shipped. `domain` — the address is on
+the institution's own domain (equal, or a subdomain in either direction) — sends
+the token straight to that mailbox. Everything else routes to **admin
+approval**, including the most common row in this dataset: **no website on
+file**. That is a gap in our data, not evidence against the claimant, so it is a
+queue and never a rejection. There is deliberately no automatic refusal: "wrong
+domain" and "we hold the wrong website" are indistinguishable from here.
+
+**DNS TXT verification** was considered and rejected for now — it is the
+strongest proof available, and it requires an outbound resolver from Hostinger
+and a university IT department that will answer a mail about a DNS record. The
+admin fallback is the cheaper form of the same guarantee at this volume.
+
+Free-mail and site-builder domains can never satisfy the check, **on either
+side**: an institution whose website is `sites.google.com/view/…` has no domain
+of its own, and an institution with `gmail.com` on file is not claimable by
+anyone with a Gmail account. A public suffix (`edu.py`, `com.py`) is not a
+domain, which is also what makes the subdomain relation safe — without it,
+`@edu.py` would "contain" every institution in the country. The lists are in
+`src/lib/claims/domain.ts`; a full public-suffix list is a dependency whose
+weekly churn we would have to track, and the suffixes a Paraguayan institution
+plausibly sits under is the set that matters.
+
+### 16.3 Two states, one enum, and what a token needs before it works
+
+A token is usable only when the claim is `pending`, unexpired, **and** either
+`domain_verified` or `decided_by_user_id` is set. That is the acceptance
+criterion as a pure function (`claimTokenState`), re-checked at redemption even
+though a token can only be _sent_ when one of the two holds — the redundancy is
+what survives someone later adding a third way to create a claim row.
+
+`domain_verified` is the one column PR-22 added (plus `contact_name` and `note`,
+without which a mismatched-domain claim is not decidable by a human). Admin
+approval sets `decided_by_user_id` and **mints a fresh token** rather than
+reviving the one generated at request time: the original may be days old with
+its 72 hours nearly spent, and a string sitting in a column since before anybody
+looked at the claim should not become live retroactively.
+
+**`status = 'expired'` is never written.** Expiry is a fact about the clock, not
+a decision anybody made, so it is computed from `expires_at` wherever it is
+displayed. A cron that flipped rows into a status the code already derives would
+be a moving part that changes no behaviour. The enum value stays unused on
+purpose.
+
+### 16.4 What makes the redemption safe
+
+One transaction, and the **order of the writes is the security property**:
+
+1. `UPDATE claims SET status='approved' … WHERE id=? AND status='pending'` —
+   zero affected rows means somebody redeemed it first, and the transaction ends
+   there. This is single-use; the pure state check above it races and is a
+   courtesy.
+2. `UPDATE institutions SET claimed_by_user_id=? WHERE id=? AND
+claimed_by_user_id IS NULL` — zero rows means the institution was taken
+   between the read and now, and the whole transaction rolls back rather than
+   re-assigning it. **A second claim never silently re-assigns an institution.**
+3. Only then the `institution_members` row.
+
+Three refusals inherited from PR-21 §15.3, for the same reasons: a **staff**
+address is never attached to an institution through a self-service path; an
+account that already belongs to **another** institution is refused, because
+§7.1 scopes a two-institution user to neither; and an **existing account's
+password is never touched** — a claim link proves control of a mailbox, which is
+enough to create a credential and is not enough to reset one somebody already
+has. That case attaches the institution and tells them to sign in as usual.
+
+**The redemption does not start a session.** It mints a credential and redirects
+to `/ingresar`. A second, thinner path to a logged-in browser would have to be
+kept correct forever; the ordinary login path already has PR-18's uniform
+failure message and its timing defence, and one extra form is a cheap price for
+this file never becoming an alternative login.
+
+The redemption page is a **read**. Mail scanners and link previewers fetch URLs
+out of messages, so a GET that consumed the token would burn every claim link on
+delivery; the token is spent by the POST the form makes, and the page sets
+`referrer: no-referrer` because the token is in the path.
+
+### 16.5 Who may approve, and what PR-23/PR-25 build against
+
+Approval is **`admin`, not `editor`**. `editor` curates the national dataset;
+approving a claim hands a stranger a login and permanent write access to one
+institution's commercial facts, which is the same class of act as creating a
+user. Reading the queue is `editor` — it decides nothing. The roles are not a
+ladder, so both are stated rather than derived.
+
+**Downstream PRs do not import the claim flow.** A completed claim leaves the
+database in the state PR-18 and PR-21 already understand — `claimed_by_user_id`
+set, an `institution_admin` user, exactly one `institution_members` row — so
+`/panel/leads` (PR-23) scopes with `panelInstitutionId(user)` like every other
+panel route and needs no claim-specific branch. The claim flow is a way for a
+member row to come into existence; it is never a second way to authorize one.
+The one thing PR-25 genuinely needs is `getInstitutionClaimState(institutionId)`
+(plus `assertClaimed` in guard form), because a plan cannot be activated for an
+institution with nobody to hand it to. Both are stable for those PRs and are
+re-exported from `src/lib/claims`.
+
+### 16.6 Abuse
+
+Two tiers, mirroring §6.1: the in-process sliding window on the hashed IP (3 per
+minute, 10 per hour — stricter than the lead form's, because nobody legitimately
+claims three profiles a minute), and a durable cap of five open claims per
+institution, which a rotating IP cannot get around. A claim that fails its
+checks writes nothing at all, so a prober cannot count rows or time a miss.

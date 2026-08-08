@@ -64,6 +64,12 @@ export interface InstitutionProfile extends InstitutionSummary {
   phoneE164: string | null;
   whatsappE164: string | null;
   descriptionMd: string | null;
+  /**
+   * Whether somebody has completed the claim flow for this institution (PR-22).
+   * A boolean, not the user id: the profile is a public page and *who* runs an
+   * institution's account is not public information.
+   */
+  isClaimed: boolean;
 }
 
 const EMPTY_COUNTS: InstitutionCounts = {
@@ -248,6 +254,7 @@ export async function getInstitutionBySlug(
       phoneE164: institutions.phoneE164,
       whatsappE164: institutions.whatsappE164,
       descriptionMd: institutions.descriptionMd,
+      claimedByUserId: institutions.claimedByUserId,
     })
     .from(institutions)
     .where(and(eq(institutions.slug, slug), eq(institutions.status, 'published')))
@@ -255,9 +262,11 @@ export async function getInstitutionBySlug(
 
   if (!row) return null;
 
+  const { claimedByUserId, ...profile } = row;
   const counts = await countsByInstitution(database, [row.id]);
   return {
-    ...row,
+    ...profile,
+    isClaimed: claimedByUserId != null,
     foundedYear: row.foundedYear ?? null,
     ...(counts.get(row.id) ?? EMPTY_COUNTS),
   };
