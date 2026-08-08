@@ -6,14 +6,115 @@
 
 | Source | What it gives | Format | Reliability | Refresh |
 |---|---|---|---|---|
-| **CONES** — `cones.gov.py` | The legal register: habilitated universities (~59) and habilitated carreras/programas, with resolution numbers | HTML lists + PDF resolutions, published per session | Authoritative for *legality*. Naming inconsistent, no stable IDs, no API | Monthly |
-| **ANEAES** — `aneaes.gov.py` | Accredited grade programs (~2.565 active as of Jul-2026), model, validity period | HTML lists + PDFs + boletines | Authoritative for *accreditation* | Monthly |
-| **datos.gov.py** (CKAN) | "Carreras de grado acreditadas – Modelo Nacional" dataset, JSON/CSV | Structured, downloadable | Best structured starting point. May lag the ANEAES site | Quarterly |
+| **CONES** — `cones.gov.py` | The legal register: habilitated universities (59) and their habilitated carreras/programas, with resolution numbers | Card grid + server-rendered HTML tables, links to resolution documents | Authoritative for *legality*. Naming inconsistent, no stable IDs, no API | Monthly |
+| **ANEAES** — `aneaes.gov.py` | Accredited programs — 122 nacional, 6 ARCU-SUR, 18 postgrado, 1 institution ("Año 2024") | **A 12-page PDF.** No resolution numbers, no resolution dates | Authoritative for *accreditation*, but not machine-readable — see §1.1 | Annual, in practice |
+| **datos.gov.py** (CKAN) | "Carreras de grado acreditadas – Modelo Nacional" dataset | Was CSV; the resource now points at an ANEAES endpoint | **Dead.** Published 2019-08-12, modified 2019-10-15; the old CSV URL returns 0 rows | — |
 | **MEC** | Institutos de Formación Docente, institutos técnicos superiores | Mixed | Patchy | Semiannual |
 | **Institution websites** | Aranceles, convocatorias, planes de estudio, contacts | Unstructured HTML, PDFs, sometimes only WhatsApp | Poor structure, but this is where the *unique* value lives | Per admission cycle |
 | **The institutions themselves** (Phase 2) | Verified data via `/panel` | Our own forms | Highest — this is the goal state | Continuous |
 
-**Note on access:** these government sites block automated fetches from some networks (403s observed from this environment). Ingestion runs from a local machine or the Hostinger box, with a normal browser UA, at low rate. Do not hammer them — one polite pass per month is enough and keeps us welcome.
+**Note on access:** these government sites block automated fetches from some networks (403s observed from this environment). Ingestion runs from a local machine or the Hostinger box, with a normal browser UA, at low rate. Do not hammer them — one polite pass per month is enough and keeps us welcome. `IMPORT_RATE_LIMIT_MS` is the brake and `politeFetchText` now reads it: it is a floor, so a caller can slow a run down but not speed it past what the operator set.
+
+## 1.1 What the sources publish today (verified against saved pages, Aug 2026)
+
+Both registers reorganized after PR-05 was written, which is why the first real
+run parsed zero rows from URLs that fetched fine. **The URLs were reachable;
+the parsers were reading a shape that no longer existed.**
+
+### CONES
+
+| Was | Is |
+|---|---|
+| `/universidades-habilitadas/` | 404 → **`/universidades/`** |
+| `/carreras-habilitadas/` | 404 → **`/category/ofertas-academicas/`**, and each institution's own page |
+
+- **`/universidades/`** is a **card grid**, not a table: one `div.dc-card` per
+  institution, 12 per page, 5 pages, "Se encontraron 59 registros". Each card
+  links to the institution's own page and prints a labelled contact blurb
+  (`Teléfono:` / `Dirección:` / `Ciudad:` / `Web:`). There is **no `<table>` on
+  the page at all** — a table-only parser cannot return anything but zero.
+  Start the crawl here, not at the site root: the root is timeout-prone.
+- **Carreras** live in a `wpDataTable`, server-rendered, one table per
+  institution, no JS and no POST needed. Columns: `Carrera/Programa` · `Tipo` ·
+  `Sede o Filial` · `Documento respaldatorio` · `IES` · `Antecedentes` ·
+  `Estado`. The saved UNA page carries 845 rows (810 after collapsing the 35
+  rows the register itself repeats), current through 2026.
+- The institution column is now **`IES`**, and the level column is **`Tipo`**
+  (`Grado` / `Postgrado` / `Pregrado`). Both were missing from PR-05's header
+  vocabulary, which is the second reason the archive parsed zero.
+- **There is no modality column any more.** `modalityRaw` is null on every
+  program row, so PR-06 will not create offerings from CONES — its "no offering
+  without a stated modality" gate holds, and that is the correct outcome. An
+  honest gap; do not default it to `presencial`.
+- **`Estado`** is empty or `INACTIVO` (31 of 845 on the UNA page). It is carried
+  as `offeringStatusRaw` — deliberately *not* `statusRaw` — because it is the
+  standing of the offering and must never reach `mapAccreditationStatus`. CONES
+  cannot say anything about accreditation.
+- Rows are occasionally **truncated mid-row** and lose their trailing cells,
+  including `IES`. Such a row is attributed to the table's own single distinct
+  institution and marked `institutionNameSource: 'table'`; a table naming more
+  than one institution gets no fallback and the row is dropped. Nothing is
+  guessed.
+
+### ANEAES
+
+- `https://www.aneaes.gov.py/acreditation/api/v1/` — the endpoint the stale CKAN
+  resource points at — **is not an API.** Fetched from an unblocked network it
+  returns ANEAES's generic "Página no encontrada" HTML 404. Do not build against
+  it.
+- The old datos.gov.py CSV URL returns 0 rows; the dataset behind it was last
+  modified in 2019.
+- What ANEAES publishes now is
+  `wp-content/uploads/2024/12/Listado_de_acreditaciones_2024.pdf` — 12 pages,
+  "Año 2024", 122 nationally accredited programs, 6 ARCU-SUR, 18 postgrado,
+  1 institution. **It carries no accrediting resolution numbers and no
+  resolution dates.**
+
+**What we may honestly display from it.** Rule 2 requires `source_url` *or*
+`resolution_number` for a positive status. The PDF's own URL is a legitimate
+`source_url`, so an accreditation sourced to it **can** be shown, cited as
+*"Fuente: ANEAES, Listado de acreditaciones 2024"* and linked to the PDF, with
+`resolution_number` left **null**. What we must not do is synthesize a number to
+fill the column, or print a validity window the PDF does not state — no
+`valid_from`, no `valid_to`, therefore no "vigente hasta" copy from this source.
+A program absent from the listing stays `Sin datos de acreditación`.
+
+`parseAneaesCsv` now reads a per-row source-URL column (`Fuente` / `source_url`
+/ `documento` / `url`) and treats an `http(s)` value there as sufficient
+provenance, so a row with a citation but no resolution number is `citable: true`
+instead of being refused by PR-06's apply gate. A non-URL value in that column
+is ignored — a citation nobody can open is not a citation.
+
+**How the PDF becomes rows is an open decision** — see §1.2. Until it is made,
+`npm run import:aneaes` with no `--file`/`--url` **throws** rather than fetching
+a dead URL and reporting a truthful-looking zero, and `collectAneaes` refuses to
+hand a PDF to the HTML reader.
+
+## 1.2 The ANEAES PDF: parse it or transcribe it (open)
+
+| Option | Cost | Risk |
+|---|---|---|
+| **Parse the PDF** | A permanent dependency: `unpdf` 1.8.0 ≈ 2.1 MB, `pdf2json` 4.0.3 ≈ 8.2 MB, `pdf-parse` 2.4.5 ≈ 21.3 MB, `pdfjs-dist` 6.2.108 ≈ 34.5 MB unpacked | PDF text extraction loses column boundaries on tabular layouts. The failure mode is a row whose institution and programme come from different lines — a wrong accreditation on a real university's page. **Extraction quality against this specific document is unverified: `*.gov.py` is unreachable from here, so nobody has run the 12 pages through any of these libraries yet.** |
+| **Transcribe once into a checked-in CSV** | ~147 rows by hand, once a year | None at parse time. The CSV is reviewable in a diff, ingests through the existing `--file` path with no new code, and carries the PDF URL per row as `source_url` |
+
+**Recommendation: transcribe.** ANEAES publishes this listing roughly once a
+year — a permanent runtime dependency is a poor trade for one annual document,
+and the row count is an afternoon, not a project. The deciding argument is not
+size, though: it is that the parse cannot be validated from here, and the field
+it would get wrong is the one field on the site with legal and reputational
+exposure. A hand-checked CSV is auditable line by line in review; a silent
+column shift is not. Revisit if ANEAES starts publishing monthly or restores a
+structured export.
+
+Transcription contract — the headers `parseAneaesCsv` reads:
+
+```csv
+Institucion,Carrera,Estado,Modelo,Resolucion,Fuente
+INSTITUCION,Carrera,Acreditada,Modelo Nacional,,https://www.aneaes.gov.py/wp-content/uploads/2024/12/Listado_de_acreditaciones_2024.pdf
+```
+
+`Resolucion` stays empty because the source omits it. Leave the vigencia columns
+out entirely rather than filling them.
 
 ## 2. Legal posture on reuse
 
@@ -46,8 +147,9 @@ Steps 3–5 shipped in PR-06 — see §4.6. The raw layer writes to `source_reco
 | `src/lib/ingest/checksum.ts` | Canonicalize (sorted keys, collapsed whitespace) then SHA-256. Idempotency depends on this being stable across parses. |
 | `src/lib/ingest/http.ts` | Polite fetch: identifying UA, per-host serialized delay, retries on transient status only. **A 403 is never retried** — §1 and §7. |
 | `src/lib/ingest/html.ts` · `csv.ts` | Dependency-free table and CSV readers. Columns are addressed by header text, so a reordered column does not silently shift the data. |
-| `src/lib/ingest/parsers/cones.ts` | Habilitación rows. Emits no accreditation field of any kind. |
-| `src/lib/ingest/parsers/aneaes.ts` | Accredited-program rows. Carries the source's own wording in `statusRaw` and flags `citable: false` when a row has neither resolution number nor source URL. |
+| `src/lib/ingest/parsers/cones.ts` | Habilitación rows, in both shapes the register now uses: `parseConesInstitutions` (the card grid), `parseConesPrograms` (the carreras table), and `parseConesRegister`, which runs both so an operator pointing `--file` at a saved page does not have to know which they saved. Emits no accreditation field of any kind. |
+| `src/lib/ingest/parsers/aneaes.ts` | Accredited-program rows. Carries the source's own wording in `statusRaw` and flags `citable: false` when a row has neither resolution number nor an `http(s)` source URL. |
+| `src/lib/ingest/sources.ts` | The URLs, and the CONES crawl: start URLs → their `page/N/` views → each institution's own page, followed from its directory card. All of it through the one rate-limited per-host queue. |
 
 Two rules are enforced at the raw layer rather than deferred to PR-06:
 
@@ -57,11 +159,29 @@ Two rules are enforced at the raw layer rather than deferred to PR-06:
 **Running the importers when the sources 403 you.** They will (§1), including from CI. Both scripts take `--file`, so the documented procedure is: save the register page or CKAN export from a browser, then
 
 ```
-npm run import:cones -- --dry-run --file ./tmp/carreras.html   # check the parse, no DB needed
-npm run import:cones -- --file ./tmp/carreras.html             # write raw records
+npm run import:cones -- --dry-run --file ./tmp/universidades.html   # check the parse, no DB needed
+npm run import:cones -- --file ./tmp/universidades.html             # write raw records
 ```
 
-`--dry-run` parses, prints a sample payload and writes nothing — this is how you verify a parser against a freshly saved page after the source changes its markup, which it will.
+`--dry-run` parses, prints a sample payload and writes nothing — this is how you verify a parser against a freshly saved page after the source changes its markup, which it will. Numbers to expect from a saved page, so a regression is visible immediately: `/universidades/` → **12 institution records per page**; a saved institution/ofertas page → **one record per carrera row**, minus the rows the register repeats verbatim (845 → 810 on the UNA page).
+
+A `--file` run parses only the file: it follows no pagination, because a saved page paginates nowhere. **A file run therefore captures one page of 5, not the whole register** — save all five, or run from a network that can reach the site.
+
+**The network path, when a network can reach them.** `collectCones` walks the register in three shallow passes — the start URLs, their `page/N/` views, then each institution page discovered from a directory card — all serialized through the same per-host delay. Roughly 65 requests at `IMPORT_RATE_LIMIT_MS`; a couple of minutes at the default 2 s, which is the intended pace. `CONES_MAX_LISTING_PAGES` / `CONES_MAX_INSTITUTION_PAGES` bound it; hitting one means the register grew, and a human raises the number and watches the run.
+
+**Probe before the full pass.** Never discover a markup change 65 requests in:
+
+```
+npm run import:cones -- --dry-run --max-institutions 3   # ~8 requests
+npm run import:cones -- --dry-run                        # the full pass
+npm run import:cones                                     # write raw records
+```
+
+`--no-institutions` walks the listings only. The dry run prints, per source document, how many records it produced, and names any page that fetched fine and parsed to **zero** — the exact signature of the breakage §1.1 documents, which a single total hides. If more than half the institution pages come back empty, the run says so in a `WARNING` line rather than leaving a plausible number in the log.
+
+The CONES digest is the second check, and every line is verifiable against the page in a browser: institutions, programs, distinct institutions, how many rows carry an `Estado`, how many lack a resolution, how many were attributed from the table rather than their own `IES` cell, and how many carry a modality — which should be **0** until CONES starts publishing that column again.
+
+`IMPORT_RATE_LIMIT_MS`, once set, is a floor: `--dry-run` cannot outrun it, and neither can a caller passing `delayMs`.
 
 **Fixtures contain no real data.** `src/lib/ingest/__fixtures__/documents.ts` uses `INSTITUCION DE PRUEBA A` and `RES-TEST-1`, deliberately: a fixture pairing a real university with an invented resolution number is the string that eventually gets copied into a seed script. The fixtures assert shape, which is all the parsers decide.
 
@@ -120,6 +240,8 @@ Re-running is a no-op: the same proposals are re-derived, classified `unchanged`
 `pr-plan.md` asks PR-06 to report ≥ 60% auto-match. `npm run curate` prints that number per source — but **as of PR-06 it has never been run against real data**: the parsers have not been validated against saved CONES/ANEAES pages (§3.1's `--dry-run --file` procedure), and no `source_records` exist yet.
 
 A rate measured against the synthetic fixtures is a measurement of the fixtures. The first honest number comes from: save the register pages → `--dry-run` each parser → import → `npm run curate -- --dry-run`. If the parsers turn out to need fixing against the real markup, do that **before** touching `FUZZY_PROPOSE_THRESHOLD` — a threshold tuned against a mis-parsed column is worse than the default.
+
+**Status after the §1.1 rewrite:** the parsers have now been validated against real saved CONES pages, so the shape is no longer guesswork — but still nothing has been imported and `npm run curate` has still never run against real data. The auto-match rate remains unmeasured, and the two things that will decide it are visible in the markup already: CONES publishes **no institution code anywhere** (so every institution matches by name, exactly the case `institution_aliases` exists for), and it prints its own name inconsistently between the directory card and the `IES` column ("Universidad Nacional de Asunción" vs "Universidad Nacional de Asunción – UNA"). Expect the first run to lean on §4.1 normalization and to queue more than the fixtures suggest.
 
 ## 5. Aranceles — the collection playbook
 

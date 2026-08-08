@@ -73,6 +73,14 @@ const FIELDS = {
   validFrom: ['vigencia desde', 'fecha de acreditacion', 'desde', 'inicio'],
   validTo: ['vigencia hasta', 'hasta', 'vencimiento', 'fin de vigencia'],
   location: ['sede', 'filial', 'localidad', 'ciudad', 'departamento'],
+  /**
+   * The row's own citation. A tabular source that omits resolution numbers —
+   * which the 2024 ANEAES listing does — can still satisfy CLAUDE.md rule 2
+   * through a URL a reader can open, so the column is read rather than assumed
+   * absent. Anything that is not an `http(s)` address is ignored: a citation
+   * nobody can follow is not a citation.
+   */
+  sourceUrl: ['source url', 'fuente url', 'url de la fuente', 'fuente', 'documento', 'url'],
 } as const;
 
 /** Same normalization the HTML column matcher uses, so CSV headers and table
@@ -100,6 +108,11 @@ function pick(record: Record<string, string>, candidates: readonly string[]): st
     }
   }
   return null;
+}
+
+/** A citation has to be fetchable by a reader; a filename or a note is not. */
+function httpUrlOrNull(value: string | null): string | null {
+  return value && /^https?:\/\//i.test(value) ? value : null;
 }
 
 function toRecord(
@@ -133,17 +146,21 @@ export function parseAneaesCsv(
     if (!institutionName) continue;
 
     const resolutionNumber = pick(row, FIELDS.resolution);
+    const resolutionUrl = httpUrlOrNull(pick(row, FIELDS.sourceUrl));
     const payload: AneaesPayload = {
       institutionName,
       programName: pick(row, FIELDS.program),
       statusRaw: pick(row, FIELDS.status),
       modelRaw: pick(row, FIELDS.model),
       resolutionNumber,
-      resolutionUrl: null,
+      resolutionUrl,
       validFromRaw: pick(row, FIELDS.validFrom),
       validToRaw: pick(row, FIELDS.validTo),
       locationRaw: pick(row, FIELDS.location),
-      citable: resolutionNumber != null,
+      // Rule 2 is satisfied by *either* citation. A row carrying only a
+      // resolution URL — a listing that publishes the document but not its
+      // number — is citable; the number stays null rather than being invented.
+      citable: resolutionNumber != null || resolutionUrl != null,
       rawCells: null,
       rawRecord: row,
     };

@@ -56,6 +56,7 @@ describe('CONES is a habilitación source', () => {
     const staged = stageConesRecord({
       kind: 'program',
       institutionName: INSTITUTION_A,
+      institutionNameSource: 'row',
       conesCode: 'C-001',
       programName: PROGRAM_ONE,
       levelRaw: 'Grado',
@@ -63,6 +64,14 @@ describe('CONES is a habilitación source', () => {
       locationRaw: 'Asunción',
       resolutionNumber: 'RES-TEST-1',
       resolutionUrl: null,
+      // The register's own "Estado" cell. It is a fact about the offering, and
+      // it must not survive staging as anything resembling a status.
+      offeringStatusRaw: 'INACTIVO',
+      antecedentsRaw: null,
+      detailUrl: null,
+      phoneRaw: null,
+      addressRaw: null,
+      websiteRaw: null,
       rawCells: [],
     });
 

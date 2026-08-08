@@ -17,9 +17,23 @@ export {
   __resetRateLimiter,
 } from './http';
 export { parseCsv, parseCsvRecords } from './csv';
-export { parseConesRegister, type ConesPayload } from './parsers/cones';
+export {
+  conesPaginationLinks,
+  parseConesInstitutions,
+  parseConesPrograms,
+  parseConesRegister,
+  summarizeConesRecords,
+  type ConesPayload,
+} from './parsers/cones';
 export { parseAneaesCsv, parseAneaesHtml, type AneaesPayload } from './parsers/aneaes';
-export { ANEAES_URLS, CONES_URLS, collectAneaes, collectCones, type SourceInput } from './sources';
+export {
+  ANEAES_URLS,
+  CONES_URLS,
+  collectAneaes,
+  collectCones,
+  type ConesInput,
+  type SourceInput,
+} from './sources';
 export {
   finishImportRun,
   runImport,
