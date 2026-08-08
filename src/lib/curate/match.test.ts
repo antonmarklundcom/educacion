@@ -20,7 +20,13 @@ import {
   matchInstitution,
   matchProgram,
 } from './match';
-import { acronymCandidate, buildCareerMatchKey, buildMatchKey, uniqueSlug } from './match-key';
+import {
+  acronymCandidate,
+  buildCareerMatchKey,
+  buildMatchKey,
+  splitPrintedAcronym,
+  uniqueSlug,
+} from './match-key';
 import { levenshteinRatio, similarityScore, trigramSimilarity } from './similarity';
 
 describe('buildMatchKey', () => {
@@ -37,6 +43,14 @@ describe('buildMatchKey', () => {
   it('expands the abbreviations the registers use interchangeably', () => {
     expect(buildMatchKey('Institución Ntra. Sra. de Prueba')).toBe(
       buildMatchKey('INSTITUCION NUESTRA SEÑORA DE PRUEBA'),
+    );
+  });
+
+  // The register writes one institution both ways across its two shapes; a key
+  // that keeps the suffix sends every one of them to the conflict queue.
+  it('converges a name with its own printed-acronym spelling', () => {
+    expect(buildMatchKey('Institución de Prueba A – IPA')).toBe(
+      buildMatchKey('Institución de Prueba A'),
     );
   });
 
@@ -61,6 +75,40 @@ describe('acronymCandidate', () => {
 
   it('does not invent one from initials', () => {
     expect(acronymCandidate('Institución de Prueba A')).toBeNull();
+  });
+
+  // CONES prints the acronym inside the name on 10 of the 13 institutions on
+  // the saved register pages: "… de Luque – UAL". Reading it is not deriving
+  // it (docs/data-sources.md §4.1).
+  it('reads an acronym the source printed inside a full name', () => {
+    expect(acronymCandidate('Institución de Prueba A – IPA')).toBe('IPA');
+    expect(acronymCandidate('Institución de Prueba A (IPA)')).toBe('IPA');
+    expect(acronymCandidate('Institución de Prueba A - I.P.A.')).toBe('IPA');
+  });
+
+  it('still refuses a trailing word that is not an acronym', () => {
+    expect(acronymCandidate('Institución de Prueba del Sur')).toBeNull();
+    expect(acronymCandidate('Institución de Prueba A – Sede Central')).toBeNull();
+  });
+});
+
+describe('splitPrintedAcronym', () => {
+  it('separates a printed acronym from the name it is glued to', () => {
+    expect(splitPrintedAcronym('Institución de Prueba A – IPA')).toEqual({
+      name: 'Institución de Prueba A',
+      acronym: 'IPA',
+    });
+  });
+
+  it('leaves a name that is only an acronym alone', () => {
+    expect(splitPrintedAcronym('IPA')).toEqual({ name: 'IPA', acronym: null });
+  });
+
+  it('leaves an ordinary name untouched', () => {
+    expect(splitPrintedAcronym('Institución de Prueba A')).toEqual({
+      name: 'Institución de Prueba A',
+      acronym: null,
+    });
   });
 });
 

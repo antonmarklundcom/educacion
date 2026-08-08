@@ -73,6 +73,47 @@ export const ABBREVIATIONS: Readonly<Record<string, string>> = {
   GRAL: 'GENERAL',
 };
 
+/**
+ * A name and the acronym the source printed *inside* it.
+ *
+ * CONES writes its institutions as `Universidad Autónoma de Asunción – UAA`:
+ * 10 of the 13 names on the saved register pages carry a trailing acronym like
+ * this, and two of them (`– UC`, `– UNASUR`) show the range it spans. Left in
+ * place, that suffix does two kinds of damage at once — it becomes a token in
+ * the match key, so the same institution written without it does not match;
+ * and the acronym itself, printed right there, never reaches the acronym index
+ * that §4 step 3 exists to use.
+ *
+ * This **reads** an acronym the source printed. It never derives one from
+ * initials — inventing `UNA` for a name that never spelled it out is exactly
+ * the confident guess that merges two institutions.
+ */
+export interface PrintedName {
+  /** The name with a printed acronym suffix removed. */
+  name: string;
+  /** The acronym as printed, or null when the name carries none. */
+  acronym: string | null;
+}
+
+/**
+ * Uppercase-only, 2–8 characters, at the very end, after a dash or inside
+ * parentheses. Case is read from the *raw* string on purpose: lowercasing
+ * first would make `Universidad de la Costa` end in an "acronym".
+ */
+const PRINTED_ACRONYM =
+  /^(.*\S)\s*(?:[–—-]\s*|\(\s*)([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9.]{1,7})\s*\)?\s*$/u;
+
+export function splitPrintedAcronym(rawName: string): PrintedName {
+  const match = PRINTED_ACRONYM.exec(rawName.trim());
+  if (!match) return { name: rawName.trim(), acronym: null };
+
+  const name = match[1].trim();
+  const acronym = normalizeName(match[2]).replace(/ /g, '');
+  // A name that is *only* an acronym keeps its name; there is nothing to split.
+  if (!name || !acronym) return { name: rawName.trim(), acronym: null };
+  return { name, acronym };
+}
+
 /** Uppercase → strip accents → punctuation to space → collapse whitespace. */
 export function normalizeName(raw: string): string {
   return raw
@@ -98,9 +139,20 @@ function keyFrom(raw: string, stopwords: ReadonlySet<string>): string {
   return (kept.length > 0 ? kept : tokens).join(' ');
 }
 
-/** The institution match key. `BuildMatchKey` from `contract.ts`. */
+/**
+ * The institution match key. `BuildMatchKey` from `contract.ts`.
+ *
+ * A printed acronym suffix is dropped before the key is built, so
+ * `Universidad Autónoma de Luque – UAL` and `Universidad Autónoma de Luque`
+ * converge instead of queueing as a fuzzy near-miss. The acronym is not lost —
+ * `acronymCandidate` returns it, and the matcher indexes it separately.
+ *
+ * Dropping it cannot merge two distinct institutions on its own: names that
+ * differ *only* by the suffix are the same name, and a key resolving to two
+ * institutions is reported `ambiguous_match` and never applied (`match.ts`).
+ */
 export function buildMatchKey(rawName: string): string {
-  return keyFrom(rawName, INSTITUTION_STOPWORDS);
+  return keyFrom(splitPrintedAcronym(rawName).name, INSTITUTION_STOPWORDS);
 }
 
 /** The career/program match key. Same algorithm, different stopword list. */
@@ -117,6 +169,10 @@ export function buildCareerMatchKey(rawName: string): string {
  * institutions.
  */
 export function acronymCandidate(rawName: string): string | null {
+  // An acronym the source printed inside a full name: "… de Luque – UAL".
+  const printed = splitPrintedAcronym(rawName).acronym;
+  if (printed) return printed;
+
   const tokens = normalizeName(rawName).split(' ').filter(Boolean);
   if (tokens.length === 0) return null;
 

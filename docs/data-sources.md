@@ -196,11 +196,39 @@ The same institution appears as:
 
 Approach, in order:
 
-1. **Normalize:** uppercase → strip accents → strip punctuation → collapse whitespace → drop stopwords (`UNIVERSIDAD`, `NACIONAL`, `DE`, `LA`, `DEL`) into a `match_key`.
+1. **Normalize:** uppercase → strip accents → strip punctuation → collapse whitespace → drop stopwords (`UNIVERSIDAD`, `NACIONAL`, `DE`, `LA`, `DEL`) into a `match_key`. A **printed acronym suffix is split off first** — see §4.1.1.
 2. **Exact match on `cones_code`** when present. This is the only trustworthy key; capture it wherever it appears.
 3. **Exact match on `match_key`**, then on `acronym`.
 4. **Fuzzy:** trigram / Levenshtein ratio ≥ 0.88 → propose, do not auto-apply.
 5. **Alias table:** every manual resolution writes an `institution_aliases(institution_id, raw_name, match_key)` row so the same string never needs deciding twice. **This table is the compounding asset of the pipeline** — after two import cycles, matching is nearly free.
+
+### 4.1.1 The acronym CONES prints inside the name
+
+Measured on the saved register pages: **10 of 13 institution names carry a
+trailing acronym** — `Universidad Autónoma de Luque – UAL`,
+`Universidad Católica "Nuestra Señora de la Asunción" – UC`,
+`Universidad Autónoma del Sur – UNASUR`. Left in the string it did two kinds of
+damage at once:
+
+- it became a token in the `match_key`, so `… de Luque – UAL` and `… de Luque`
+  produced different keys and the same institution written both ways fell
+  through to fuzzy → `ambiguous_match` → the queue;
+- and the acronym itself — printed right there, the very thing step 3 wants —
+  never reached the acronym index. `acronymCandidate` returned null for all 10.
+
+`splitPrintedAcronym` now separates the two: the key is built from the name
+without the suffix, and the acronym is indexed. It **reads** what the source
+printed; it never derives an acronym from initials, which remains forbidden for
+the reason it always was.
+
+**What this costs.** Removing the suffix removes a discriminator. `Universidad
+Nacional de Asunción – UNA` keyed as `ASUNCION UNA` before and keys as
+`ASUNCION` now — so a hypothetical `Universidad de Asunción` would collide with
+it where it previously would not. That is the same over-merge §4.1 already
+accepts for dropping `NACIONAL`, and it lands in the same place: a key resolving
+to two institutions is `ambiguous_match`, never applied, and a human decides
+once. The trade is deliberate — a collision costs one queue item, while the old
+behaviour queued ten of thirteen every run.
 
 Same approach for careers, using `careers.synonyms_json` as the alias store ("Medicina y Cirugía" → `medicina`).
 
@@ -241,7 +269,7 @@ Re-running is a no-op: the same proposals are re-derived, classified `unchanged`
 
 A rate measured against the synthetic fixtures is a measurement of the fixtures. The first honest number comes from: save the register pages → `--dry-run` each parser → import → `npm run curate -- --dry-run`. If the parsers turn out to need fixing against the real markup, do that **before** touching `FUZZY_PROPOSE_THRESHOLD` — a threshold tuned against a mis-parsed column is worse than the default.
 
-**Status after the §1.1 rewrite:** the parsers have now been validated against real saved CONES pages, so the shape is no longer guesswork — but still nothing has been imported and `npm run curate` has still never run against real data. The auto-match rate remains unmeasured, and the two things that will decide it are visible in the markup already: CONES publishes **no institution code anywhere** (so every institution matches by name, exactly the case `institution_aliases` exists for), and it prints its own name inconsistently between the directory card and the `IES` column ("Universidad Nacional de Asunción" vs "Universidad Nacional de Asunción – UNA"). Expect the first run to lean on §4.1 normalization and to queue more than the fixtures suggest.
+**Status after the §1.1 rewrite:** the parsers have now been validated against real saved CONES pages, so the shape is no longer guesswork — but still nothing has been imported and `npm run curate` has still never run against real data. The auto-match rate remains unmeasured, and the thing that will decide it is visible in the markup already: CONES publishes **no institution code anywhere**, so every institution matches by name and nothing else. §4.1.1 removed the one name-shape problem that could be found without the data — the printed acronym suffix, which was costing 10 of 13 names a `match_key` hit. Whatever the first real run reports, **report that number**; do not tune `FUZZY_PROPOSE_THRESHOLD` to reach 60%.
 
 ## 5. Aranceles — the collection playbook
 
