@@ -168,6 +168,34 @@ describe('buildProposals — CONES', () => {
     expect(stats.deferred).toBe(1);
   });
 
+  // CONES prints the acronym inside the name on most of its institutions. It
+  // has to survive into the row, because `program_search` indexes it and the
+  // search engine ranks an acronym hit first — a visitor typing "IPA" expects
+  // the institution, not zero results.
+  it('carries the printed acronym into the proposed institution', () => {
+    const { proposals } = buildProposals(snapshot(), [
+      conesRecord({ institutionName: 'ENTIDAD DE ENSAYO Q – EEQ', programName: PROGRAM_ONE }),
+    ]);
+
+    const [institution] = find(proposals, 'institution');
+    expect(institution.proposed).toMatchObject({
+      // The official name stays exactly as the source printed it…
+      nameOfficial: 'ENTIDAD DE ENSAYO Q – EEQ',
+      // …while the card name and the URL drop the suffix.
+      nameShort: 'ENTIDAD DE ENSAYO Q',
+      slug: 'entidad-de-ensayo-q',
+      acronym: 'EEQ',
+    });
+  });
+
+  it('leaves the acronym null when the source never printed one', () => {
+    const { proposals } = buildProposals(snapshot(), [
+      conesRecord({ institutionName: 'ENTIDAD DE ENSAYO Q', programName: PROGRAM_ONE }),
+    ]);
+
+    expect(find(proposals, 'institution')[0].proposed).toMatchObject({ acronym: null });
+  });
+
   it('queues rather than applies a cones_code that contradicts what we hold', () => {
     const { proposals } = buildProposals(snapshot(), [
       conesRecord({ institutionName: INSTITUTION_A, conesCode: 'C-999' }),

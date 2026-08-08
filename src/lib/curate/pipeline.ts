@@ -55,6 +55,7 @@ import {
   stageConesRecord,
   type Modality,
   type StagedAccreditation,
+  type StagedInstitution,
 } from './staging';
 
 /* -------------------------------------------------------------------------- */
@@ -301,7 +302,7 @@ function countMatch(context: Context, match: MatchResult): void {
 function institutionProposal(
   context: Context,
   record: SourceRecordRow,
-  staged: { rawName: string; matchKey: string; conesCode: string | null },
+  staged: StagedInstitution,
   match: MatchResult,
 ): CurationProposal {
   const existing =
@@ -316,10 +317,17 @@ function institutionProposal(
       match,
       null,
       {
+        // The official name keeps the source's exact string; the short name
+        // and the slug drop the printed acronym suffix, so a card reads
+        // "Universidad Autónoma de Luque" and the URL is not …-luque-ual.
         nameOfficial: staged.rawName,
-        nameShort: staged.rawName,
+        nameShort: staged.nameShort,
+        // Searching "UNA" has to find the UNA: `program_search` indexes this
+        // column and the engine ranks an acronym hit first. The acronym is the
+        // source's own, read out of the name it printed it in — never derived.
+        acronym: staged.acronym,
         matchKey: staged.matchKey,
-        slug: uniqueSlug(staged.rawName, context.institutionSlugs),
+        slug: uniqueSlug(staged.nameShort, context.institutionSlugs),
         conesCode: staged.conesCode,
         // Neither register prints gestión or institution type. Leaving them
         // null is what makes this proposal queue rather than auto-create —

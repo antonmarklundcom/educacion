@@ -26,7 +26,12 @@ import type { ConesPayload } from '@/lib/ingest/parsers/cones';
 import type { AccreditationStatus } from '@/db/invariants';
 import type { MODALITY, PROGRAM_LEVEL } from '@/db/schema';
 
-import { buildCareerMatchKey, buildMatchKey, normalizeName } from './match-key';
+import {
+  buildCareerMatchKey,
+  buildMatchKey,
+  normalizeName,
+  splitPrintedAcronym,
+} from './match-key';
 
 export type ProgramLevel = (typeof PROGRAM_LEVEL)[number];
 export type Modality = (typeof MODALITY)[number];
@@ -143,6 +148,30 @@ export interface StagedInstitution {
   rawName: string;
   matchKey: string;
   conesCode: string | null;
+  /**
+   * The name with a printed acronym suffix removed — "Universidad Autónoma de
+   * Luque", not "Universidad Autónoma de Luque – UAL". This is what belongs in
+   * `name_short`, which is the string that renders on a card.
+   */
+  nameShort: string;
+  /**
+   * The acronym the source printed inside the name, or null. It lands in
+   * `institutions.acronym`, which `program_search` indexes and the search
+   * engine ranks first — searching "UNA" has to find the UNA.
+   */
+  acronym: string | null;
+}
+
+/** Both sources print the acronym inside the name; read it once, here. */
+function stageInstitutionName(rawName: string, conesCode: string | null): StagedInstitution {
+  const printed = splitPrintedAcronym(rawName);
+  return {
+    rawName,
+    matchKey: buildMatchKey(rawName),
+    conesCode,
+    nameShort: printed.name,
+    acronym: printed.acronym,
+  };
 }
 
 export interface StagedProgram {
@@ -182,11 +211,7 @@ export interface StagedAneaesRecord {
 
 export function stageConesRecord(payload: ConesPayload): StagedConesRecord {
   return {
-    institution: {
-      rawName: payload.institutionName,
-      matchKey: buildMatchKey(payload.institutionName),
-      conesCode: payload.conesCode,
-    },
+    institution: stageInstitutionName(payload.institutionName, payload.conesCode),
     program: payload.programName
       ? {
           rawName: payload.programName,
@@ -209,11 +234,7 @@ export function stageAneaesRecord(
   context: { sourceUrl: string | null },
 ): StagedAneaesRecord {
   return {
-    institution: {
-      rawName: payload.institutionName,
-      matchKey: buildMatchKey(payload.institutionName),
-      conesCode: null,
-    },
+    institution: stageInstitutionName(payload.institutionName, null),
     program: payload.programName
       ? {
           rawName: payload.programName,
