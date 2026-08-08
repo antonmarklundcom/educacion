@@ -28,6 +28,7 @@ import {
 } from '@/components/browse';
 import { EventBeacon } from '@/components/analytics';
 import { AccreditationSummary } from '@/components/institution/AccreditationSummary';
+import { ClaimCta } from '@/components/institution/ClaimCta';
 import { ContactBlock } from '@/components/institution/ContactBlock';
 import { Badge, Pagination } from '@/components/ui';
 import { getInstitutionBySlug } from '@/lib/institutions';
@@ -172,6 +173,7 @@ export default async function InstitutionPage({
         <aside className="flex flex-col gap-6">
           <AccreditationSummary counts={institution} />
           <ContactBlock institution={institution} />
+          <ClaimCta institutionSlug={instSlug} isClaimed={institution.isClaimed} />
           {total > 0 && (
             <div className="border-border bg-card-alt rounded-lg border p-5">
               <h2 className="text-ink text-base font-semibold">Filtrar carreras</h2>

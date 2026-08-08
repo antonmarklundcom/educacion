@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/admin/acreditaciones', label: 'Acreditaciones' },
   { href: '/admin/admisiones', label: 'Convocatorias' },
   { href: '/admin/moderacion', label: 'Moderación' },
+  { href: '/admin/reclamos', label: 'Reclamos' },
   { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 

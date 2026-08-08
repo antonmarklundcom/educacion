@@ -234,10 +234,15 @@ users
 
 institution_members(id, user_id, institution_id, role, created_at)  UNIQUE (user_id, institution_id)
 
-claims             // claim-your-profile flow
+claims             // claim-your-profile flow (PR-22, architecture.md §16)
   id, institution_id, user_id, email, email_domain,
+  contact_name?, note?,                 // who says they are asking — the admin path needs it
+  domain_verified,                      // email is on institutions.website's domain
   token_hash, expires_at, status, verified_at, decided_by_user_id, created_at
   UNIQUE (token_hash)
+  // A token works only when status='pending' AND expires_at > now AND
+  // (domain_verified OR decided_by_user_id IS NOT NULL).
+  // status='expired' is never written: expiry is computed from expires_at.
 
 plans              // 'gratis' | 'verificado' | 'destacado'
   id, code, name, price_usd_year, program_band_min, program_band_max,
