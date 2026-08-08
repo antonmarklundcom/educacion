@@ -19,6 +19,9 @@ export type { SelectProps } from './Select';
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
+export { Textarea } from './Textarea';
+export type { TextareaProps } from './Textarea';
+
 export { RangeSlider } from './RangeSlider';
 export type { RangeSliderProps } from './RangeSlider';
 
