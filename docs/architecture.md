@@ -469,3 +469,110 @@ arancel" where we used to have a number. PR-33 owns the automated half — the
 weekly digest, the cron, the public "última actualización" surfaces. This is the
 manual half, which had to exist first: there is no point scheduling a reminder
 about a queue nobody can work.
+
+---
+
+## 15. The institution portal (settled in PR-21)
+
+**The boundary is `src/db/queries/panel/scope.ts`, and it is object-level.**
+Filtering a list by `institutionId` is necessary and is not sufficient:
+`/panel/carreras/57` hands the handler an id an institution user can edit, so
+every panel entry point resolves the _owning_ institution of the row it was
+given and compares it to `scopeToInstitution(user)` — which never coerces
+(§7.1). The decision is split from the fetch: `assertSameInstitution` is pure,
+which is what makes the cross-institution cases testable without a database.
+
+**A missing row and somebody else's row answer identically.** Both throw
+`forbidden`. Answering 404 for one and 403 for the other turns the URL space
+into an oracle for which ids exist.
+
+**Staff are refused at `/panel`, not scoped to everything.** The panel says
+"your carreras" throughout, and a staff session has no institution; rather than
+silently picking one it sends them to `/admin`, which asks explicitly.
+
+**Authorization runs before validation.** The price action originally parsed
+its fields first, and answered "decinos cuántas cuotas" to a request aimed at
+another institution's offering — confirming the offering exists and that the
+payload was nearly right. The ownership check moved to the first line. The test
+below is what found it.
+
+### 15.1 What the institution may change, and what enters review
+
+`src/lib/panel/review.ts` is the list, by one principle: **the institution is
+the authority on its own commercial facts; the register is the authority on its
+identity.**
+
+- **Direct, live immediately:** aranceles, convocatorias, descriptions, plan de
+  estudio, créditos, título. An arancel typed by the institution is stamped
+  `source = 'institucion'` — the strongest provenance this dataset has — and
+  supersedes rather than edits, exactly as the admin path does (§14). There is
+  no review gate on it deliberately: `plan.md` §6 calls arancel collection the
+  actual cost centre of this business, and queueing the most valuable thing the
+  panel can produce behind a human would mean it arrives days late and only if
+  somebody is watching.
+- **Review-gated:** `nameOfficial`, `level`, `conesResolution`, `careerId`,
+  and an offering's modality/turno/duración/sede. These come from a public
+  register, they are what a student checks us against, and they become a
+  `curation_conflicts` row — **the same queue PR-20 built**, resolved through
+  the importer's own write path (§14.1). One queue, one apply path. A review
+  field whose value has not actually changed is not queued: a moderator opening
+  a request that proposes what is already stored has been given busywork.
+- **Forbidden entirely:** `status` (publishing decides what is in the national
+  index; an institution un-publishing a programme it still runs makes the
+  directory wrong in the one way nobody can detect from outside — removal goes
+  through the R-14 policy) and **accreditation**, which is R-09 pointed at our
+  own foot. The institution's remedy there is a dispute, and that is PR-24.
+
+Fields that are none of the three are **reported back**, never silently
+dropped: dropping a field we rendered a control for is how a panel teaches its
+users that saving does not work.
+
+### 15.2 The access test, and the two bugs it found
+
+`src/db/queries/panel/access.test.ts` builds a session for institution **B** and
+calls the real server actions in `src/app/panel/actions.ts` with ids owned by
+institution **A**. Nothing in the security path is mocked — only the database,
+with one that answers every ownership lookup "institution A owns this", the most
+dangerous possible answer.
+
+**Reads are allowed; writes are the canary.** Resolving ownership _is_ the
+guard, so a read is expected; an `insert`, `update`, `delete`, transaction or
+index rebuild on a cross-institution request sets a flag that every assertion
+checks. This matters more than it sounds: the first version of the test asserted
+only "an error came back", and **passed with the guard deleted**, because every
+action catches its own errors and a missing database produces an error too.
+Deleting `assertSameInstitution`'s comparison now turns the file red, which is
+the property that makes it a test rather than a decoration.
+
+It also caught the validation-before-authorization ordering in the price action
+(§15).
+
+### 15.3 Members
+
+`institution_admin` only — the roles are not a ladder, so this is a separate
+check rather than a comparison. Four refusals, each closing a real hole: a
+**staff** account can never be attached to an institution from here; a user who
+already belongs to **another** institution is refused, because §7.1 scopes a
+two-institution user to _neither_ and "inviting" them would lock them out of
+their real employer; an admin cannot demote or remove **themselves**, which
+would leave the institution recoverable only by us; and a removed member's
+`users` row **survives**, because it is referenced by `activity_log` and by
+`verified_by_user_id` on every price they verified.
+
+**An invited member cannot sign in until we set their password**, and the panel
+says so in those words rather than implying an email is coming. That is PR-18's
+deferred password reset surfacing where a customer can feel it — see §15.4.
+
+### 15.4 The password-reset gap, restated
+
+PR-18 deferred password reset by email and wrote: _"Do not ship `/panel` to real
+institutions without it."_ That still holds and this PR does not change it.
+`/panel` is built, guarded and tested; what it is not is **announced**. The
+posture is the one PR-18 already established for staff: a locked-out user is
+recovered by an admin, and the invite form says so plainly instead of promising
+a mail that never arrives.
+
+Before the first real institution is given a login, PR-18's reset flow —
+`password_reset_tokens` plus the Resend integration — has to land. Telling a
+university to email us for a password is acceptable for staff and not for
+customers.
