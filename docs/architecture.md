@@ -369,3 +369,103 @@ PR-14 built the write path — `recordEvent()`, `POST /api/events`, the session 
 **The R-08 decision: object storage, not a persistent path.** `risks.md` §R-08 asked for one of two options. This PR takes the preferred one — an S3-compatible bucket (Cloudflare R2, or any S3-compatible provider) — over the persistent-path alternative, because the persistent path couples the app to one Hostinger box and complicates local dev, and the bucket is what `.env.example`'s `S3_*` block was already reserved for. Rather than pull in the AWS SDK for one call, `src/lib/uploads/s3.ts` is a hand-written SigV4 signer for a single `PUT`; `src/lib/uploads/storage.ts` validates the file (type, size) before touching configuration and **fails closed**: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_PUBLIC_BASE_URL` are read fresh on every call, and their absence throws `UploadConfigError` before any network request — an upload that silently no-ops, leaving `logo_url` unset with no explanation, is worse than one that refuses outright. Nothing is ever written to `public/` or anywhere inside the app directory.
 
 **Not verified from this environment.** This PR was written without a live R2/S3 bucket or `DATABASE_URL` to test against, so "the uploaded logo survives a simulated redeploy" is verified by construction — the bytes never touch disk inside the app directory, there is nothing for a redeploy to wipe — but not by an actual upload-then-redeploy run. The SigV4 signing was written to spec and covered by validation tests (bad type, empty file, oversized file, missing/partial config), not by a request that reached a real bucket. Whoever merges this should do one real upload against the production `S3_*` values before relying on it.
+
+---
+
+## 14. Prices, accreditations, admissions and the moderation queue (settled in PR-20)
+
+PR-19 covered the catalogue. PR-20 covers the three tables that carry a
+`verified_at` clock — the ones a student actually acts on — plus the queue
+PR-06 has been filling since Phase 0 with nothing able to read it.
+
+**An arancel is superseded, never edited.** `data-model.md` §2 specifies "one
+current row per offering + history", and until now nothing enforced which of
+those two a save meant. Saving a new price flips the previous current row to
+`is_current = false` and inserts a new one, in one transaction — the UNIQUE on
+the generated `current_offering_id` makes any other ordering a constraint
+violation, and more to the point an offering with two current prices, or none,
+is a state the comparador cannot render honestly. `updatePrice` still exists but
+is a **correction** — fixing a row that should never have said what it says —
+logged as `update` rather than `create` so the two are distinguishable in
+`activity_log` forever. The edit page says which is which, because the
+difference is invisible from the form and expensive to get wrong: an edit
+destroys the record of what we published last year, which is exactly what an
+institution disputing an arancel asks about (`risks.md` §R-14).
+
+**Retirement has no `status` column to use, so it uses the honest field.** A
+price stops being current; an accreditation goes to `sin_datos`; a convocatoria
+goes `is_active = false` and its offerings fall back to `sin_datos`, **not** to
+`cerradas`. In all three cases the row survives with its source and its history.
+Adding an `archived` status to these tables would have been a restructure, and
+the honest operation was available in each.
+
+**`offerings.enrollment_status` is derived here and by PR-33's cron, from one
+function.** `deriveEnrollmentStatus` (`src/db/queries/admin/admissions.ts`) is
+pure and exported for exactly that reason. Saving a convocatoria restates the
+badge for everything it covers immediately rather than leaving the site a day
+stale, and a **narrower scope wins**: an offering with its own convocatoria is
+not overwritten by the institution-wide one, the same precedence rule §4.1
+settled for the accreditation badge. A period with no dates at all derives
+`sin_datos`, never `cerradas` — a student reading "cerradas" skips a carrera
+that may well be enrolling.
+
+**The accreditation rule is enforced twice on the admin path, deliberately.**
+`parseAccreditationInput` turns it into a sentence beside the field the
+moderator has to fix; `createAccreditation` / `updateAccreditation` re-assert it
+in the query module because the form is not the only caller — PR-21's panel and
+PR-22's claim flow reach the same module. `src/db/invariants.ts` is the single
+definition both call, so the duplication is in the _calling_, never in the rule.
+The form also refuses `CONES` + `acreditacion` outright: CONES habilita, ANEAES
+acredita, and the importer is already forbidden to conflate them, so a human
+should not be able to do by hand what the pipeline may not do automatically.
+
+### 14.1 The moderation queue
+
+> _approving a conflict writes through the same code path as the importer_
+
+Literally. `resolveConflict` calls `insertEntity` and `updateEntity` from
+`src/db/queries/curation.ts` — the same two functions `applyProposals` calls,
+exported for this. There is no second mapping from a proposal to a row, so the
+column allow-lists and the invariants that guard an imported accreditation guard
+an approved one identically. `apply-rules.ts` carried that as a comment before
+this PR existed; this is the comment made true.
+
+**Approval answers one of the two reasons a conflict is queued, and not the
+other.** A row queues either because _nobody may write this automatically_ (a
+protected field changed, a fuzzy match, a new institution whose `management`
+neither register prints) or because _nobody may write this at all_ (an
+accreditation with no citation). Human review is precisely what
+`PROTECTED_FIELDS` was holding out for, so an approved change applies protected
+fields too — that is the point of the queue, not a hole in it. The invariants
+run inside the write functions, so approving an uncited `vigente` throws and the
+conflict stays open. A rule a human can click past is not a rule.
+
+**Merge is approve with a narrower diff, not a third code path.** The moderator
+ticks which differing fields to take from the source; `resolveConflict` takes an
+optional allow-list. An empty selection is refused rather than silently applying
+everything or silently applying nothing. A `new` proposal offers no choices —
+half a create would violate a NOT NULL — so it applies whole or not at all.
+
+**Resolving one conflict supersedes the others aimed at the same entity.** Two
+import runs against a register that moved twice leave two open rows for one
+program, and the older one is then a decision about a state that no longer
+exists. `CONFLICT_STATUS` already had the word; this is what uses it.
+
+### 14.2 Bulk verify is an assertion, and is logged as one
+
+`bulkVerify` stamps `verified_at` and `verified_by_user_id`. It re-checks
+nothing — nothing in this codebase can — so what it records is "on this date,
+this person said these are still true". That is why it takes an explicit list of
+ids, why **nothing is pre-selected**, why it refuses an empty list, why it caps
+at 200 rows, and why the ids themselves go into `activity_log`. It is the one
+action in the admin that can quietly extend the life of a wrong number, and the
+log is what makes it answerable afterwards (`risks.md` §R-03). The page says
+this in the words a person reads, not only in a comment.
+
+`/admin/frescura` reports the consequences rather than opinions: an arancel past
+12 months **is already hidden** from the comparador, the JSON-LD and the OG
+images, so `pricesExpired` counts carreras currently showing "Consultá el
+arancel" where we used to have a number. PR-33 owns the automated half — the
+weekly digest, the cron, the public "última actualización" surfaces. This is the
+manual half, which had to exist first: there is no point scheduling a reminder
+about a queue nobody can work.

@@ -5,6 +5,11 @@ const LINKS = [
   { href: '/admin/carreras', label: 'Carreras' },
   { href: '/admin/programas', label: 'Programas' },
   { href: '/admin/ofertas', label: 'Ofertas' },
+  { href: '/admin/aranceles', label: 'Aranceles' },
+  { href: '/admin/acreditaciones', label: 'Acreditaciones' },
+  { href: '/admin/admisiones', label: 'Convocatorias' },
+  { href: '/admin/moderacion', label: 'Moderación' },
+  { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 
 /** The `/admin` section nav. Plain links — no active-state JS needed. */

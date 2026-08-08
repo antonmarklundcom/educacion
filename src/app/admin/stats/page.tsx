@@ -89,8 +89,7 @@ export default async function AdminStatsPage({ searchParams }: { searchParams: S
   const total = byType.reduce((sum, row) => sum + row.events, 0);
   const counts = new Map(byType.map((row) => [row.type, row]));
 
-  const rangeHref = (target: number) =>
-    `/admin/stats?${RANGE_PARAM}=${target}`;
+  const rangeHref = (target: number) => `/admin/stats?${RANGE_PARAM}=${target}`;
 
   return (
     <main className="mx-auto w-full max-w-[1000px] px-4 py-8 sm:px-6">

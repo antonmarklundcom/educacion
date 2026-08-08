@@ -216,7 +216,7 @@ async function loadOpenConflictKeys(
 /* Writing                                                                    */
 /* -------------------------------------------------------------------------- */
 
-type ColumnValues = Record<string, unknown>;
+export type ColumnValues = Record<string, unknown>;
 
 /**
  * Explicit column mapping per entity.
@@ -281,7 +281,7 @@ const COLUMNS: Partial<Record<ConflictEntity, readonly string[]>> = {
   accreditation: ACCREDITATION_COLUMNS,
 };
 
-async function insertEntity(
+export async function insertEntity(
   db: Db,
   entityType: ConflictEntity,
   values: ColumnValues,
@@ -328,7 +328,7 @@ async function insertEntity(
   }
 }
 
-async function updateEntity(
+export async function updateEntity(
   db: Db,
   entityType: ConflictEntity,
   entityId: number,

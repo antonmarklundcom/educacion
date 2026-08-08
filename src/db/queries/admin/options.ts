@@ -13,7 +13,8 @@
 import { asc, eq } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
-import { areas, campuses, careers, cities, institutions, programs } from '@/db/schema';
+import { areas, campuses, careers, cities, institutions, offerings, programs } from '@/db/schema';
+import { MODALITY_LABELS, SHIFT_LABELS } from '@/lib/search/labels';
 
 export interface Option {
   id: number;
@@ -102,4 +103,38 @@ export async function listAllProgramOptions(database: Db = defaultDb): Promise<O
     .innerJoin(institutions, eq(programs.institutionId, institutions.id))
     .orderBy(asc(institutions.nameShort), asc(programs.nameOfficial));
   return rows.map((row) => ({ id: row.id, label: `${row.institutionName} — ${row.programName}` }));
+}
+
+/**
+ * Offerings for one institution, labelled the way a moderator identifies one:
+ * programme, sede, modalidad, turno — the four things that make an offering
+ * distinct (`offerings_uq`).
+ *
+ * Scoped to an institution on purpose. There are ~10 000 offerings nationally
+ * and a `<select>` of all of them is not a control, so the forms that need one
+ * (arancel, convocatoria, acreditación de alcance oferta) ask which institution
+ * first and then show a list that fits on a screen.
+ */
+export async function listOfferingOptions(
+  institutionId: number,
+  database: Db = defaultDb,
+): Promise<Option[]> {
+  const rows = await database
+    .select({
+      id: offerings.id,
+      programName: programs.nameOfficial,
+      campusName: campuses.name,
+      modality: offerings.modality,
+      shift: offerings.shift,
+    })
+    .from(offerings)
+    .innerJoin(programs, eq(programs.id, offerings.programId))
+    .innerJoin(campuses, eq(campuses.id, offerings.campusId))
+    .where(eq(programs.institutionId, institutionId))
+    .orderBy(asc(programs.nameOfficial), asc(campuses.name));
+
+  return rows.map((row) => ({
+    id: row.id,
+    label: `${row.programName} — ${row.campusName} · ${MODALITY_LABELS[row.modality]} · ${SHIFT_LABELS[row.shift]}`,
+  }));
 }

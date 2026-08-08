@@ -24,6 +24,31 @@ const SECTIONS = [
     label: 'Ofertas',
     detail: 'Programa × sede × modalidad × turno — lo que el usuario compara.',
   },
+  {
+    href: '/admin/aranceles',
+    label: 'Aranceles',
+    detail: 'Matrícula, cuota y derecho de examen. Se ocultan solos a los 12 meses.',
+  },
+  {
+    href: '/admin/acreditaciones',
+    label: 'Acreditaciones',
+    detail: 'La cuña del producto. Sin fuente no hay insignia.',
+  },
+  {
+    href: '/admin/admisiones',
+    label: 'Convocatorias',
+    detail: 'De acá sale el estado de inscripción de cada oferta.',
+  },
+  {
+    href: '/admin/moderacion',
+    label: 'Moderación',
+    detail: 'Lo que el importador no puede escribir solo espera tu decisión.',
+  },
+  {
+    href: '/admin/frescura',
+    label: 'Frescura',
+    detail: 'Qué se venció, qué está por vencer, y la reverificación en lote.',
+  },
 ] as const;
 
 export default function AdminPage() {
@@ -32,8 +57,8 @@ export default function AdminPage() {
       <div>
         <h1 className="text-ink text-2xl font-bold">Admin</h1>
         <p className="text-muted text-sm">
-          Precios, acreditaciones, admisiones y la cola de moderación de importación viven en PR-20.
-          Esto cubre instituciones, sedes, carreras, programas y ofertas.
+          Todo el catálogo, los datos con fecha de verificación y la cola de moderación de las
+          importaciones.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
