@@ -19,7 +19,7 @@ import {
   setPassword,
 } from '@/db/queries/auth';
 import { LOGIN_ERROR, authenticate } from '@/lib/auth/login';
-import { endSession, startSession } from '@/lib/auth/session';
+import { startSession } from '@/lib/auth/session';
 
 export interface LoginState {
   error?: string;
@@ -62,9 +62,4 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   }
 
   redirect(result.user.mustChangePassword ? '/cambiar-contrasena' : landingFor(result.user.role));
-}
-
-export async function logoutAction(): Promise<void> {
-  await endSession();
-  redirect('/ingresar');
 }

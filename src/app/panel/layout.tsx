@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { Footer } from '@/components/layout/Footer';
+import { SignOutButton } from '@/components/layout/SignOutButton';
 import { hasRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
@@ -31,6 +32,10 @@ export default async function PanelLayout({ children }: Readonly<{ children: Rea
 
   return (
     <div className="flex min-h-screen flex-col">
+      <header className="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6">
+        <span className="text-ink text-sm font-semibold">Panel</span>
+        <SignOutButton />
+      </header>
       <div className="flex-1">{children}</div>
       <Footer />
     </div>
