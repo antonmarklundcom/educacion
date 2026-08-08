@@ -146,7 +146,7 @@ Plausible/GA4, `events` table writes for `offering_view`, `whatsapp_click`, `com
 
 *Deviation 2 — PR-17's stopgap is gone.* `src/lib/analytics/admin-access.ts` and `ADMIN_STATS_TOKEN` are deleted and `/admin/stats` calls `requireRole(user, ['admin'])`, exactly as §12 said PR-18 would do.
 
-*Deferred — password reset by email.* It needs a `password_reset_tokens` table (a schema change, and migrations run from a local machine) plus the first Resend integration in the codebase, and neither is testable from here. What ships instead closes the loop the bootstrap opens: `/cambiar-contrasena` re-authenticates with the current password, clears `must_change_password` and re-issues the cookie, so the one-time bootstrap credential buys exactly one sign-in. Until reset lands, a locked-out user is recovered by an admin. **Do not ship `/panel` to real institutions (PR-21) without it.**
+*Password reset by email* ships too, as `/recuperar` → emailed link → `/restablecer`, on a new `password_reset_tokens` table (**migration `0003` is generated but not applied — run `npm run db:migrate` from a local machine**). Tokens are stored only as SHA-256, expire in an hour, are single-use via a `used_at IS NULL` predicate inside the claiming UPDATE, and neither endpoint reveals whether an address or a link is real. `/cambiar-contrasena` covers the signed-in case and closes the bootstrap loop.
 
 Beyond the brief: `/admin` and `/panel` were static placeholders, which meant any guard added to them would never have run — both are now `force-dynamic` with a layout gate (`/admin` 404s, `/panel` redirects, because `/panel` is advertised publicly and its existence is not a secret).
 

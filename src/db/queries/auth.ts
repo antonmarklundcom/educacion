@@ -15,10 +15,11 @@
  * (`SESSION_TTL_SECONDS`) is the bound on it.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
-import { institutionMembers, users } from '@/db/schema';
+import { institutionMembers, passwordResetTokens, users } from '@/db/schema';
+import type { StoredResetToken } from '@/lib/auth/reset';
 import type { SessionUser, UserRole } from '@/lib/auth/session';
 
 export interface AccountRow {
@@ -129,6 +130,68 @@ export async function hasActiveAdmin(db: Db = defaultDb): Promise<boolean> {
     .where(and(eq(users.role, 'admin'), eq(users.status, 'active')))
     .limit(1);
   return row != null;
+}
+
+/* ------------------------------- password reset --------------------------- */
+
+/**
+ * Issue a reset token, invalidating every outstanding one for that user.
+ *
+ * Marking the old tokens used rather than deleting them means a second request
+ * silently voids the first link — so an attacker who triggers a reset cannot
+ * leave a valid token lying around after the real owner requests their own.
+ */
+export async function createResetToken(
+  userId: number,
+  tokenHash: string,
+  expiresAt: Date,
+  db: Db = defaultDb,
+): Promise<void> {
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(and(eq(passwordResetTokens.userId, userId), isNull(passwordResetTokens.usedAt)));
+
+  await db.insert(passwordResetTokens).values({ userId, tokenHash, expiresAt });
+}
+
+export async function findResetToken(
+  tokenHash: string,
+  db: Db = defaultDb,
+): Promise<StoredResetToken | null> {
+  const [row] = await db
+    .select({
+      userId: passwordResetTokens.userId,
+      expiresAt: passwordResetTokens.expiresAt,
+      usedAt: passwordResetTokens.usedAt,
+    })
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Spend a token, or report that someone else already did.
+ *
+ * The `used_at IS NULL` predicate is inside the UPDATE, so the database — not
+ * this process — decides the winner when the same link is submitted twice at
+ * once. A read-then-write would let both submissions pass the check.
+ */
+export async function consumeResetToken(tokenHash: string, db: Db = defaultDb): Promise<boolean> {
+  const [result] = await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(and(eq(passwordResetTokens.tokenHash, tokenHash), isNull(passwordResetTokens.usedAt)));
+  return result.affectedRows === 1;
+}
+
+/** Housekeeping: spent and expired tokens are not worth keeping. */
+export async function deleteStaleResetTokens(before: Date, db: Db = defaultDb): Promise<number> {
+  const [result] = await db
+    .delete(passwordResetTokens)
+    .where(lt(passwordResetTokens.expiresAt, before));
+  return result.affectedRows;
 }
 
 export async function createAccount(

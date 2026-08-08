@@ -663,6 +663,40 @@ export const events = mysqlTable(
 /* Accounts, plans, ops                                                       */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Password reset tokens (PR-18).
+ *
+ * The token is **never stored**: only its SHA-256, so a leaked database dump
+ * does not hand anyone a working reset link for every account in it. The same
+ * reasoning as `claims.token_hash`, and the same 64-character column.
+ *
+ * Single-use is enforced by `used_at`, and the UNIQUE index on the hash means
+ * a token can only ever address one row. There is deliberately no email, no IP
+ * and no user agent here: the row points at a user id and expires, and a
+ * table of who-forgot-their-password-and-when is a table worth stealing.
+ */
+export const passwordResetTokens = mysqlTable(
+  'password_reset_tokens',
+  {
+    id: pk(),
+    userId: int('user_id', { unsigned: true })
+      .notNull()
+      .references(() => users.id),
+    /** SHA-256 hex of the token that was emailed. */
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    /** Set the moment the token is spent. A spent token is never valid again. */
+    usedAt: timestamp('used_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('password_reset_tokens_hash_uq').on(t.tokenHash),
+    index('password_reset_tokens_user_idx').on(t.userId),
+    // The cleanup cron deletes by expiry; without this it is a table scan.
+    index('password_reset_tokens_expires_idx').on(t.expiresAt),
+  ],
+);
+
 export const institutionMembers = mysqlTable(
   'institution_members',
   {

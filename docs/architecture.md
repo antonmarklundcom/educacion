@@ -264,7 +264,18 @@ scopeToInstitution(user, requested?): number   // the ONLY id that may reach a W
 
 **Login answers one message for every failure.** Unknown address, wrong password, suspended account and never-set password are indistinguishable in the response — and in the *timing*: a miss verifies against a decoy hash of the same cost, because returning early on "no such user" is a user-enumeration oracle over a slow KDF.
 
-**Password reset by email is not built.** It needs a `password_reset_tokens` table and the codebase's first Resend integration, neither of which is verifiable from the environment PR-18 was written in, so shipping a half-tested credential-recovery path was the worse option. `/cambiar-contrasena` closes the loop the bootstrap opens — re-authenticate with the current password, clear the flag, re-issue the cookie — and until reset lands a locked-out user is recovered by an admin. **PR-21 must not open `/panel` to real institutions without it**; telling a university to email us for a password is acceptable for staff and not for customers.
+**Password reset is `password_reset_tokens` + one email.** Four properties, each a decision:
+
+- **The token is never stored** — only `sha256(token)`, in a 64-char column with a UNIQUE index, the same pattern as `claims.token_hash`. A database dump is not a set of working reset links. Verification hashes the presented token and looks *that* up, which is an indexed equality search, not a comparison — so there is no timing-safe compare to get wrong.
+- **Single-use is enforced by the database.** `consumeResetToken` claims the row with `used_at IS NULL` *inside* the UPDATE, and the password is written only if that claimed exactly one row. A read-then-write would let two submissions of one link both succeed.
+- **One hour.** A reset link sits in an inbox forever; the window in which it means anything should not. Requesting a new link marks every outstanding one used, so an attacker who triggers a reset cannot leave a live token behind after the real owner requests theirs.
+- **Neither endpoint confirms anything.** `/recuperar` returns the same text whether or not the address exists, *including when the mail fails* — "no pudimos enviarlo" also confirms the account. `/restablecer` says the same thing for unknown, expired and already-spent, because telling someone their stolen link was merely too late is itself information. Login goes to some trouble not to be an enumeration oracle; a reset form must not hand back what login refused.
+
+After a successful reset the browser's session is destroyed: whoever holds it has proven control of the mailbox, not of the previous session.
+
+**Mail goes through `src/lib/email/send.ts`** — one `fetch` to Resend, shared with PR-14's lead notification, which previously carried its own copy of the same `POST`. Still no SDK: §1's exclusion list stands, and the reason two senders were merged into one is the same reason the dependency was never added — two copies of an HTTP client is how one of them gains a timeout the other never gets. It never throws; the caller decides whether a failed send matters.
+
+`/cambiar-contrasena` is the other half: it re-authenticates with the *current* password, because a session is not proof of presence — an unattended laptop is a session — and clears the `must_change_password` flag the bootstrap sets.
 
 **The bootstrap script cannot leave a default credential in place.** There is no default password: it generates a random one, prints it once, sets `must_change_password`, and refuses to run at all once an active admin exists — so it is the bootstrap, not a shell back door for minting admins.
 

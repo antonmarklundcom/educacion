@@ -1,12 +1,13 @@
 /**
  * Telling the institution a lead arrived.
  *
- * ### Why there is no email dependency
+ * ### Where the sending happens
  *
- * `architecture.md` §1 names Resend, and Resend is an HTTP API. Its SDK is a
- * thin wrapper over one `POST`, and the "deliberately excluded" list exists to
- * stop exactly this kind of unexamined addition — so this is `fetch`, and the
- * dependency list is unchanged.
+ * `src/lib/email/send.ts` — one `fetch` to Resend, shared with the password
+ * reset PR-18 added. `architecture.md` §1 names Resend and its SDK is a thin
+ * wrapper over one `POST`, so the dependency list is still unchanged; what did
+ * change is that there are now two senders, and two copies of one HTTP client
+ * is how one of them quietly gains a timeout the other never gets.
  *
  * ### Failure is expected and is not the student's problem
  *
@@ -23,6 +24,8 @@
  * lead belonging to a different institution.
  */
 
+import { sendEmail } from '@/lib/email/send';
+
 import { formatParaguayanPhone } from './phone';
 
 export interface LeadNotification {
@@ -38,8 +41,6 @@ export interface LeadNotification {
   /** Absolute URL of the page the lead came from, when known. */
   sourcePage: string | null;
 }
-
-const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
 function body(lead: LeadNotification): string {
   return [
@@ -61,41 +62,16 @@ function body(lead: LeadNotification): string {
 
 /** `true` when the mail was accepted for delivery. Never throws. */
 export async function notifyInstitution(lead: LeadNotification): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.LEAD_FROM_EMAIL;
-
-  if (!apiKey || !from) {
-    console.warn(
-      `[leads] lead ${lead.leadId} stored but not delivered: RESEND_API_KEY or ` +
-        `LEAD_FROM_EMAIL is unset (docs/deployment.md §6).`,
-    );
-    return false;
-  }
   if (!lead.to) {
     console.warn(`[leads] lead ${lead.leadId} stored but not delivered: no email on file.`);
     return false;
   }
 
-  try {
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        from,
-        to: [lead.to],
-        reply_to: lead.email ?? undefined,
-        subject: `Solicitud de información — ${lead.programName}`,
-        text: body(lead),
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`[leads] lead ${lead.leadId} delivery failed: HTTP ${response.status}`);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error(`[leads] lead ${lead.leadId} delivery threw`, error);
-    return false;
-  }
+  return sendEmail({
+    to: lead.to,
+    replyTo: lead.email ?? undefined,
+    subject: `Solicitud de información — ${lead.programName}`,
+    text: body(lead),
+    context: `leads/${lead.leadId}`,
+  });
 }

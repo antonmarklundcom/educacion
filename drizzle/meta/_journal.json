@@ -22,6 +22,13 @@
       "when": 1785836244916,
       "tag": "0002_lead_rate_limit_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786187027027,
+      "tag": "0003_password_reset_tokens",
+      "breakpoints": true
     }
   ]
 }
