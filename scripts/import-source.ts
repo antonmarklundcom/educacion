@@ -26,21 +26,38 @@ import path from 'node:path';
 
 import { createDb, createPool } from '../src/db';
 import { runImport } from '../src/lib/ingest/repository';
-import type { RawRecord, SourceInput, SourceName } from '../src/lib/ingest';
+import type { ConesInput, RawRecord, SourceInput, SourceName } from '../src/lib/ingest';
 
 export interface CliOptions {
   dryRun: boolean;
   files: string[];
   urls: string[];
+  /**
+   * CONES only: stop after N institution pages. A full pass is ~65 requests;
+   * `--max-institutions 3` is the cheap probe that answers "does the crawl
+   * still work" without spending the site's patience to find out.
+   */
+  maxInstitutions?: number;
+  /** CONES only: skip the institution pages entirely (listings only). */
+  followInstitutions: boolean;
 }
 
 export function parseArgs(argv: readonly string[]): CliOptions {
-  const options: CliOptions = { dryRun: false, files: [], urls: [] };
+  const options: CliOptions = { dryRun: false, files: [], urls: [], followInstitutions: true };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') {
       options.dryRun = true;
+    } else if (arg === '--no-institutions') {
+      options.followInstitutions = false;
+    } else if (arg === '--max-institutions' || arg.startsWith('--max-institutions=')) {
+      const raw = arg.includes('=') ? arg.slice('--max-institutions='.length) : argv[++i];
+      const value = Number.parseInt(raw ?? '', 10);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error('--max-institutions needs a non-negative number');
+      }
+      options.maxInstitutions = value;
     } else if (arg === '--file') {
       const value = argv[i + 1];
       if (!value) throw new Error('--file needs a path');
@@ -63,10 +80,14 @@ export function parseArgs(argv: readonly string[]): CliOptions {
   return options;
 }
 
+/** A source-specific digest for `--dry-run`; see `summarizeConesRecords`. */
+export type Summarize<TPayload> = (records: readonly RawRecord<TPayload>[]) => string[];
+
 export async function runImporter<TPayload>(
   source: SourceName,
   collect: (input: SourceInput) => Promise<RawRecord<TPayload>[]>,
   argv: readonly string[] = process.argv.slice(2),
+  summarize?: Summarize<TPayload>,
 ): Promise<void> {
   const options = parseArgs(argv);
   const onProgress = (message: string) => console.log(message);
@@ -78,17 +99,19 @@ export async function runImporter<TPayload>(
     })),
   );
 
-  const input: SourceInput = {
+  const input: ConesInput = {
     files,
     urls: options.urls.length > 0 ? options.urls : undefined,
     onProgress,
+    followInstitutions: options.followInstitutions,
+    maxInstitutionPages: options.maxInstitutions,
   };
 
   // A dry run must not need a database — that is most of its value when
   // checking a parser against a page you just saved.
   if (options.dryRun) {
     const records = await collect(input);
-    printDryRun(source, records);
+    printDryRun(source, records, summarize);
     return;
   }
 
@@ -112,7 +135,11 @@ export async function runImporter<TPayload>(
   }
 }
 
-function printDryRun<TPayload>(source: SourceName, records: readonly RawRecord<TPayload>[]): void {
+function printDryRun<TPayload>(
+  source: SourceName,
+  records: readonly RawRecord<TPayload>[],
+  summarize?: Summarize<TPayload>,
+): void {
   console.log('');
   console.log(`Dry run (${source}) — parsed ${records.length} records, wrote nothing.`);
 
@@ -124,6 +151,23 @@ function printDryRun<TPayload>(source: SourceName, records: readonly RawRecord<T
 
   const withExternalId = records.filter((record) => record.externalId != null).length;
   console.log(`With external id     ${withExternalId}`);
+
+  for (const line of summarize?.(records) ?? []) console.log(line);
+
+  // Per-URL, because "1200 records" hides "and 40 of the 59 pages gave zero".
+  const byUrl = new Map<string, number>();
+  for (const record of records) {
+    const key = record.sourceUrl ?? '(no source url)';
+    byUrl.set(key, (byUrl.get(key) ?? 0) + 1);
+  }
+  if (byUrl.size > 1) {
+    console.log('');
+    console.log(`Records per source (${byUrl.size} documents)`);
+    for (const [url, count] of [...byUrl].sort((a, b) => a[1] - b[1]).slice(0, 10)) {
+      console.log(`  ${String(count).padStart(5)}  ${url}`);
+    }
+    if (byUrl.size > 10) console.log(`  … ${byUrl.size - 10} more, all with more records.`);
+  }
 
   // Sampling the parse is how a human catches a column that shifted, which is
   // the failure mode this parser is most exposed to.
@@ -137,8 +181,9 @@ function printDryRun<TPayload>(source: SourceName, records: readonly RawRecord<T
 export function main<TPayload>(
   source: SourceName,
   collect: (input: SourceInput) => Promise<RawRecord<TPayload>[]>,
+  summarize?: Summarize<TPayload>,
 ) {
-  runImporter(source, collect).catch((error) => {
+  runImporter(source, collect, process.argv.slice(2), summarize).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

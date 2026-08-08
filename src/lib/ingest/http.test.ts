@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FetchError, USER_AGENT, __resetRateLimiter, politeFetchText } from './http';
+import {
+  DEFAULT_DELAY_MS,
+  FetchError,
+  USER_AGENT,
+  __resetRateLimiter,
+  configuredDelayMs,
+  politeFetchText,
+} from './http';
 
 const ok = (body: string, url = 'https://source.test/') =>
   ({ ok: true, status: 200, statusText: 'OK', url, text: async () => body }) as Response;
@@ -90,5 +97,31 @@ describe('politeFetchText', () => {
 
     await expect(first).rejects.toThrow();
     await expect(second).resolves.toMatchObject({ body: 'second' });
+  });
+});
+
+describe('configuredDelayMs', () => {
+  const original = process.env.IMPORT_RATE_LIMIT_MS;
+  afterEach(() => {
+    if (original === undefined) delete process.env.IMPORT_RATE_LIMIT_MS;
+    else process.env.IMPORT_RATE_LIMIT_MS = original;
+  });
+
+  it('falls back to the default when the operator set nothing', () => {
+    delete process.env.IMPORT_RATE_LIMIT_MS;
+    expect(configuredDelayMs()).toBe(DEFAULT_DELAY_MS);
+    expect(configuredDelayMs(50)).toBe(50);
+  });
+
+  it('is a floor once set: a caller may slow down, never speed up', () => {
+    process.env.IMPORT_RATE_LIMIT_MS = '5000';
+    expect(configuredDelayMs()).toBe(5_000);
+    expect(configuredDelayMs(50)).toBe(5_000);
+    expect(configuredDelayMs(9_000)).toBe(9_000);
+  });
+
+  it('ignores a value that is not a number', () => {
+    process.env.IMPORT_RATE_LIMIT_MS = 'soon';
+    expect(configuredDelayMs()).toBe(DEFAULT_DELAY_MS);
   });
 });

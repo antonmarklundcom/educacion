@@ -22,6 +22,7 @@ export {
   parseConesInstitutions,
   parseConesPrograms,
   parseConesRegister,
+  summarizeConesRecords,
   type ConesPayload,
 } from './parsers/cones';
 export { parseAneaesCsv, parseAneaesHtml, type AneaesPayload } from './parsers/aneaes';

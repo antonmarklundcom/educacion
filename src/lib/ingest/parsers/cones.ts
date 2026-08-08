@@ -397,6 +397,46 @@ export const parseConesRegister: SourceParser<ConesPayload> = (document, context
   return dedupeByChecksum(records);
 };
 
+/**
+ * A human-readable digest of a CONES parse, for `--dry-run`.
+ *
+ * The failure this exists to make loud: a source that reorganizes returns a
+ * page that fetches fine and parses to nothing. A bare total hides that behind
+ * a plausible-looking number — which is how the pre-rewrite parsers stayed
+ * broken. Every line here is a number an operator can sanity-check against the
+ * page in their browser.
+ */
+export function summarizeConesRecords(records: readonly RawRecord<ConesPayload>[]): string[] {
+  const institutions = records.filter((record) => record.payload.kind === 'institution');
+  const programs = records.filter((record) => record.payload.kind === 'program');
+  const named = new Set(records.map((record) => record.payload.institutionName));
+  const lines = [
+    `Institutions          ${institutions.length}`,
+    `Programs              ${programs.length}`,
+    `Distinct institutions ${named.size}`,
+  ];
+
+  if (programs.length > 0) {
+    const inactive = programs.filter((record) => record.payload.offeringStatusRaw).length;
+    const noResolution = programs.filter((record) => !record.payload.resolutionNumber).length;
+    const attributedByTable = programs.filter(
+      (record) => record.payload.institutionNameSource === 'table',
+    ).length;
+
+    lines.push(`  with an Estado      ${inactive}   (INACTIVO and the like — not offered today)`);
+    lines.push(`  without resolution  ${noResolution}${noResolution > 0 ? '   ← check the "Documento respaldatorio" column' : ''}`);
+    if (attributedByTable > 0) {
+      lines.push(`  attributed by table ${attributedByTable}   (rows the register truncated)`);
+    }
+    // The register stopped publishing modality; a sudden non-zero here means it
+    // started again, and PR-06 can begin creating offerings.
+    const withModality = programs.filter((record) => record.payload.modalityRaw).length;
+    lines.push(`  with a modality     ${withModality}   (expected 0 — see data-sources.md §1.1)`);
+  }
+
+  return lines;
+}
+
 /** The register repeats rows across paginated views; collapse them once. */
 export function dedupeByChecksum(
   records: readonly RawRecord<ConesPayload>[],

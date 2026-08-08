@@ -158,7 +158,9 @@ export async function collectCones(input: ConesInput = {}): Promise<RawRecord<Co
     listingPages += 1;
 
     const { body, url: finalUrl } = await politeFetchText(url, options);
-    records.push(...parseConesRegister(body, { sourceUrl: finalUrl }));
+    const parsed = parseConesRegister(body, { sourceUrl: finalUrl });
+    records.push(...parsed);
+    reportPage(finalUrl, parsed.length, onProgress);
 
     for (const record of parseConesInstitutions(body, { sourceUrl: finalUrl })) {
       const detailUrl = record.payload.detailUrl;
@@ -187,19 +189,41 @@ export async function collectCones(input: ConesInput = {}): Promise<RawRecord<Co
       );
     }
 
+    let emptyPages = 0;
     for (const [url, institutionName] of pages.slice(0, maxInstitutionPages)) {
       visited.add(url);
       const { body, url: finalUrl } = await politeFetchText(url, options);
-      records.push(
-        ...parseConesPrograms(body, {
-          sourceUrl: finalUrl,
-          pageInstitutionName: institutionName,
-        }),
+      const parsed = parseConesPrograms(body, {
+        sourceUrl: finalUrl,
+        pageInstitutionName: institutionName,
+      });
+      records.push(...parsed);
+      reportPage(finalUrl, parsed.length, onProgress);
+      if (parsed.length === 0) emptyPages += 1;
+    }
+
+    // One institution with no carreras listed is ordinary. Most of them having
+    // none is the signature of a markup change, and it is worth saying out loud
+    // at the end of a run nobody watched.
+    if (pages.length > 0 && emptyPages > pages.length / 2) {
+      onProgress?.(
+        `WARNING: ${emptyPages} of ${pages.length} institution pages parsed to zero carreras. ` +
+          'Save one by hand and check it with --dry-run --file before trusting this run.',
       );
     }
   }
 
   return dedupeByChecksum(records);
+}
+
+/**
+ * A page that fetched fine and parsed to nothing is the exact failure the
+ * rewritten parsers exist to fix; it gets named, not averaged away.
+ */
+function reportPage(url: string, count: number, onProgress?: (message: string) => void): void {
+  onProgress?.(
+    count === 0 ? `  0 records from ${url}  ← parsed nothing` : `  ${count} records from ${url}`,
+  );
 }
 
 /**

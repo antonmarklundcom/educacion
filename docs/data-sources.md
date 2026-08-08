@@ -169,6 +169,20 @@ A `--file` run parses only the file: it follows no pagination, because a saved p
 
 **The network path, when a network can reach them.** `collectCones` walks the register in three shallow passes — the start URLs, their `page/N/` views, then each institution page discovered from a directory card — all serialized through the same per-host delay. Roughly 65 requests at `IMPORT_RATE_LIMIT_MS`; a couple of minutes at the default 2 s, which is the intended pace. `CONES_MAX_LISTING_PAGES` / `CONES_MAX_INSTITUTION_PAGES` bound it; hitting one means the register grew, and a human raises the number and watches the run.
 
+**Probe before the full pass.** Never discover a markup change 65 requests in:
+
+```
+npm run import:cones -- --dry-run --max-institutions 3   # ~8 requests
+npm run import:cones -- --dry-run                        # the full pass
+npm run import:cones                                     # write raw records
+```
+
+`--no-institutions` walks the listings only. The dry run prints, per source document, how many records it produced, and names any page that fetched fine and parsed to **zero** — the exact signature of the breakage §1.1 documents, which a single total hides. If more than half the institution pages come back empty, the run says so in a `WARNING` line rather than leaving a plausible number in the log.
+
+The CONES digest is the second check, and every line is verifiable against the page in a browser: institutions, programs, distinct institutions, how many rows carry an `Estado`, how many lack a resolution, how many were attributed from the table rather than their own `IES` cell, and how many carry a modality — which should be **0** until CONES starts publishing that column again.
+
+`IMPORT_RATE_LIMIT_MS`, once set, is a floor: `--dry-run` cannot outrun it, and neither can a caller passing `delayMs`.
+
 **Fixtures contain no real data.** `src/lib/ingest/__fixtures__/documents.ts` uses `INSTITUCION DE PRUEBA A` and `RES-TEST-1`, deliberately: a fixture pairing a real university with an invented resolution number is the string that eventually gets copied into a seed script. The fixtures assert shape, which is all the parsers decide.
 
 **Nothing auto-publishes on a conflict.** A changed accreditation status is exactly the case where a silent bad write does reputational damage.
