@@ -6,10 +6,10 @@
  * writes, and it shows counts and nothing else — there is no PII in `events` to
  * show (`architecture.md` §12).
  *
- * **It 404s unless `ADMIN_STATS_TOKEN` is set and matches.** PR-18 owns real
- * auth; until then the gate fails closed, which is the flag `agent-workflow.md`
- * §6 requires around a feature whose access control is not built yet. See
- * `lib/analytics/admin-access`.
+ * **Admin only.** PR-17 gated this behind a URL token because auth did not
+ * exist yet, and said in as many words that PR-18 would delete that file and
+ * call `requireRole` instead. This is that replacement: the token gate is gone,
+ * along with the token in the browser history it left behind.
  *
  * **Every number here is measured.** With an empty `events` table the page says
  * so plainly rather than rendering a zero that looks like a reading
@@ -27,7 +27,8 @@ import {
   type EventType,
 } from '@/db/queries/events';
 import { getInstitutionNames } from '@/db/queries/institutions';
-import { STATS_TOKEN_PARAM, hasStatsAccess } from '@/lib/analytics/admin-access';
+import { requireRole } from '@/lib/auth/roles';
+import { currentUser } from '@/lib/auth/session';
 import {
   RANGE_DAYS,
   RANGE_LABELS,
@@ -64,10 +65,16 @@ const EVENT_ORDER: EventType[] = [
 ];
 
 export default async function AdminStatsPage({ searchParams }: { searchParams: SearchParams }) {
-  const params = await searchParams;
-  if (!hasStatsAccess(params[STATS_TOKEN_PARAM])) notFound();
+  // Staff-only, and a signed-out visitor is told the page does not exist
+  // rather than that it exists and is forbidden.
+  const user = await currentUser();
+  try {
+    requireRole(user, ['admin']);
+  } catch {
+    notFound();
+  }
 
-  const token = String(params[STATS_TOKEN_PARAM]);
+  const params = await searchParams;
   const days = parseRangeDays(params[RANGE_PARAM]);
   const range = toRange(days);
 
@@ -83,7 +90,7 @@ export default async function AdminStatsPage({ searchParams }: { searchParams: S
   const counts = new Map(byType.map((row) => [row.type, row]));
 
   const rangeHref = (target: number) =>
-    `/admin/stats?${STATS_TOKEN_PARAM}=${encodeURIComponent(token)}&${RANGE_PARAM}=${target}`;
+    `/admin/stats?${RANGE_PARAM}=${target}`;
 
   return (
     <main className="mx-auto w-full max-w-[1000px] px-4 py-8 sm:px-6">

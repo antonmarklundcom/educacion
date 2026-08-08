@@ -140,6 +140,16 @@ Plausible/GA4, `events` table writes for `offering_view`, `whatsapp_click`, `com
 **Deps:** PR-02.
 **Accept:** `requireRole` and `scopeToInstitution` unit-tested including the negative cases; cookies httpOnly/secure/sameSite; no role information trusted from the client; seeded default credentials impossible to leave in place (bootstrap forces a password change).
 
+**Shipped as:** as specified, with **two deliberate deviations** and **one deferral**, all recorded in `architecture.md` §7.1.
+
+*Deviation 1 — `crypto.scrypt`, not bcrypt.* bcrypt is a native module compiled against the Node ABI at install time; this deploys to Hostinger's managed Node, where a platform upgrade turns every login into a 500 until someone SSHs in and rebuilds. scrypt is in the standard library at OWASP parameters, with a self-describing `scrypt$N$r$p$salt$key` hash so the cost can be raised later without invalidating existing hashes.
+
+*Deviation 2 — PR-17's stopgap is gone.* `src/lib/analytics/admin-access.ts` and `ADMIN_STATS_TOKEN` are deleted and `/admin/stats` calls `requireRole(user, ['admin'])`, exactly as §12 said PR-18 would do.
+
+*Deferred — password reset by email.* It needs a `password_reset_tokens` table (a schema change, and migrations run from a local machine) plus the first Resend integration in the codebase, and neither is testable from here. What ships instead closes the loop the bootstrap opens: `/cambiar-contrasena` re-authenticates with the current password, clears `must_change_password` and re-issues the cookie, so the one-time bootstrap credential buys exactly one sign-in. Until reset lands, a locked-out user is recovered by an admin. **Do not ship `/panel` to real institutions (PR-21) without it.**
+
+Beyond the brief: `/admin` and `/panel` were static placeholders, which meant any guard added to them would never have run — both are now `force-dynamic` with a layout gate (`/admin` 404s, `/panel` redirects, because `/panel` is advertised publicly and its existence is not a secret).
+
 ### PR-19 — Admin CRUD: core entities · **Sonnet → Opus review**
 
 `/admin` shell + CRUD for institutions, campuses, careers, programs, offerings. Shared table/list component, one form component for create+edit, `activity_log` on every write. Includes the **file-upload decision from `risks.md` §R-08** (R2/Bunny or persistent path) for logos.

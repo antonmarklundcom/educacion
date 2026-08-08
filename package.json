@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
+    "iron-session": "^8.0.4",
     "mysql2": "^3.23.2",
     "next": "15.5.22",
     "react": "19.1.0",
