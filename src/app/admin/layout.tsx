@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { AdminNav } from '@/components/admin/AdminNav';
 import { Footer } from '@/components/layout/Footer';
 import { SignOutButton } from '@/components/layout/SignOutButton';
 import { requireRole } from '@/lib/auth/roles';
@@ -37,6 +38,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         <span className="text-ink text-sm font-semibold">Admin</span>
         <SignOutButton />
       </header>
+      <AdminNav />
       <div className="flex-1">{children}</div>
       <Footer />
     </div>
