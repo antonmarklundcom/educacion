@@ -23,6 +23,18 @@ export const USER_AGENT =
   `Chrome/124.0.0.0 Safari/537.36 (+${CONTACT_URL})`;
 
 export const DEFAULT_DELAY_MS = 2_000;
+
+/**
+ * `IMPORT_RATE_LIMIT_MS` is the operator's brake — `.env.example` has always
+ * documented it, and until the crawl grew past a couple of URLs nothing read
+ * it. It is a floor as well as a default: a caller may slow a run down, not
+ * speed it past what the operator set.
+ */
+export function configuredDelayMs(requested?: number): number {
+  const configured = Number.parseInt(process.env.IMPORT_RATE_LIMIT_MS ?? '', 10);
+  const floor = Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_DELAY_MS;
+  return Math.max(floor, requested ?? 0);
+}
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_RETRIES = 3;
 

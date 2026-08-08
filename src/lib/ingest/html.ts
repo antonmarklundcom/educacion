@@ -91,16 +91,37 @@ export function firstHref(html: string, baseUrl?: string): string | null {
   }
 }
 
-/** Every `<table>…</table>` in the document, outermost first, markup included. */
-export function extractTables(html: string): string[] {
-  const tables: string[] = [];
-  const open = /<table\b[^>]*>/gi;
+/** True when an opening tag's `class` attribute carries `className`. */
+export function hasClass(openingTag: string, className: string): boolean {
+  const attr = /\bclass\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(openingTag);
+  const value = attr?.[2] ?? attr?.[3] ?? attr?.[4];
+  if (!value) return false;
+  return decodeEntities(value).split(/\s+/).includes(className);
+}
+
+/**
+ * Every outermost `<tag>…</tag>` block in the document, markup included.
+ * Nesting is counted, so an outer element is returned whole rather than being
+ * closed by its first inner `</tag>`.
+ *
+ * `className` restricts the match to elements carrying that class — which is
+ * how a card grid gets read out of a page that is otherwise entirely `<div>`s.
+ */
+export function extractElements(
+  html: string,
+  tagName: string,
+  options: { className?: string } = {},
+): string[] {
+  const blocks: string[] = [];
+  const open = new RegExp(`<${tagName}\\b[^>]*>`, 'gi');
   let match: RegExpExecArray | null;
 
   while ((match = open.exec(html)) !== null) {
+    if (options.className && !hasClass(match[0], options.className)) continue;
+
     const start = match.index;
-    // Walk forward counting nested <table> so we close on the right </table>.
-    const scanner = /<table\b[^>]*>|<\/table\s*>/gi;
+    // Walk forward counting nested opens so we close on the right tag.
+    const scanner = new RegExp(`<${tagName}\\b[^>]*>|</${tagName}\\s*>`, 'gi');
     scanner.lastIndex = start;
     let depth = 0;
     let end = -1;
@@ -118,12 +139,31 @@ export function extractTables(html: string): string[] {
       }
     }
 
-    if (end === -1) break; // Unclosed table: nothing trustworthy left to read.
-    tables.push(html.slice(start, end));
+    if (end === -1) break; // Unclosed element: nothing trustworthy left to read.
+    blocks.push(html.slice(start, end));
     open.lastIndex = end;
   }
 
-  return tables;
+  return blocks;
+}
+
+/** Every `<table>…</table>` in the document, outermost first, markup included. */
+export function extractTables(html: string): string[] {
+  return extractElements(html, 'table');
+}
+
+/** Every `href` in a fragment, in document order, resolved against `baseUrl`. */
+export function allHrefs(html: string, baseUrl?: string): string[] {
+  const hrefs: string[] = [];
+  const pattern = /<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const resolved = firstHref(match[0] + '>', baseUrl);
+    if (resolved) hrefs.push(resolved);
+  }
+
+  return hrefs;
 }
 
 export interface HtmlCell {
