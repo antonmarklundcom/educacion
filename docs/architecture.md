@@ -241,7 +241,32 @@ role enum    'admin' | 'editor' | 'institution_admin' | 'institution_editor'
 
 `requireRole(session, allowed[])` on every mutation. `scopeToInstitution(query, session)` applied to every institution-facing read. Both live in `lib/auth/` and are unit-tested — these two functions are the entire security boundary.
 
-Sessions: `iron-session` cookie, httpOnly, secure, sameSite=lax, 7-day rolling.
+Sessions: `iron-session` cookie, httpOnly, secure, sameSite=lax.
+
+### 7.1 What PR-18 settled
+
+**The signatures PR-19, PR-20 and PR-21 build against**, both pure over a `SessionUser` so their negative cases are testable without a browser, a cookie or a database:
+
+```ts
+requireRole(user, allowed): SessionUser        // throws AuthError, never returns false
+scopeToInstitution(user, requested?): number   // the ONLY id that may reach a WHERE clause
+```
+
+`requireRole` **throws rather than returning a boolean**: a caller who ignores a returned `false` still ships, while a caller who drops this does not survive review. `AuthError.reason` distinguishes `unauthenticated` from `forbidden` for logs; both render identically to the user, because "this exists but you may not see it" is itself information.
+
+**Roles are not a ladder.** `admin > editor > institution_admin > institution_editor` reads like one, and modelling it as a numeric level invites `level >= INSTITUTION_ADMIN` checks that hand an institution user a staff screen. Each role instead names what it satisfies: `admin` satisfies `editor`, `institution_admin` satisfies `institution_editor`, and **no staff role satisfies an institution role or vice versa**. The institution boundary is enforced separately, by scope.
+
+**`scopeToInstitution` never coerces.** An institution user asking for another institution's id gets an `AuthError`, not their own id back quietly — a request for someone else's data is a bug or an attack, and both deserve to be loud. Staff may act on any institution but must name one: a missing id throws rather than meaning "all".
+
+**Sessions carry three fields and no more** — id, role, institution scope. Name, email and plan are read from the database at use time, so revoking access takes effect on the next request. The scope is resolved at login from `users.institution_id` plus `institution_members`; a user belonging to **two** institutions is scoped to neither, because silently picking the lower id grants access nobody asked for. TTL is 8 hours, which is also the bound on how long a revoked membership can survive in a live cookie.
+
+**Password hashing is `crypto.scrypt`, not bcrypt** — a deliberate deviation from `pr-plan.md`. bcrypt is a native module compiled against the Node ABI at install time, and this deploys to Hostinger's managed Node, where a platform upgrade would turn every login into a 500 until someone SSHs in and rebuilds. scrypt is in the standard library at OWASP parameters (N=2^17, r=8, p=1 — note `maxmem` must be raised or Node silently runs at N=16384). The stored string is self-describing, `scrypt$N$r$p$salt$key`, so the cost can be raised later without invalidating a single existing hash; `needsRehash` tells the login path when to upgrade one in place.
+
+**Login answers one message for every failure.** Unknown address, wrong password, suspended account and never-set password are indistinguishable in the response — and in the *timing*: a miss verifies against a decoy hash of the same cost, because returning early on "no such user" is a user-enumeration oracle over a slow KDF.
+
+**Password reset by email is not built.** It needs a `password_reset_tokens` table and the codebase's first Resend integration, neither of which is verifiable from the environment PR-18 was written in, so shipping a half-tested credential-recovery path was the worse option. `/cambiar-contrasena` closes the loop the bootstrap opens — re-authenticate with the current password, clear the flag, re-issue the cookie — and until reset lands a locked-out user is recovered by an admin. **PR-21 must not open `/panel` to real institutions without it**; telling a university to email us for a password is acceptable for staff and not for customers.
+
+**The bootstrap script cannot leave a default credential in place.** There is no default password: it generates a random one, prints it once, sets `must_change_password`, and refuses to run at all once an active admin exists — so it is the bootstrap, not a shell back door for minting admins.
 
 ---
 
@@ -321,4 +346,4 @@ PR-14 built the write path — `recordEvent()`, `POST /api/events`, the session 
 
 **The query layer never invents a zero.** `countEventsByDay` returns only days that have events; `fillDays()` in `src/lib/analytics/range.ts` fills the rest, because there the caller knows the range it asked for and the zero is measured rather than guessed.
 
-**`/admin/stats` fails closed.** PR-18 owns authentication, and "internal" cannot mean "publicly readable because auth is a later PR". The route 404s unless `ADMIN_STATS_TOKEN` is set to a secret of at least 24 characters and matches, compared in constant time. It is not a session, not a role and not an audit trail — **PR-18 deletes `src/lib/analytics/admin-access.ts`** and replaces the call with `requireRole(session, ['admin'])`. Nothing else imports it.
+**`/admin/stats` is admin-only.** PR-17 gated it on a URL token because authentication did not exist, and said PR-18 would delete that file. PR-18 did: `src/lib/analytics/admin-access.ts` and `ADMIN_STATS_TOKEN` are gone, and the page calls `requireRole(user, ['admin'])`, 404ing rather than 403ing so an admin surface does not confirm its own existence. A token in a query string was a token in a browser history, a proxy log and a shared screenshot; a session cookie is none of those.
