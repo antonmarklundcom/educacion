@@ -235,7 +235,11 @@ export async function listRelatedCareers(
     .select({ slug: careers.slug, nameEs: careers.nameEs })
     .from(careers)
     .where(
-      and(eq(careers.areaId, areaId), eq(careers.status, 'published'), ne(careers.id, excludeCareerId)),
+      and(
+        eq(careers.areaId, areaId),
+        eq(careers.status, 'published'),
+        ne(careers.id, excludeCareerId),
+      ),
     )
     .orderBy(asc(careers.nameEs))
     .limit(limit);

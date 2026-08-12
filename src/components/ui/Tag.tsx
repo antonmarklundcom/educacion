@@ -8,7 +8,7 @@ export function Tag({ className, children, ...props }: TagProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-md bg-card-alt px-2 py-1 text-xs font-medium text-body',
+        'bg-card-alt text-body inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
         className,
       )}
       {...props}

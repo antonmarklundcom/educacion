@@ -25,6 +25,8 @@ export type { MobileFilterSheetProps } from './MobileFilterSheet';
 export { PriceLabel } from './PriceLabel';
 
 export { DestacadoBadge, PlacementDisclosure, VerifiedBadge, NO_PLACEMENT } from './PlanBadges';
+export { FreshnessNote } from './FreshnessNote';
+export { STALE_LABEL, STALE_UNKNOWN_LABEL, staleNotice } from './price';
 export type { PlacementFlags } from './PlanBadges';
 
 export { ResultCard } from './ResultCard';

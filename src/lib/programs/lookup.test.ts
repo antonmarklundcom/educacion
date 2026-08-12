@@ -55,7 +55,8 @@ function offering(id: number, over: Partial<OfferingSummary> = {}): OfferingSumm
     institutionType: 'universidad',
     durationMonths: 60,
     price: {
-      isDisplayable: false,
+      freshness: 'fresh' as const,
+      hasAmount: false,
       isFree: false,
       currency: null,
       matricula: null,

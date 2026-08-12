@@ -1,225 +1,889 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
-</head>
-<body>
-<x-dc>
-<helmet>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<style>
-  *{box-sizing:border-box;}
-  body{margin:0;background:#dfe3e8;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
-  input,select,button{font-family:inherit;}
-  .mono{font-family:'IBM Plex Mono',monospace;}
-  .d4-cmp{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:1.5px solid #aab2bb;border-radius:4px;background:#fff;position:relative;cursor:pointer;flex:none;}
-  .d4-cmp:checked{background:#2563eb;border-color:#2563eb;}
-  .d4-cmp:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
-  .d4-row:hover{background:#f6f8fb;}
-</style>
-</helmet>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./support.js"></script>
+  </head>
+  <body>
+    <x-dc>
+      <helmet>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap"
+          rel="stylesheet"
+        />
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            margin: 0;
+            background: #dfe3e8;
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+          }
+          input,
+          select,
+          button {
+            font-family: inherit;
+          }
+          .mono {
+            font-family: 'IBM Plex Mono', monospace;
+          }
+          .d4-cmp {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 1.5px solid #aab2bb;
+            border-radius: 4px;
+            background: #fff;
+            position: relative;
+            cursor: pointer;
+            flex: none;
+          }
+          .d4-cmp:checked {
+            background: #2563eb;
+            border-color: #2563eb;
+          }
+          .d4-cmp:checked::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 1px;
+            width: 5px;
+            height: 10px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+          }
+          .d4-row:hover {
+            background: #f6f8fb;
+          }
+        </style>
+      </helmet>
 
-<div style="padding:56px 64px 90px;display:flex;flex-direction:row;align-items:flex-start;gap:56px;width:max-content;">
-
-  <!-- ===================== DESKTOP ===================== -->
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    <div style="font:600 13px 'IBM Plex Sans';letter-spacing:.08em;text-transform:uppercase;color:#5a636d;">Dirección 4 — “Comparador” · Desktop 1440</div>
-    <div style="width:1440px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(20,30,45,.45);border:1px solid #cdd4dc;position:relative;">
-
-      <!-- header -->
-      <div style="height:64px;border-bottom:1px solid #e8ecf1;display:flex;align-items:center;justify-content:space-between;padding:0 28px;">
-        <div style="display:flex;align-items:center;gap:9px;">
-          <div style="width:32px;height:32px;border-radius:7px;background:#1e293b;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:17px;">e</div>
-          <span style="font-weight:700;font-size:16px;color:#0f172a;">educación<span style="color:#2563eb;">.com.py</span></span>
-        </div>
-        <div style="display:flex;align-items:center;gap:22px;font-size:14px;font-weight:500;color:#334155;">
-          <span style="cursor:pointer;">Carreras</span><span style="cursor:pointer;">Instituciones</span><span style="cursor:pointer;">Becas</span>
-          <button style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:8px 16px;font-weight:600;font-size:13.5px;cursor:pointer;">Ingresar</button>
-        </div>
-      </div>
-
-      <!-- title strip -->
-      <div style="padding:22px 28px 16px;border-bottom:1px solid #eef1f5;">
-        <h1 style="margin:0 0 4px;font-size:24px;font-weight:700;color:#0f172a;letter-spacing:-.01em;">Comparador de carreras</h1>
-        <p style="margin:0;font-size:14.5px;color:#64748b;">Compará arancel, duración y acreditación lado a lado. Marcá hasta 3 carreras para ver el detalle.</p>
-      </div>
-
-      <div style="display:flex;align-items:stretch;">
-        <!-- filter rail -->
-        <div style="width:212px;border-right:1px solid #eef1f5;padding:18px 16px;flex:none;">
-          <div style="font-size:12px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Filtros</div>
-
-          <div style="font-size:12px;font-weight:600;color:#475569;margin:14px 0 7px;">Nivel</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">Grado</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">Tecnicatura</label>
-
-          <div style="font-size:12px;font-weight:600;color:#475569;margin:14px 0 7px;">Gestión</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp" checked>Pública</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp" checked>Privada</label>
-
-          <div style="font-size:12px;font-weight:600;color:#475569;margin:14px 0 7px;">Modalidad</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">Presencial</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">Semipresencial</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">A distancia</label>
-
-          <div style="font-size:12px;font-weight:600;color:#475569;margin:14px 0 7px;">Acreditación</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">ANEAES Acreditada</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:3px 0;"><input type="checkbox" class="d4-cmp">En proceso</label>
-
-          <div style="font-size:12px;font-weight:600;color:#475569;margin:14px 0 8px;">Arancel mensual</div>
-          <input type="range" min="0" max="100" value="60" style="width:100%;accent-color:#2563eb;">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:5px;">0<span>1.5M+</span></div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#334155;padding:9px 0 3px;"><input type="checkbox" class="d4-cmp">Solo gratuitas</label>
-
-          <button style="width:100%;margin-top:16px;background:#fff;border:1px solid #d3dae2;border-radius:7px;padding:8px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;">Limpiar filtros</button>
-        </div>
-
-        <!-- table -->
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #eef1f5;">
-            <div style="font-size:14px;color:#475569;"><strong style="color:#0f172a;">{{ count }} resultados</strong></div>
-            <div style="font-size:13px;color:#94a3b8;">Hacé clic en ↑↓ para ordenar columnas</div>
+      <div
+        style="
+          padding: 56px 64px 90px;
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          gap: 56px;
+          width: max-content;
+        "
+      >
+        <!-- ===================== DESKTOP ===================== -->
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div
+            style="
+              font: 600 13px 'IBM Plex Sans';
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+              color: #5a636d;
+            "
+          >
+            Dirección 4 — “Comparador” · Desktop 1440
           </div>
-
-          <!-- column head -->
-          <div style="display:grid;grid-template-columns:38px 2.1fr 1fr 1.1fr 1fr 1.2fr 1.3fr 110px;align-items:center;gap:8px;padding:11px 24px;background:#f8fafc;border-bottom:1px solid #e8ecf1;font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">
-            <span></span>
-            <span>Carrera / Institución</span>
-            <span>Gestión</span>
-            <span>Modalidad</span>
-            <span style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#2563eb;">Duración <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></span>
-            <span style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#2563eb;">Arancel <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></span>
-            <span>Acreditación</span>
-            <span></span>
-          </div>
-
-          <!-- rows -->
-          <sc-for list="{{ all }}" as="item" hint-placeholder-count="9">
-            <div class="d4-row" style="display:grid;grid-template-columns:38px 2.1fr 1fr 1.1fr 1fr 1.2fr 1.3fr 110px;align-items:center;gap:8px;padding:13px 24px;border-bottom:1px solid #f1f4f8;background:{{ item.rowBg }};">
-              <input type="checkbox" class="d4-cmp" checked="{{ item.checked }}" onChange="{{ item.onCheck }}">
-              <div style="min-width:0;">
-                <div style="display:flex;align-items:center;gap:9px;">
-                  <span style="width:26px;height:26px;border-radius:6px;background:{{ item.color }};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">{{ item.mono }}</span>
-                  <span style="font-size:14.5px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ item.carrera }}</span>
+          <div
+            style="
+              width: 1440px;
+              background: #fff;
+              border-radius: 8px;
+              overflow: hidden;
+              box-shadow: 0 24px 60px -28px rgba(20, 30, 45, 0.45);
+              border: 1px solid #cdd4dc;
+              position: relative;
+            "
+          >
+            <!-- header -->
+            <div
+              style="
+                height: 64px;
+                border-bottom: 1px solid #e8ecf1;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 28px;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 9px">
+                <div
+                  style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 7px;
+                    background: #1e293b;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #fff;
+                    font-weight: 700;
+                    font-size: 17px;
+                  "
+                >
+                  e
                 </div>
-                <div style="font-size:12px;color:#94a3b8;margin:2px 0 0 35px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ item.instShort }}</div>
+                <span style="font-weight: 700; font-size: 16px; color: #0f172a"
+                  >educación<span style="color: #2563eb">.com.py</span></span
+                >
               </div>
-              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#334155;"><span style="width:7px;height:7px;border-radius:2px;background:{{ item.gestionDot }};"></span>{{ item.gestion }}</span>
-              <span style="font-size:13px;color:#334155;">{{ item.modalidad }}</span>
-              <span class="mono" style="font-size:13.5px;color:#0f172a;font-weight:500;">{{ item.dur }}</span>
-              <span class="mono" style="font-size:13.5px;font-weight:600;color:{{ item.arancelColor }};">{{ item.arancelShort }}</span>
-              <span style="display:inline-flex;align-items:center;gap:5px;background:{{ item.acredBg }};color:{{ item.acredFg }};font-weight:600;font-size:11.5px;padding:4px 9px;border-radius:6px;width:fit-content;">{{ item.acredShort }}</span>
-              <button style="background:#fff;border:1px solid #cdd6df;border-radius:6px;padding:7px 0;font-size:12.5px;font-weight:600;color:#2563eb;cursor:pointer;">Solicitar</button>
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 22px;
+                  font-size: 14px;
+                  font-weight: 500;
+                  color: #334155;
+                "
+              >
+                <span style="cursor: pointer">Carreras</span
+                ><span style="cursor: pointer">Instituciones</span
+                ><span style="cursor: pointer">Becas</span>
+                <button
+                  style="
+                    background: #2563eb;
+                    color: #fff;
+                    border: none;
+                    border-radius: 7px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                    font-size: 13.5px;
+                    cursor: pointer;
+                  "
+                >
+                  Ingresar
+                </button>
+              </div>
             </div>
-          </sc-for>
-        </div>
-      </div>
 
-      <!-- sticky compare bar -->
-      <div style="position:sticky;bottom:0;left:0;right:0;background:#0f172a;color:#fff;padding:15px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -8px 24px -10px rgba(15,23,42,.4);">
-        <div style="display:flex;align-items:center;gap:14px;">
-          <span style="font-size:14px;color:#cbd5e1;">Comparando</span>
-          <div style="display:flex;gap:8px;">
-            <sc-for list="{{ selected }}" as="sel" hint-placeholder-count="3">
-              <span style="display:flex;align-items:center;gap:7px;background:#1e293b;border:1px solid #334155;border-radius:18px;padding:5px 7px 5px 5px;font-size:12.5px;font-weight:600;">
-                <span style="width:20px;height:20px;border-radius:5px;background:{{ sel.color }};color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center;">{{ sel.mono }}</span>{{ sel.carrera }}<span style="color:#94a3b8;cursor:pointer;">✕</span>
-              </span>
-            </sc-for>
-          </div>
-        </div>
-        <button style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:11px 22px;font-size:14.5px;font-weight:700;cursor:pointer;">Comparar {{ selCount }} carreras →</button>
-      </div>
+            <!-- title strip -->
+            <div style="padding: 22px 28px 16px; border-bottom: 1px solid #eef1f5">
+              <h1
+                style="
+                  margin: 0 0 4px;
+                  font-size: 24px;
+                  font-weight: 700;
+                  color: #0f172a;
+                  letter-spacing: -0.01em;
+                "
+              >
+                Comparador de carreras
+              </h1>
+              <p style="margin: 0; font-size: 14.5px; color: #64748b">
+                Compará arancel, duración y acreditación lado a lado. Marcá hasta 3 carreras para
+                ver el detalle.
+              </p>
+            </div>
 
-    </div>
-  </div>
-
-  <!-- ===================== MOBILE ===================== -->
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    <div style="font:600 13px 'IBM Plex Sans';letter-spacing:.08em;text-transform:uppercase;color:#5a636d;">Mobile · 390</div>
-    <div style="width:430px;height:880px;background:#161b22;border-radius:52px;padding:13px;box-shadow:0 24px 60px -28px rgba(20,30,45,.55);">
-      <div style="width:100%;height:100%;background:#f1f5f9;border-radius:40px;overflow:hidden;position:relative;">
-        <div style="position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font-size:13px;font-weight:700;color:#0f172a;z-index:5;">9:41<span style="display:flex;gap:5px;align-items:center;"><svg width="17" height="12" viewBox="0 0 24 16" fill="#0f172a"><rect x="0" y="3" width="4" height="10" rx="1"/><rect x="6" y="0" width="4" height="13" rx="1"/><rect x="12" y="6" width="4" height="7" rx="1" opacity=".4"/></svg><svg width="22" height="12" viewBox="0 0 26 13" fill="none" stroke="#0f172a" stroke-width="1.4"><rect x="1" y="1" width="20" height="11" rx="3"/><rect x="3" y="3" width="13" height="7" rx="1.5" fill="#0f172a"/><rect x="23" y="4.5" width="2" height="4" rx="1" fill="#0f172a"/></svg></span></div>
-
-        <div style="position:absolute;top:46px;bottom:64px;left:0;right:0;overflow-y:auto;">
-          <div style="background:#fff;border-bottom:1px solid #e8ecf1;padding:12px 16px;position:sticky;top:0;z-index:4;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-weight:700;font-size:15px;color:#0f172a;">educación<span style="color:#2563eb;">.com.py</span></span><svg width="22" height="20" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;">Comparador · {{ count }} carreras</div>
-          </div>
-
-          <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;">
-            <sc-for list="{{ phone }}" as="item" hint-placeholder-count="4">
-              <div style="background:#fff;border:1px solid #e6eaf0;border-radius:11px;padding:13px 14px;">
-                <div style="display:flex;align-items:flex-start;gap:10px;">
-                  <input type="checkbox" class="d4-cmp" checked="{{ item.checked }}" style="margin-top:2px;">
-                  <span style="width:30px;height:30px;border-radius:7px;background:{{ item.color }};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">{{ item.mono }}</span>
-                  <div style="flex:1;min-width:0;"><h3 style="margin:0;font-size:15px;font-weight:700;color:#0f172a;line-height:1.15;">{{ item.carrera }}</h3><div style="font-size:12px;color:#94a3b8;">{{ item.instShort }}</div></div>
+            <div style="display: flex; align-items: stretch">
+              <!-- filter rail -->
+              <div
+                style="
+                  width: 212px;
+                  border-right: 1px solid #eef1f5;
+                  padding: 18px 16px;
+                  flex: none;
+                "
+              >
+                <div
+                  style="
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    margin-bottom: 10px;
+                  "
+                >
+                  Filtros
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin:12px 0 0;padding-top:11px;border-top:1px solid #f1f4f8;">
-                  <div style="font-size:11px;color:#94a3b8;">Gestión<div class="mono" style="font-size:13px;color:#0f172a;font-weight:500;margin-top:1px;">{{ item.gestion }}</div></div>
-                  <div style="font-size:11px;color:#94a3b8;">Duración<div class="mono" style="font-size:13px;color:#0f172a;font-weight:500;margin-top:1px;">{{ item.dur }}</div></div>
-                  <div style="font-size:11px;color:#94a3b8;">Arancel<div class="mono" style="font-size:13px;font-weight:600;margin-top:1px;color:{{ item.arancelColor }};">{{ item.arancelShort }}</div></div>
-                  <div style="font-size:11px;color:#94a3b8;">Acreditación<div style="margin-top:2px;"><span style="background:{{ item.acredBg }};color:{{ item.acredFg }};font-weight:600;font-size:10.5px;padding:2px 7px;border-radius:5px;">{{ item.acredShort }}</span></div></div>
+
+                <div style="font-size: 12px; font-weight: 600; color: #475569; margin: 14px 0 7px">
+                  Nivel
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />Grado</label
+                >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />Tecnicatura</label
+                >
+
+                <div style="font-size: 12px; font-weight: 600; color: #475569; margin: 14px 0 7px">
+                  Gestión
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" checked />Pública</label
+                >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" checked />Privada</label
+                >
+
+                <div style="font-size: 12px; font-weight: 600; color: #475569; margin: 14px 0 7px">
+                  Modalidad
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />Presencial</label
+                >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />Semipresencial</label
+                >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />A distancia</label
+                >
+
+                <div style="font-size: 12px; font-weight: 600; color: #475569; margin: 14px 0 7px">
+                  Acreditación
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />ANEAES Acreditada</label
+                >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 3px 0;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />En proceso</label
+                >
+
+                <div style="font-size: 12px; font-weight: 600; color: #475569; margin: 14px 0 8px">
+                  Arancel mensual
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="60"
+                  style="width: 100%; accent-color: #2563eb"
+                />
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 11px;
+                    color: #94a3b8;
+                    margin-top: 5px;
+                  "
+                >
+                  0<span>1.5M+</span>
+                </div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13.5px;
+                    color: #334155;
+                    padding: 9px 0 3px;
+                  "
+                  ><input type="checkbox" class="d4-cmp" />Solo gratuitas</label
+                >
+
+                <button
+                  style="
+                    width: 100%;
+                    margin-top: 16px;
+                    background: #fff;
+                    border: 1px solid #d3dae2;
+                    border-radius: 7px;
+                    padding: 8px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: #475569;
+                    cursor: pointer;
+                  "
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+
+              <!-- table -->
+              <div style="flex: 1; min-width: 0">
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 14px 24px;
+                    border-bottom: 1px solid #eef1f5;
+                  "
+                >
+                  <div style="font-size: 14px; color: #475569">
+                    <strong style="color: #0f172a">{{ count }} resultados</strong>
+                  </div>
+                  <div style="font-size: 13px; color: #94a3b8">
+                    Hacé clic en ↑↓ para ordenar columnas
+                  </div>
+                </div>
+
+                <!-- column head -->
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 38px 2.1fr 1fr 1.1fr 1fr 1.2fr 1.3fr 110px;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 11px 24px;
+                    background: #f8fafc;
+                    border-bottom: 1px solid #e8ecf1;
+                    font-size: 11.5px;
+                    font-weight: 700;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                  "
+                >
+                  <span></span>
+                  <span>Carrera / Institución</span>
+                  <span>Gestión</span>
+                  <span>Modalidad</span>
+                  <span
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      cursor: pointer;
+                      color: #2563eb;
+                    "
+                    >Duración
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#2563eb"
+                      stroke-width="2.2"
+                    >
+                      <path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg
+                  ></span>
+                  <span
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      cursor: pointer;
+                      color: #2563eb;
+                    "
+                    >Arancel
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#2563eb"
+                      stroke-width="2.2"
+                    >
+                      <path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg
+                  ></span>
+                  <span>Acreditación</span>
+                  <span></span>
+                </div>
+
+                <!-- rows -->
+                <sc-for list="{{ all }}" as="item" hint-placeholder-count="9">
+                  <div
+                    class="d4-row"
+                    style="display:grid;grid-template-columns:38px 2.1fr 1fr 1.1fr 1fr 1.2fr 1.3fr 110px;align-items:center;gap:8px;padding:13px 24px;border-bottom:1px solid #f1f4f8;background:{{ item.rowBg }};"
+                  >
+                    <input
+                      type="checkbox"
+                      class="d4-cmp"
+                      checked="{{ item.checked }}"
+                      onChange="{{ item.onCheck }}"
+                    />
+                    <div style="min-width: 0">
+                      <div style="display: flex; align-items: center; gap: 9px">
+                        <span
+                          style="width:26px;height:26px;border-radius:6px;background:{{ item.color }};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;"
+                          >{{ item.mono }}</span
+                        >
+                        <span
+                          style="
+                            font-size: 14.5px;
+                            font-weight: 600;
+                            color: #0f172a;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                          "
+                          >{{ item.carrera }}</span
+                        >
+                      </div>
+                      <div
+                        style="
+                          font-size: 12px;
+                          color: #94a3b8;
+                          margin: 2px 0 0 35px;
+                          white-space: nowrap;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        "
+                      >
+                        {{ item.instShort }}
+                      </div>
+                    </div>
+                    <span
+                      style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        font-size: 13px;
+                        color: #334155;
+                      "
+                      ><span
+                        style="width:7px;height:7px;border-radius:2px;background:{{ item.gestionDot }};"
+                      ></span
+                      >{{ item.gestion }}</span
+                    >
+                    <span style="font-size: 13px; color: #334155">{{ item.modalidad }}</span>
+                    <span class="mono" style="font-size: 13.5px; color: #0f172a; font-weight: 500"
+                      >{{ item.dur }}</span
+                    >
+                    <span
+                      class="mono"
+                      style="font-size:13.5px;font-weight:600;color:{{ item.arancelColor }};"
+                      >{{ item.arancelShort }}</span
+                    >
+                    <span
+                      style="display:inline-flex;align-items:center;gap:5px;background:{{ item.acredBg }};color:{{ item.acredFg }};font-weight:600;font-size:11.5px;padding:4px 9px;border-radius:6px;width:fit-content;"
+                      >{{ item.acredShort }}</span
+                    >
+                    <button
+                      style="
+                        background: #fff;
+                        border: 1px solid #cdd6df;
+                        border-radius: 6px;
+                        padding: 7px 0;
+                        font-size: 12.5px;
+                        font-weight: 600;
+                        color: #2563eb;
+                        cursor: pointer;
+                      "
+                    >
+                      Solicitar
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- sticky compare bar -->
+            <div
+              style="
+                position: sticky;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #0f172a;
+                color: #fff;
+                padding: 15px 28px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 -8px 24px -10px rgba(15, 23, 42, 0.4);
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 14px">
+                <span style="font-size: 14px; color: #cbd5e1">Comparando</span>
+                <div style="display: flex; gap: 8px">
+                  <sc-for list="{{ selected }}" as="sel" hint-placeholder-count="3">
+                    <span
+                      style="
+                        display: flex;
+                        align-items: center;
+                        gap: 7px;
+                        background: #1e293b;
+                        border: 1px solid #334155;
+                        border-radius: 18px;
+                        padding: 5px 7px 5px 5px;
+                        font-size: 12.5px;
+                        font-weight: 600;
+                      "
+                    >
+                      <span
+                        style="width:20px;height:20px;border-radius:5px;background:{{ sel.color }};color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center;"
+                        >{{ sel.mono }}</span
+                      >{{ sel.carrera }}<span style="color: #94a3b8; cursor: pointer">✕</span>
+                    </span>
+                  </sc-for>
                 </div>
               </div>
-            </sc-for>
+              <button
+                style="
+                  background: #2563eb;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  padding: 11px 22px;
+                  font-size: 14.5px;
+                  font-weight: 700;
+                  cursor: pointer;
+                "
+              >
+                Comparar {{ selCount }} carreras →
+              </button>
+            </div>
           </div>
         </div>
 
-        <div style="position:absolute;bottom:0;left:0;right:0;background:#0f172a;color:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:13px;color:#cbd5e1;">{{ selCount }} seleccionadas</span>
-          <button style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:700;">Comparar →</button>
+        <!-- ===================== MOBILE ===================== -->
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div
+            style="
+              font: 600 13px 'IBM Plex Sans';
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+              color: #5a636d;
+            "
+          >
+            Mobile · 390
+          </div>
+          <div
+            style="
+              width: 430px;
+              height: 880px;
+              background: #161b22;
+              border-radius: 52px;
+              padding: 13px;
+              box-shadow: 0 24px 60px -28px rgba(20, 30, 45, 0.55);
+            "
+          >
+            <div
+              style="
+                width: 100%;
+                height: 100%;
+                background: #f1f5f9;
+                border-radius: 40px;
+                overflow: hidden;
+                position: relative;
+              "
+            >
+              <div
+                style="
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  height: 46px;
+                  display: flex;
+                  align-items: flex-end;
+                  justify-content: space-between;
+                  padding: 0 28px 8px;
+                  font-size: 13px;
+                  font-weight: 700;
+                  color: #0f172a;
+                  z-index: 5;
+                "
+              >
+                9:41<span style="display: flex; gap: 5px; align-items: center"
+                  ><svg width="17" height="12" viewBox="0 0 24 16" fill="#0f172a">
+                    <rect x="0" y="3" width="4" height="10" rx="1" />
+                    <rect x="6" y="0" width="4" height="13" rx="1" />
+                    <rect x="12" y="6" width="4" height="7" rx="1" opacity=".4" /></svg
+                  ><svg
+                    width="22"
+                    height="12"
+                    viewBox="0 0 26 13"
+                    fill="none"
+                    stroke="#0f172a"
+                    stroke-width="1.4"
+                  >
+                    <rect x="1" y="1" width="20" height="11" rx="3" />
+                    <rect x="3" y="3" width="13" height="7" rx="1.5" fill="#0f172a" />
+                    <rect x="23" y="4.5" width="2" height="4" rx="1" fill="#0f172a" /></svg
+                ></span>
+              </div>
+
+              <div
+                style="
+                  position: absolute;
+                  top: 46px;
+                  bottom: 64px;
+                  left: 0;
+                  right: 0;
+                  overflow-y: auto;
+                "
+              >
+                <div
+                  style="
+                    background: #fff;
+                    border-bottom: 1px solid #e8ecf1;
+                    padding: 12px 16px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 4;
+                  "
+                >
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      justify-content: space-between;
+                      margin-bottom: 10px;
+                    "
+                  >
+                    <span style="font-weight: 700; font-size: 15px; color: #0f172a"
+                      >educación<span style="color: #2563eb">.com.py</span></span
+                    ><svg
+                      width="22"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#334155"
+                      stroke-width="1.8"
+                    >
+                      <path d="M3 6h18M3 12h18M3 18h18" />
+                    </svg>
+                  </div>
+                  <div style="font-size: 14px; font-weight: 700; color: #0f172a">
+                    Comparador · {{ count }} carreras
+                  </div>
+                </div>
+
+                <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
+                  <sc-for list="{{ phone }}" as="item" hint-placeholder-count="4">
+                    <div
+                      style="
+                        background: #fff;
+                        border: 1px solid #e6eaf0;
+                        border-radius: 11px;
+                        padding: 13px 14px;
+                      "
+                    >
+                      <div style="display: flex; align-items: flex-start; gap: 10px">
+                        <input
+                          type="checkbox"
+                          class="d4-cmp"
+                          checked="{{ item.checked }}"
+                          style="margin-top: 2px"
+                        />
+                        <span
+                          style="width:30px;height:30px;border-radius:7px;background:{{ item.color }};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;"
+                          >{{ item.mono }}</span
+                        >
+                        <div style="flex: 1; min-width: 0">
+                          <h3
+                            style="
+                              margin: 0;
+                              font-size: 15px;
+                              font-weight: 700;
+                              color: #0f172a;
+                              line-height: 1.15;
+                            "
+                          >
+                            {{ item.carrera }}
+                          </h3>
+                          <div style="font-size: 12px; color: #94a3b8">{{ item.instShort }}</div>
+                        </div>
+                      </div>
+                      <div
+                        style="
+                          display: grid;
+                          grid-template-columns: 1fr 1fr;
+                          gap: 7px 12px;
+                          margin: 12px 0 0;
+                          padding-top: 11px;
+                          border-top: 1px solid #f1f4f8;
+                        "
+                      >
+                        <div style="font-size: 11px; color: #94a3b8">
+                          Gestión
+                          <div
+                            class="mono"
+                            style="
+                              font-size: 13px;
+                              color: #0f172a;
+                              font-weight: 500;
+                              margin-top: 1px;
+                            "
+                          >
+                            {{ item.gestion }}
+                          </div>
+                        </div>
+                        <div style="font-size: 11px; color: #94a3b8">
+                          Duración
+                          <div
+                            class="mono"
+                            style="
+                              font-size: 13px;
+                              color: #0f172a;
+                              font-weight: 500;
+                              margin-top: 1px;
+                            "
+                          >
+                            {{ item.dur }}
+                          </div>
+                        </div>
+                        <div style="font-size: 11px; color: #94a3b8">
+                          Arancel
+                          <div
+                            class="mono"
+                            style="font-size:13px;font-weight:600;margin-top:1px;color:{{ item.arancelColor }};"
+                          >
+                            {{ item.arancelShort }}
+                          </div>
+                        </div>
+                        <div style="font-size: 11px; color: #94a3b8">
+                          Acreditación
+                          <div style="margin-top: 2px">
+                            <span
+                              style="background:{{ item.acredBg }};color:{{ item.acredFg }};font-weight:600;font-size:10.5px;padding:2px 7px;border-radius:5px;"
+                              >{{ item.acredShort }}</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div
+                style="
+                  position: absolute;
+                  bottom: 0;
+                  left: 0;
+                  right: 0;
+                  background: #0f172a;
+                  color: #fff;
+                  padding: 13px 16px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
+                <span style="font-size: 13px; color: #cbd5e1">{{ selCount }} seleccionadas</span>
+                <button
+                  style="
+                    background: #2563eb;
+                    color: #fff;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 16px;
+                    font-size: 13.5px;
+                    font-weight: 700;
+                  "
+                >
+                  Comparar →
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-
-</div>
-</x-dc>
-<script type="text/x-dc" data-dc-script>
-class Component extends DCLogic {
-  state = { sel:{ c1:true, c2:true, c5:true } };
-  raw = [
-    { id:'c1', carrera:'Medicina', instShort:'UNA · San Lorenzo', mono:'UNA', color:'#9b2c2c', gestion:'Pública', modalidad:'Presencial', dur:'6 años', gratuita:true, arancel:'', acred:'acreditada' },
-    { id:'c2', carrera:'Derecho', instShort:'U. Católica (UC) · Asunción', mono:'UC', color:'#1e3a5f', gestion:'Privada', modalidad:'Presencial', dur:'5 años', gratuita:false, arancel:'1.450.000', acred:'acreditada' },
-    { id:'c3', carrera:'Ingeniería Informática', instShort:'UAA · Asunción', mono:'UAA', color:'#0f766e', gestion:'Privada', modalidad:'Semipresencial', dur:'5 años', gratuita:false, arancel:'1.200.000', acred:'proceso' },
-    { id:'c4', carrera:'Ciencias Contables', instShort:'U. Americana · Asunción', mono:'UA', color:'#1d4ed8', gestion:'Privada', modalidad:'Presencial', dur:'5 años', gratuita:false, arancel:'980.000', acred:'cones' },
-    { id:'c5', carrera:'Enfermería', instShort:'UNI · Encarnación', mono:'UNI', color:'#15803d', gestion:'Pública', modalidad:'Presencial', dur:'4 años', gratuita:true, arancel:'', acred:'acreditada' },
-    { id:'c6', carrera:'Administración de Empresas', instShort:'UCSA · Asunción', mono:'UCSA', color:'#4338ca', gestion:'Privada', modalidad:'A distancia', dur:'4 años', gratuita:false, arancel:'890.000', acred:'cones' },
-    { id:'c7', carrera:'Arquitectura', instShort:'UNE · Ciudad del Este', mono:'UNE', color:'#b45309', gestion:'Pública', modalidad:'Presencial', dur:'6 años', gratuita:true, arancel:'', acred:'proceso' },
-    { id:'c8', carrera:'Psicología', instShort:'U. Columbia · Asunción', mono:'COL', color:'#6d28d9', gestion:'Privada', modalidad:'Semipresencial', dur:'5 años', gratuita:false, arancel:'1.050.000', acred:'cones' },
-    { id:'c9', carrera:'Tecnicatura en Desarrollo de Software', instShort:'Politécnico ITS · Asunción', mono:'ITS', color:'#334155', gestion:'Privada', modalidad:'Presencial', dur:'3 años', gratuita:false, arancel:'650.000', acred:'cones' }
-  ];
-  acr = {
-    acreditada:{short:'✓ Acreditada', bg:'#e7f4ec', fg:'#15803d'},
-    proceso:{short:'En proceso', bg:'#fbf0e0', fg:'#b45309'},
-    cones:{short:'Hab. CONES', bg:'#eaeefb', fg:'#4338ca'}
-  };
-  toggle(id){ this.setState(s=>{ const n=Object.assign({},s.sel); if(n[id]) delete n[id]; else n[id]=true; return {sel:n}; }); }
-  build(){
-    return this.raw.map((c,i)=>{
-      const a=this.acr[c.acred];
-      const checked=!!this.state.sel[c.id];
-      return Object.assign({}, c, {
-        checked,
-        rowBg:checked?'#eff5ff':(i%2?'#fcfdfe':'#fff'),
-        gestionDot:c.gestion==='Pública'?'#15803d':'#7c3aed',
-        arancelShort:c.gratuita?'Gratuita':('Gs. '+c.arancel),
-        arancelColor:c.gratuita?'#15803d':'#0f172a',
-        acredShort:a.short, acredBg:a.bg, acredFg:a.fg,
-        onCheck:()=>this.toggle(c.id)
-      });
-    });
-  }
-  renderVals(){
-    const v=this.build();
-    const sel=v.filter(x=>x.checked);
-    return { all:v, phone:v.slice(0,4), selected:sel.slice(0,3), selCount:String(sel.length), count:'9' };
-  }
-}
-</script>
-</body>
+    </x-dc>
+    <script type="text/x-dc" data-dc-script>
+      class Component extends DCLogic {
+        state = { sel:{ c1:true, c2:true, c5:true } };
+        raw = [
+          { id:'c1', carrera:'Medicina', instShort:'UNA · San Lorenzo', mono:'UNA', color:'#9b2c2c', gestion:'Pública', modalidad:'Presencial', dur:'6 años', gratuita:true, arancel:'', acred:'acreditada' },
+          { id:'c2', carrera:'Derecho', instShort:'U. Católica (UC) · Asunción', mono:'UC', color:'#1e3a5f', gestion:'Privada', modalidad:'Presencial', dur:'5 años', gratuita:false, arancel:'1.450.000', acred:'acreditada' },
+          { id:'c3', carrera:'Ingeniería Informática', instShort:'UAA · Asunción', mono:'UAA', color:'#0f766e', gestion:'Privada', modalidad:'Semipresencial', dur:'5 años', gratuita:false, arancel:'1.200.000', acred:'proceso' },
+          { id:'c4', carrera:'Ciencias Contables', instShort:'U. Americana · Asunción', mono:'UA', color:'#1d4ed8', gestion:'Privada', modalidad:'Presencial', dur:'5 años', gratuita:false, arancel:'980.000', acred:'cones' },
+          { id:'c5', carrera:'Enfermería', instShort:'UNI · Encarnación', mono:'UNI', color:'#15803d', gestion:'Pública', modalidad:'Presencial', dur:'4 años', gratuita:true, arancel:'', acred:'acreditada' },
+          { id:'c6', carrera:'Administración de Empresas', instShort:'UCSA · Asunción', mono:'UCSA', color:'#4338ca', gestion:'Privada', modalidad:'A distancia', dur:'4 años', gratuita:false, arancel:'890.000', acred:'cones' },
+          { id:'c7', carrera:'Arquitectura', instShort:'UNE · Ciudad del Este', mono:'UNE', color:'#b45309', gestion:'Pública', modalidad:'Presencial', dur:'6 años', gratuita:true, arancel:'', acred:'proceso' },
+          { id:'c8', carrera:'Psicología', instShort:'U. Columbia · Asunción', mono:'COL', color:'#6d28d9', gestion:'Privada', modalidad:'Semipresencial', dur:'5 años', gratuita:false, arancel:'1.050.000', acred:'cones' },
+          { id:'c9', carrera:'Tecnicatura en Desarrollo de Software', instShort:'Politécnico ITS · Asunción', mono:'ITS', color:'#334155', gestion:'Privada', modalidad:'Presencial', dur:'3 años', gratuita:false, arancel:'650.000', acred:'cones' }
+        ];
+        acr = {
+          acreditada:{short:'✓ Acreditada', bg:'#e7f4ec', fg:'#15803d'},
+          proceso:{short:'En proceso', bg:'#fbf0e0', fg:'#b45309'},
+          cones:{short:'Hab. CONES', bg:'#eaeefb', fg:'#4338ca'}
+        };
+        toggle(id){ this.setState(s=>{ const n=Object.assign({},s.sel); if(n[id]) delete n[id]; else n[id]=true; return {sel:n}; }); }
+        build(){
+          return this.raw.map((c,i)=>{
+            const a=this.acr[c.acred];
+            const checked=!!this.state.sel[c.id];
+            return Object.assign({}, c, {
+              checked,
+              rowBg:checked?'#eff5ff':(i%2?'#fcfdfe':'#fff'),
+              gestionDot:c.gestion==='Pública'?'#15803d':'#7c3aed',
+              arancelShort:c.gratuita?'Gratuita':('Gs. '+c.arancel),
+              arancelColor:c.gratuita?'#15803d':'#0f172a',
+              acredShort:a.short, acredBg:a.bg, acredFg:a.fg,
+              onCheck:()=>this.toggle(c.id)
+            });
+          });
+        }
+        renderVals(){
+          const v=this.build();
+          const sel=v.filter(x=>x.checked);
+          return { all:v, phone:v.slice(0,4), selected:sel.slice(0,3), selCount:String(sel.length), count:'9' };
+        }
+      }
+    </script>
+  </body>
 </html>

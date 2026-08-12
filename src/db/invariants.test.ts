@@ -8,8 +8,9 @@ import {
   assertScopeTarget,
   computeAnnualCost,
   hasRequiredCitation,
-  isPriceDisplayable,
+  needsFreshnessWarning,
   priceExpiresOn,
+  priceFreshness,
 } from './invariants';
 
 describe('accreditation citation rule', () => {
@@ -167,17 +168,25 @@ describe('price staleness', () => {
     expect(priceExpiresOn(verified)?.toISOString()).toBe('2027-01-15T00:00:00.000Z');
   });
 
-  it('displays a price verified 11 months ago', () => {
-    expect(isPriceDisplayable(verified, new Date('2026-12-15T00:00:00Z'))).toBe(true);
+  it('is fresh 11 months after verification', () => {
+    expect(priceFreshness(verified, new Date('2026-12-15T00:00:00Z'))).toBe('fresh');
+    expect(needsFreshnessWarning(verified, new Date('2026-12-15T00:00:00Z'))).toBe(false);
   });
 
-  it('hides a price verified 13 months ago', () => {
-    expect(isPriceDisplayable(verified, new Date('2027-02-15T00:00:00Z'))).toBe(false);
+  it('is stale 13 months after verification — shown, but warned about', () => {
+    // PR-33: this used to be "hidden". The number is now displayed with a
+    // visible "dato desactualizado"; what the rule decides is the warning,
+    // not the visibility.
+    expect(priceFreshness(verified, new Date('2027-02-15T00:00:00Z'))).toBe('stale');
+    expect(needsFreshnessWarning(verified, new Date('2027-02-15T00:00:00Z'))).toBe(true);
   });
 
-  it('hides a price that was never verified', () => {
-    expect(isPriceDisplayable(null)).toBe(false);
-    expect(isPriceDisplayable(undefined)).toBe(false);
+  it('distinguishes "never verified" from "verified long ago"', () => {
+    // They need different sentences: one can be dated on the page, the other
+    // cannot.
+    expect(priceFreshness(null)).toBe('unknown');
+    expect(priceFreshness(undefined)).toBe('unknown');
+    expect(needsFreshnessWarning(null)).toBe(true);
     expect(priceExpiresOn(null)).toBeNull();
   });
 });

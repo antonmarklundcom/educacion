@@ -41,16 +41,15 @@ import { toOfferingSummary, type ProgramSearchRow } from '@/lib/search/row';
 /* -------------------------------------------------------------------------- */
 
 /**
- * The 12-month rule, at the date level, matching `isPriceFilterable()` exactly.
- * `price_expires_on` is `verified_at + 12 months`, written by the rebuild.
+ * Annual cost in guaraníes, or NULL (which sorts last).
+ *
+ * **PR-33 removed the freshness gate that used to be here.** A stale arancel
+ * is now displayed rather than hidden, so filtering it out of a price range
+ * would make a visible number unfilterable — see `isPriceFilterable()` in
+ * `lib/search/engine.ts`, which this must keep matching exactly.
  */
-function priceIsLive(today: string): SQL {
-  return sql`(${ps.priceExpiresOn} is not null and ${ps.priceExpiresOn} > ${today})`;
-}
-
-/** Annual cost, but only when it is displayable and in guaraníes. NULL sorts last. */
-function sortableCost(today: string): SQL {
-  return sql`(case when ${priceIsLive(today)} and ${ps.priceCurrency} = 'PYG' then ${ps.annualCostGs} end)`;
+function sortableCost(): SQL {
+  return sql`(case when ${ps.priceCurrency} = 'PYG' then ${ps.annualCostGs} end)`;
 }
 
 function fullTextMatch(query: ParsedQuery): SQL {
@@ -104,7 +103,7 @@ interface ConditionOptions {
 }
 
 function buildConditions(filters: SearchFilters, options: ConditionOptions): SQL[] {
-  const { except, today, query } = options;
+  const { except, query } = options;
   const conditions: SQL[] = [eq(ps.isPublished, true)];
 
   const q = queryCondition(query);
@@ -122,14 +121,13 @@ function buildConditions(filters: SearchFilters, options: ConditionOptions): SQL
   if (filters.institutionSlug) conditions.push(eq(ps.institutionSlug, filters.institutionSlug));
 
   if (filters.annualCostMin != null || filters.annualCostMax != null) {
-    const cost = sortableCost(today);
+    const cost = sortableCost();
     conditions.push(sql`${cost} is not null`);
     if (filters.annualCostMin != null) conditions.push(sql`${cost} >= ${filters.annualCostMin}`);
     if (filters.annualCostMax != null) conditions.push(sql`${cost} <= ${filters.annualCostMax}`);
   }
 
   if (filters.isFree != null) {
-    conditions.push(priceIsLive(today));
     conditions.push(eq(ps.isFree, filters.isFree));
   }
 
@@ -157,8 +155,8 @@ const TIEBREAKERS: SQL[] = [
   asc(ps.offeringId),
 ];
 
-function buildOrderBy(sort: SortKey, query: ParsedQuery, today: string): SQL[] {
-  const cost = sortableCost(today);
+function buildOrderBy(sort: SortKey, query: ParsedQuery): SQL[] {
+  const cost = sortableCost();
   const primary: SQL[] = [];
 
   switch (sort) {
@@ -285,7 +283,7 @@ export async function searchProgramSearch(
     .select()
     .from(ps)
     .where(where)
-    .orderBy(...buildOrderBy(sort, query, today))
+    .orderBy(...buildOrderBy(sort, query))
     .limit(pageSize)
     .offset(offset);
 

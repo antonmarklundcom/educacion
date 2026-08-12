@@ -20,7 +20,7 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
 
 1. **Never fabricate data.** No invented aranceles, accreditation statuses, ratings, review counts, student numbers, salaries or employability figures — in the UI, in seed data, in test fixtures, or in placeholder copy. If a fact isn't sourced, show the honest gap.
 2. **Accreditation:** unknown renders as `Sin datos de acreditación`, never `No acreditada`. Any positive status requires `source_url` or `resolution_number`.
-3. **Prices:** an arancel with `verified_at` older than 12 months is not displayed anywhere — including the comparador, JSON-LD and OG images.
+3. **Prices:** an arancel with `verified_at` older than 12 months **is displayed, always with a visible "dato desactualizado" warning and the date it was last verified** — on the programme page, in the comparador, in the OG image and in JSON-LD alike. Never show the number without the warning, and never invent a number. (This reverses the original hide-after-12-months rule; the reasoning is in `docs/architecture.md` §23 and `docs/monetization.md` is unaffected. The 24-month **lead purge** is a different rule and still deletes — `risks.md` §R-06.)
 4. **Security is server-side.** Every mutation calls `requireRole()`. Every institution-scoped read is filtered by the session's institution. Hidden buttons are UX, not access control.
 5. **No SQL outside `src/db/queries/`.** Components receive plain typed objects.
 6. **Server components by default.** A client component needs a one-line justification in the PR body.

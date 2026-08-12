@@ -11,7 +11,7 @@ export function RangeSlider({ label, id, className, ...props }: RangeSliderProps
       type="range"
       id={id}
       className={cn(
-        'h-2 w-full cursor-pointer appearance-none rounded-full bg-border accent-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2',
+        'bg-border accent-ink focus-visible:ring-ink h-2 w-full cursor-pointer appearance-none rounded-full focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
         className,
       )}
       {...props}
@@ -21,7 +21,7 @@ export function RangeSlider({ label, id, className, ...props }: RangeSliderProps
   if (!label) return slider;
 
   return (
-    <label htmlFor={id} className="flex flex-col gap-1.5 text-sm text-body">
+    <label htmlFor={id} className="text-body flex flex-col gap-1.5 text-sm">
       {label}
       {slider}
     </label>

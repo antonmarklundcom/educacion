@@ -324,3 +324,65 @@ export async function countOfferingsWithoutAdmissions(
     .where(and(eq(offerings.status, 'published'), isNull(admissions.id)));
   return Number(row?.count ?? 0);
 }
+
+/**
+ * Recompute `offerings.enrollment_status` for every active convocatoria
+ * (PR-33's `/api/cron/admissions`).
+ *
+ * Saving a convocatoria already restates the badge for what it covers (§14), so
+ * this exists for the transitions **time** makes rather than a person: the day
+ * a registration window opens, and the day it closes. It walks the active
+ * admissions from widest scope to narrowest and calls the same
+ * `applyEnrollmentStatus` the admin path uses, so the precedence rule — a
+ * narrower scope wins — is the same code, not a second implementation.
+ *
+ * Idempotent: writing the status a row already has changes nothing, and the
+ * job re-derives from dates rather than stepping a state machine, so firing it
+ * twice in a day is a wasted read.
+ */
+export async function refreshEnrollmentStatuses(
+  now: Date = new Date(),
+  database: Db = defaultDb,
+): Promise<number> {
+  const rows = await database
+    .select({
+      scope: admissions.scope,
+      institutionId: admissions.institutionId,
+      programId: admissions.programId,
+      offeringId: admissions.offeringId,
+      registrationOpens: admissions.registrationOpens,
+      registrationCloses: admissions.registrationCloses,
+      isActive: admissions.isActive,
+    })
+    .from(admissions)
+    .where(eq(admissions.isActive, true));
+
+  // Widest first, so a narrower window is applied last and wins — the same
+  // ordering `applyEnrollmentStatus` protects with its `moreSpecific` check.
+  const order = { institution: 0, program: 1, offering: 2 } as const;
+  const sorted = [...rows].sort((a, b) => order[a.scope] - order[b.scope]);
+
+  let touched = 0;
+  for (const row of sorted) {
+    touched += await applyEnrollmentStatus(
+      database,
+      {
+        scope: row.scope,
+        institutionId: row.institutionId ?? null,
+        programId: row.programId ?? null,
+        offeringId: row.offeringId ?? null,
+        periodLabel: '',
+        registrationOpens: row.registrationOpens ?? null,
+        registrationCloses: row.registrationCloses ?? null,
+        examDate: null,
+        classesStart: null,
+        requirementsMd: null,
+        processMd: null,
+        url: null,
+        isActive: true,
+      },
+      now,
+    );
+  }
+  return touched;
+}

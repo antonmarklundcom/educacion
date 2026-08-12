@@ -8,7 +8,7 @@ import { listInstitutionOptions } from '@/db/queries/admin/options';
 import { formatGs } from '@/lib/format';
 import { requireRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
-import { isPriceDisplayable } from '@/db/invariants';
+import { priceFreshness } from '@/db/invariants';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -24,12 +24,10 @@ function one(params: Record<string, string | string[] | undefined>, key: string)
  * The current arancel of every offering, with the 12-month rule shown as a
  * badge rather than applied silently.
  *
- * The admin is the one place that *should* see a stale number — you cannot
- * re-verify what you cannot read — so the amount stays visible here and the
- * badge says "Oculto en el sitio". That is not a loophole in
- * `isPriceDisplayable`: the public pages read `program_search` through
- * `searchPrograms()`, which strips the amounts before a component ever sees
- * them (`data-model.md` §5).
+ * Since PR-33 a stale arancel is shown on the public pages too, under a
+ * "dato desactualizado" warning — so this badge no longer says "oculto en el
+ * sitio", it says what is actually true: the number is out there carrying a
+ * warning, and it is on the re-verification queue.
  */
 export default async function AdminPricesPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await currentUser();
@@ -56,8 +54,9 @@ export default async function AdminPricesPage({ searchParams }: { searchParams: 
         <div>
           <h1 className="text-ink text-2xl font-bold">Aranceles</h1>
           <p className="text-muted max-w-prose text-sm">
-            Un arancel con más de 12 meses no se muestra en ninguna parte del sitio. Acá lo ves
-            igual, porque no se puede reverificar lo que no se puede leer.
+            Un arancel con más de 12 meses sí se muestra, con un aviso visible de que está
+            desactualizado y la fecha de la última verificación. Reverificarlo es lo que saca ese
+            aviso.
           </p>
         </div>
         <Button
@@ -124,10 +123,10 @@ export default async function AdminPricesPage({ searchParams }: { searchParams: 
           {
             header: 'Verificado',
             cell: (row) =>
-              isPriceDisplayable(row.verifiedAt) ? (
+              priceFreshness(row.verifiedAt) === 'fresh' ? (
                 <Badge tone="ok">Vigente</Badge>
               ) : (
-                <Badge tone="warn">Oculto en el sitio</Badge>
+                <Badge tone="warn">Se muestra con aviso</Badge>
               ),
           },
         ]}

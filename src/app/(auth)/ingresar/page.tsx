@@ -33,19 +33,22 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-4 py-16">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-ink">Ingresar</h1>
-        <p className="text-sm text-body">Accedé al panel de tu institución o al admin.</p>
+        <h1 className="text-ink text-2xl font-semibold">Ingresar</h1>
+        <p className="text-body text-sm">Accedé al panel de tu institución o al admin.</p>
       </div>
 
       {claimNotice && (
-        <p role="status" className="border-border bg-card-alt text-body rounded-md border p-3 text-sm">
+        <p
+          role="status"
+          className="border-border bg-card-alt text-body rounded-md border p-3 text-sm"
+        >
           {claimNotice}
         </p>
       )}
 
       <LoginForm />
 
-      <p className="text-xs text-faint">
+      <p className="text-faint text-xs">
         ¿Olvidaste tu contraseña? Escribinos y te ayudamos a recuperarla.
       </p>
     </main>

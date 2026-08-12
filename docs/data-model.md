@@ -148,7 +148,7 @@ prices            // one current row per offering + history
 
 **"Which row is current?"** was ambiguous and ambiguity in the price table is expensive, so it is now explicit: `is_current` plus a generated `current_offering_id` that equals `offering_id` while the row is current and NULL otherwise. MySQL ignores NULLs in a UNIQUE index, which buys "exactly one current price per offering" without a partial index. History rows keep `is_current = false` forever.
 
-**Staleness rule:** if `verified_at` is older than 12 months the number is not displayed _anywhere_ — comparador, JSON-LD, OG images included. The UI shows "Consultá el arancel". `isPriceDisplayable()` is the single decision point; the search layer strips the amounts before they reach a component so no component can render a stale one by accident.
+**Staleness rule (changed in PR-33):** if `verified_at` is older than 12 months the number **is still displayed** — on the programme page, in the comparador and in the OG image — always with a visible "dato desactualizado" and the month it was last verified. `priceFreshness()` is the single decision point and returns `fresh | stale | unknown`; the search layer tags every `PriceSummary` with it, and `priceDisplay()` produces the amount and the warning in the same call, so a component cannot render one without the other. `Offer` JSON-LD still requires a price verified within 12 months (`seo.md` §5). "Consultá el arancel" now means only what it says: we have no number at all.
 
 **Currency:** `annual_cost` is comparable only within a currency. USD-denominated rows are indexed with their native amounts and sort last; we do not apply an FX rate we would then have to defend.
 
@@ -355,7 +355,7 @@ Rules this table has to obey, and why each column above exists:
 - **A row must be renderable and linkable on its own.** Hence the slugs: a result card that has to join to build `/universidades/{inst}/{program}` defeats the purpose of the table.
 - **The comparador reads the same rows.** Hence `matricula_gs`, `installments_per_year` and `admission_fee_gs` — the compare table shows the breakdown, not just the annual total, and it must not join per row.
 - **A badge is a link.** Hence `accreditation_source_url` (design-system.md §4).
-- **The staleness rule survives an index that is one night old.** Hence `price_expires_on`: the rebuild is nightly but the 12-month boundary is crossed at an arbitrary moment, so the query layer compares this column against `NOW()` instead of trusting the index to be fresh.
+- **The staleness rule survives an index that is one night old.** Hence `price_expires_on`: the rebuild is nightly but the 12-month boundary is crossed at an arbitrary moment, so the query layer compares this column against `NOW()` instead of trusting the index to be fresh. Since PR-33 that boundary decides **whether the number carries a "dato desactualizado" warning**, not whether it is shown — the amounts always travel and the UI labels them (`architecture.md` §23).
 - **Program name ≠ career name.** Hence both: cards show the institution's `name_official` for the program, the hub groups on the canonical career.
 
 ---

@@ -33,7 +33,6 @@ import {
 import { FACET_GROUPS, type AreaOption, type FacetGroupDef } from './groups';
 import { parseQuery, type ParsedQuery } from './normalize';
 import type { ArrayFilterKey } from './params';
-import { toDateOnly } from './accreditation';
 import { toOfferingSummary, type ProgramSearchRow } from './row';
 
 /* -------------------------------------------------------------------------- */
@@ -61,32 +60,32 @@ export function resolveSort(filters: SearchFilters): SortKey {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Whether a row's arancel may take part in price filtering and price sorting.
+ * Whether a row's arancel takes part in price filtering and price sorting.
  *
- * Deliberately a *date* comparison against `price_expires_on`, which is
- * exactly what the SQL engine does (`price_expires_on > CURDATE()`), so the two
- * engines filter identically. It is also never more permissive than
- * `isPriceDisplayable()`, the timestamp-level rule applied when the row is
- * mapped for rendering: `price_expires_on` is that same expiry truncated to a
- * date, so passing this test implies the expiry is at least tomorrow. A row can
- * therefore drop out of an arancel range on its last day while still showing
- * its price — never the reverse, which is the direction that would matter
- * (`row.test.ts` asserts the property).
+ * **Since PR-33 age is no longer a gate.** While a stale price was hidden,
+ * excluding it from a range filter was the only coherent option: a row cannot
+ * be filtered on a number the user is not allowed to see. Now that the number
+ * is shown — with its date and a warning — the honest behaviour is the
+ * consistent one: what you can read, you can filter and sort on. Excluding it
+ * would mean a carrera visibly quoting Gs. 1.200.000 vanishing from the
+ * "hasta Gs. 1.500.000" filter, which reads as a bug and hides exactly the
+ * cheap options a family is looking for.
+ *
+ * What remains is the currency rule.
  */
-export function isPriceFilterable(row: ProgramSearchRow, now: Date = new Date()): boolean {
-  return row.priceExpiresOn != null && row.priceExpiresOn > toDateOnly(now);
+export function isPriceFilterable(row: ProgramSearchRow): boolean {
+  return row.priceCurrency != null && (row.annualCostGs != null || row.isFree);
 }
 
 /**
  * The number the arancel filters and the arancel sorts use: the annual cost,
- * but only when it is displayable and denominated in guaraníes.
+ * in guaraníes.
  *
  * USD rows keep their native amount and are treated as unsorted (`null`, hence
  * last) rather than converted — an FX rate is a number we would have to defend
  * on a date we do not control (data-model.md §2).
  */
-export function sortableAnnualCost(row: ProgramSearchRow, now: Date = new Date()): number | null {
-  if (!isPriceFilterable(row, now)) return null;
+export function sortableAnnualCost(row: ProgramSearchRow): number | null {
   if (row.priceCurrency !== 'PYG') return null;
   return row.annualCostGs ?? null;
 }
@@ -129,7 +128,6 @@ export function matchesFilters(
   filters: SearchFilters,
   options: MatchOptions = {},
 ): boolean {
-  const now = options.now ?? new Date();
   const except = options.except;
   const value = <K extends ArrayFilterKey>(key: K): string[] | undefined =>
     except === key ? undefined : (filters[key] as string[] | undefined);
@@ -154,7 +152,7 @@ export function matchesFilters(
   if (filters.institutionSlug && row.institutionSlug !== filters.institutionSlug) return false;
 
   if (filters.annualCostMin != null || filters.annualCostMax != null) {
-    const cost = sortableAnnualCost(row, now);
+    const cost = sortableAnnualCost(row);
     if (cost == null) return false;
     if (filters.annualCostMin != null && cost < filters.annualCostMin) return false;
     if (filters.annualCostMax != null && cost > filters.annualCostMax) return false;
@@ -164,7 +162,7 @@ export function matchesFilters(
     // "Gratuita" is a price claim like any other: an unverifiable one is not
     // evidence of either answer, so rows without a displayable price are out
     // of both sides of this filter.
-    if (!isPriceFilterable(row, now)) return false;
+    if (!isPriceFilterable(row)) return false;
     if (row.isFree !== filters.isFree) return false;
   }
 
@@ -230,7 +228,6 @@ export function compareRows(
   b: ProgramSearchRow,
   sort: SortKey,
   query: ParsedQuery,
-  now: Date,
 ): number {
   switch (sort) {
     case 'relevancia': {
@@ -241,8 +238,8 @@ export function compareRows(
     case 'arancel_asc':
     case 'arancel_desc': {
       const byCost = nullsLast(
-        sortableAnnualCost(a, now),
-        sortableAnnualCost(b, now),
+        sortableAnnualCost(a),
+        sortableAnnualCost(b),
         sort === 'arancel_asc' ? 1 : -1,
       );
       if (byCost !== 0) return byCost;
@@ -379,7 +376,7 @@ export function searchInMemory(
   }
 
   const results = [...matched]
-    .sort((a, b) => compareRows(a, b, sort, query, now))
+    .sort((a, b) => compareRows(a, b, sort, query))
     .slice(offset, offset + pageSize)
     .map((row) => toOfferingSummary(row, now));
 

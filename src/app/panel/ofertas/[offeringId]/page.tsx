@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { PanelForm } from '@/components/panel/PanelForm';
 import { PanelNav } from '@/components/panel/PanelNav';
 import { getOwnCurrentPrice, getOwnOffering } from '@/db/queries/panel/catalog';
-import { isPriceDisplayable } from '@/db/invariants';
+import { priceFreshness } from '@/db/invariants';
 import { formatMonthYear } from '@/lib/format';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
@@ -41,7 +41,7 @@ export default async function PanelOfferingPage({
   }
   if (!offering) notFound();
 
-  const displayable = isPriceDisplayable(price?.verifiedAt ?? null);
+  const displayable = priceFreshness(price?.verifiedAt ?? null) === 'fresh';
 
   return (
     <>
@@ -59,8 +59,8 @@ export default async function PanelOfferingPage({
           {price && !displayable && (
             <p className="border-warn/40 bg-warn-bg text-body rounded-md border px-4 py-3 text-sm">
               El último arancel que cargaste es de {formatMonthYear(price.verifiedAt ?? new Date())}
-              . Como pasó de 12 meses, hoy no lo mostramos. Cargalo de nuevo y vuelve a verse al
-              instante.
+              . Como pasó de 12 meses, hoy se muestra con un aviso de que está desactualizado.
+              Cargalo de nuevo y el aviso desaparece al instante.
             </p>
           )}
           <PanelForm

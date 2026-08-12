@@ -53,7 +53,7 @@ export function AccreditationDisputeForm({
         required
         minLength={10}
         placeholder="Contanos qué está mal en este registro y por qué."
-        className="min-h-24 w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-ink"
+        className="border-border-strong bg-surface text-ink min-h-24 w-full rounded-md border px-3 py-2 text-sm"
       />
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton />

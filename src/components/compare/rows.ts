@@ -78,11 +78,18 @@ const EXTRACTORS: readonly Extractor[] = [
     label: 'Arancel',
     isNumeric: true,
     of: (o) => {
-      // The 12-month rule already stripped the amounts upstream; what is left
-      // here is either a real number or the honest gap (CLAUDE.md rule 3).
+      // Since PR-33 a stale arancel is compared like any other, and the cell
+      // carries its date so the reader can see one column is older than the
+      // next — which is exactly the comparison they came here to make
+      // (CLAUDE.md rule 3).
       const display = priceDisplay(o.price);
       if (display.isGap) return { text: display.label, isGap: true };
-      return value(`${display.label}${display.unit ?? ''}`);
+      const amount = `${display.label}${display.unit ?? ''}`;
+      return value(
+        display.isStale
+          ? `${amount} · ${display.verifiedLabel ? `dato de ${display.verifiedLabel}` : 'sin fecha'}`
+          : amount,
+      );
     },
   },
   {

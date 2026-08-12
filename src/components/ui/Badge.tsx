@@ -18,7 +18,13 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 /** Status-only colour usage — never decorative. See docs/design-system.md §4. */
-export function Badge({ tone = 'neutral', dot = false, className, children, ...props }: BadgeProps) {
+export function Badge({
+  tone = 'neutral',
+  dot = false,
+  className,
+  children,
+  ...props
+}: BadgeProps) {
   return (
     <span
       className={cn(

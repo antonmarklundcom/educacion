@@ -14,11 +14,7 @@ import { currentUser } from '@/lib/auth/session';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-export default async function DisputeDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function DisputeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   try {
     requireRole(user, ['editor']);
@@ -47,7 +43,8 @@ export default async function DisputeDetailPage({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-ink text-xl font-bold">
-              Acreditación #{dispute.entityId} — {institutionName ?? `institución #${dispute.institutionId}`}
+              Acreditación #{dispute.entityId} —{' '}
+              {institutionName ?? `institución #${dispute.institutionId}`}
             </h1>
             <p className="text-muted text-sm">
               {dispute.agency ?? '—'}

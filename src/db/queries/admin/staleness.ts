@@ -290,3 +290,23 @@ export async function bulkVerify(
 
   return { updated: unique.length };
 }
+
+/**
+ * The same counts as `stalenessCounts`, for the weekly cron (PR-33).
+ *
+ * No `SessionUser`: the caller is `/api/cron/staleness`, already authenticated
+ * by `CRON_SECRET` before the route reaches it (`architecture.md` §10). It is
+ * a separate export rather than an optional argument on `stalenessCounts`,
+ * because "the role check is optional" is exactly the shape that ends up
+ * called from a page one day.
+ */
+export async function stalenessCountsForCron(
+  now: Date = new Date(),
+  database: Db = defaultDb,
+): Promise<StalenessCounts> {
+  return stalenessCounts(
+    { id: 0, role: 'admin', institutionId: null, mustChangePassword: false },
+    now,
+    database,
+  );
+}

@@ -14,6 +14,7 @@
  * `architecture.md` §4.4 a one-file swap.
  */
 
+import type { PriceFreshness } from '@/db/invariants';
 import type {
   ACCREDITATION_AGENCY,
   ACCREDITATION_STATUS,
@@ -199,7 +200,16 @@ export interface OfferingSummary {
  * stale arancel because it never receives one.
  */
 export interface PriceSummary {
-  isDisplayable: boolean;
+  /**
+   * `fresh` · `stale` (verified more than 12 months ago) · `unknown` (never
+   * verified). **Amounts are present in all three** since PR-33 — a stale
+   * arancel is displayed with a visible warning and its date rather than
+   * hidden (CLAUDE.md rule 3). `hasAmount` says whether there is a number at
+   * all; freshness says how much to trust it.
+   */
+  freshness: PriceFreshness;
+  /** True when at least one amount (or `isFree`) is present. */
+  hasAmount: boolean;
   isFree: boolean;
   currency: Currency | null;
   matricula: number | null;
@@ -208,8 +218,11 @@ export interface PriceSummary {
   admissionFee: number | null;
   /** matrícula + cuota × cuotas/año. The number the comparador sorts on. */
   annualCost: number | null;
+  /** When we last confirmed this number. Null means we never could. */
   verifiedAt: Date | null;
 }
+
+export type { PriceFreshness };
 
 /** A badge and the link that justifies it. Never one without the other. */
 export interface AccreditationSummary {

@@ -55,11 +55,7 @@ import {
   programSearch,
   programs,
 } from '@/db/schema';
-import {
-  pastDueGraceDays,
-  resolveEntitlements,
-  type SubscriptionFacts,
-} from '@/lib/entitlements';
+import { pastDueGraceDays, resolveEntitlements, type SubscriptionFacts } from '@/lib/entitlements';
 import {
   resolveAccreditation,
   toDateOnly,

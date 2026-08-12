@@ -48,7 +48,7 @@ export function LoginForm() {
       />
 
       {state.error ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-danger text-sm">
           {state.error}
         </p>
       ) : null}

@@ -196,7 +196,7 @@ export function buildCareerCityIntro(
 
   const prices = offerings
     .map((o) => o.price)
-    .filter((price) => price.isDisplayable && price.annualCost != null && price.currency === 'PYG')
+    .filter((price) => price.hasAmount && price.annualCost != null && price.currency === 'PYG')
     .map((price) => price.annualCost as number);
   if (prices.length > 0) {
     const min = Math.min(...prices);

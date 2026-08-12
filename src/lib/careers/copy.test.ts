@@ -50,7 +50,8 @@ function offering(id: number, overrides: Partial<OfferingSummary> = {}): Offerin
     institutionType: 'universidad',
     durationMonths: 60,
     price: {
-      isDisplayable: false,
+      freshness: 'fresh' as const,
+      hasAmount: false,
       isFree: false,
       currency: null,
       matricula: null,
@@ -155,7 +156,8 @@ describe('buildCareerCityIntro', () => {
           validTo: null,
         },
         price: {
-          isDisplayable: true,
+          freshness: 'fresh' as const,
+          hasAmount: true,
           isFree: false,
           currency: 'PYG',
           matricula: 500_000,
@@ -171,7 +173,8 @@ describe('buildCareerCityIntro', () => {
         modality: 'semipresencial',
         durationMonths: 66,
         price: {
-          isDisplayable: true,
+          freshness: 'fresh' as const,
+          hasAmount: true,
           isFree: false,
           currency: 'PYG',
           matricula: 400_000,

@@ -126,7 +126,7 @@ describe('facets', () => {
   it('cross-filters the price filters into the facet counts too', () => {
     const filters: SearchFilters = { isFree: true };
     const { facets } = run(filters);
-    const scope = PUBLISHED.filter((row) => isPriceFilterable(row, NOW) && row.isFree);
+    const scope = PUBLISHED.filter((row) => isPriceFilterable(row) && row.isFree);
     for (const [level, count] of countBy(scope, (row) => row.level)) {
       expect(optionCount(facets.levels, level)).toBe(count);
     }
@@ -142,26 +142,50 @@ describe('filters', () => {
     expect(total).toBe(expected);
   });
 
-  it('excludes rows with no displayable price from an arancel range', () => {
+  it('excludes rows with no price at all from an arancel range', () => {
     const { results, total } = run({ annualCostMin: 1, pageSize: 100 });
     const expected = PUBLISHED.filter((row) => {
-      const cost = sortableAnnualCost(row, NOW);
+      const cost = sortableAnnualCost(row);
       return cost != null && cost >= 1;
     }).length;
     expect(total).toBe(expected);
-    expect(results.every((result) => result.price.isDisplayable)).toBe(true);
+    expect(results.every((result) => result.price.hasAmount)).toBe(true);
     expect(results.every((result) => (result.price.annualCost ?? 0) >= 1)).toBe(true);
   });
 
-  it('never lets a stale arancel into a price-filtered page', () => {
+  /**
+   * **This test asserted the opposite before PR-33.** While a stale arancel was
+   * hidden, letting one into a price-filtered page meant filtering on a number
+   * the reader could not see. Now that the number is shown with a visible
+   * "dato desactualizado", excluding it would make a visible price
+   * unfilterable — and would quietly drop the cheap options a family is
+   * hunting for out of "hasta Gs. X".
+   */
+  it('includes a stale arancel in a price-filtered page, marked as stale', () => {
     const stale = PUBLISHED.filter(
-      (row) => row.priceVerifiedAt != null && !isPriceFilterable(row, NOW),
+      (row) =>
+        row.priceVerifiedAt != null &&
+        row.priceCurrency === 'PYG' &&
+        row.annualCostGs != null &&
+        row.priceExpiresOn != null &&
+        row.priceExpiresOn <= NOW.toISOString().slice(0, 10),
     );
     expect(stale.length).toBeGreaterThan(0); // the fixture really does contain some
 
-    const { results } = run({ annualCostMax: 999_999_999, pageSize: 100 });
-    const staleIds = new Set(stale.map((row) => row.offeringId));
-    expect(results.some((result) => staleIds.has(result.offeringId))).toBe(false);
+    // Counted rather than paged through: the property is about the filter, and
+    // the fixture is larger than one page.
+    const { total } = run({ annualCostMax: 999_999_999, pageSize: 1 });
+    const everyPricedRow = PUBLISHED.filter(
+      (row) => row.priceCurrency === 'PYG' && row.annualCostGs != null,
+    ).length;
+    expect(total).toBe(everyPricedRow);
+
+    // And when one does surface, it is labelled.
+    const { results } = run({ annualCostMax: 999_999_999, pageSize: 400 });
+    const shown = results.filter((result) =>
+      stale.some((row) => row.offeringId === result.offeringId),
+    );
+    expect(shown.every((result) => result.price.freshness === 'stale')).toBe(true);
   });
 
   it('is accent-insensitive on free text', () => {

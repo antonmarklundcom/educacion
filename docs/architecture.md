@@ -980,7 +980,7 @@ published work.
 **Markdown is a small subset rendered to React elements, not HTML.**
 `src/lib/content/markdown.ts` parses (pure, unit-tested) and `Markdown.tsx`
 renders. Nothing in the pipeline ever produces an HTML string, so an editorial
-body containing `<script>` is *text* by construction rather than by a
+body containing `<script>` is _text_ by construction rather than by a
 sanitizer's configuration — which is also why no markdown or sanitizer
 dependency was added. Unsupported constructs degrade to visible text so an
 editor can see that they did not work, and a link whose scheme is neither
@@ -1104,3 +1104,77 @@ integration can fill the same table later without changing a line of the page.
 date. A vacancy filled a month ago is worse than no vacancy at all, and a cron
 would leave a window. `UNIQUE (url)` is what stops the same aviso being listed
 twice.
+
+---
+
+## 23. The freshness system, and the stale-price reversal (settled in PR-33)
+
+### The policy change
+
+**Before:** an arancel with `verified_at` older than twelve months was hidden
+everywhere — the amounts were nulled in `row.ts` before any component saw them,
+and the page said "Consultá el arancel". The reasoning was that a wrong number
+is worse than no number.
+
+**After:** the number is **shown, dated and warned about**. `priceFreshness()`
+replaces `isPriceDisplayable()` and returns `fresh | stale | unknown`;
+`PriceSummary` carries `freshness` and `hasAmount` instead of `isDisplayable`;
+`priceDisplay()` returns the amount **and** its staleness in the same call, so
+no component can render one without the other. The warning is a badge beside
+the number on cards and rows, a banner above the numbers on the programme page,
+a dated cell in the comparador, and a line in the OG image — because a shared
+image is read with none of the page around it.
+
+**Why.** Hiding produced a directory that shows nothing for most carreras (the
+data decays annually and re-verification is manual — `plan.md` §6) while the
+same stale number stayed on the university's own site, uncontradicted and
+unlabelled. Hiding protected nobody: it removed our one chance to say "this is
+from 2024". What did not change is the rule underneath — never present a stale
+number as current, never invent one.
+
+**Stale prices are now filterable and sortable too.** While the number was
+hidden, excluding it from a range filter was the only coherent option — you
+cannot filter on what the reader cannot see. Now the consistent rule is the
+honest one: what you can read, you can filter on. The alternative is a carrera
+visibly quoting Gs. 1.200.000 vanishing from "hasta Gs. 1.500.000", which reads
+as a bug and hides exactly the cheap options a family is looking for.
+
+**`Offer` JSON-LD still requires a price verified within 12 months**
+(`seo.md` §5). The two rules only look inconsistent: a warning is something a
+human reads, and a rich result is something a machine repeats stripped of its
+context. Schema mirrors what is _asserted_, not merely what is drawn.
+
+**The 24-month lead purge is untouched by any of this** and still deletes.
+Showing an old arancel with a warning is a judgement about usefulness; keeping
+somebody's phone number past what we told them is a broken commitment
+(`risks.md` §R-06).
+
+### The freshness system
+
+**Staleness is scored, not just counted.** `/admin/frescura` could say "600
+aranceles vencidos"; it could not say which to do first. `scoreFreshness()` is
+overdue-days × a **stated** weight (accreditation 4, published price 3,
+admission 2, draft price 1 — the only judgement in the formula, written down
+rather than tuned). A never-verified record scores as exactly one interval
+overdue rather than infinite: infinity would park every unverified row at the
+top forever and bury the ones we published a number for and then let rot, which
+are the ones that actively mislead somebody.
+
+**Every §10 cron now exists.** `rebuild-search`, `admissions`, `staleness`,
+`purge-leads`, plus PR-23's and PR-29's — and `sitemap` answers `not_needed`
+rather than staying a scheduled no-op, because `app/sitemap.ts` is generated per
+request.
+
+- `admissions` re-derives `offerings.enrollment_status` through the admin's own
+  `applyEnrollmentStatus`, widest scope first, so the "a narrower window wins"
+  rule (§14) has one implementation rather than two that can drift.
+- `staleness` **reports and never acts**. Nothing re-verifies automatically —
+  re-verification is a person asserting something is still true (§14.2), and a
+  job that did it would be the quiet extension of a wrong number that section
+  exists to prevent. It also sends **nothing** when there is nothing to do: a
+  weekly "todo al día" is a mail that trains you to ignore the weekly mail.
+- `purge-leads` is the only destructive job in the codebase.
+
+**"Última actualización" is on every page that shows maintained data**
+(`FreshnessNote`). With nothing verified it says so instead of rendering
+nothing — an empty space is not information.

@@ -75,7 +75,9 @@ async function sendOne(
       }),
     });
     if (!response.ok) {
-      console.error(`[leads] digest to institution ${entry.institutionId} failed: HTTP ${response.status}`);
+      console.error(
+        `[leads] digest to institution ${entry.institutionId} failed: HTTP ${response.status}`,
+      );
       return false;
     }
     return true;
@@ -112,17 +114,12 @@ export async function sendLeadDigests(now: Date = new Date()): Promise<DigestRun
   for (const entry of entries) {
     const contact = contacts.get(entry.institutionId);
     if (!contact?.email) {
-      console.warn(`[leads] digest skipped for institution ${entry.institutionId}: no email on file.`);
+      console.warn(
+        `[leads] digest skipped for institution ${entry.institutionId}: no email on file.`,
+      );
       continue;
     }
-    const ok = await sendOne(
-      contact.email,
-      contact.nameOfficial,
-      entry,
-      apiKey,
-      from,
-      now,
-    );
+    const ok = await sendOne(contact.email, contact.nameOfficial, entry, apiKey, from, now);
     if (ok) sent += 1;
   }
 

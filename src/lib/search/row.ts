@@ -1,18 +1,20 @@
 /**
  * `program_search` row → `OfferingSummary`.
  *
- * This is the only place a stored price becomes a displayable one, and it is
- * the reason `PriceSummary` is shaped the way it is: when the 12-month rule
- * says no, the amounts are `null` before the object leaves this function. A
- * component cannot render a stale arancel because it is never handed one
- * (CLAUDE.md rule 3, data-model.md §5).
+ * ### The 12-month rule, after PR-33
  *
- * The decision itself is not re-implemented here — `isPriceDisplayable()` in
+ * This function used to **null every amount** on a price older than twelve
+ * months, so that no component could render a stale arancel. That policy is
+ * reversed: the amounts now always travel, tagged with `freshness`, and the UI
+ * shows the number **with a visible warning and the date we last verified it**
+ * (CLAUDE.md rule 3, `architecture.md` §23).
+ *
+ * The classification is still not re-implemented here — `priceFreshness()` in
  * `src/db/invariants.ts` is the single decision point for the comparador,
  * JSON-LD and OG images alike, and this module calls it.
  */
 
-import { isPriceDisplayable } from '@/db/invariants';
+import { priceFreshness } from '@/db/invariants';
 import type { programSearch } from '@/db/schema';
 
 import type { OfferingSummary, PriceSummary } from './contract';
@@ -20,9 +22,9 @@ import type { OfferingSummary, PriceSummary } from './contract';
 /** One row of the flat index, exactly as Drizzle selects it. */
 export type ProgramSearchRow = typeof programSearch.$inferSelect;
 
-/** Nothing displayable: the UI shows "Consultá el arancel", never a number. */
-const NO_PRICE: Omit<PriceSummary, 'verifiedAt'> = {
-  isDisplayable: false,
+/** No number at all: the UI shows "Consultá el arancel", never a guess. */
+const NO_PRICE: Omit<PriceSummary, 'verifiedAt' | 'freshness'> = {
+  hasAmount: false,
   isFree: false,
   currency: null,
   matricula: null,
@@ -33,18 +35,25 @@ const NO_PRICE: Omit<PriceSummary, 'verifiedAt'> = {
 };
 
 /**
- * `verifiedAt` survives a non-displayable price on purpose: "último dato
- * verificado en 2023" is honest provenance, not a price, and it is what lets
- * the UI explain the gap instead of pretending there is no data at all. Every
- * *amount* is `null`, including `isFree` — asserting "Gratuita" from a
- * three-year-old capture is the same claim as asserting a number.
+ * The amounts always travel; `freshness` says how much to trust them.
+ *
+ * `hasAmount` is what separates "we have no number" from "we have an old
+ * number": the first is still the honest gap ("Consultá el arancel"), the
+ * second is a number plus a warning. `isFree` counts as an amount — "Gratuita"
+ * is a claim, and an old one is labelled like any other.
  */
 export function toPriceSummary(row: ProgramSearchRow, now: Date = new Date()): PriceSummary {
-  if (!isPriceDisplayable(row.priceVerifiedAt, now)) {
-    return { ...NO_PRICE, verifiedAt: row.priceVerifiedAt ?? null };
+  const freshness = priceFreshness(row.priceVerifiedAt, now);
+  const hasAmount =
+    row.isFree || row.annualCostGs != null || row.monthlyFeeGs != null || row.matriculaGs != null;
+
+  if (!hasAmount) {
+    return { ...NO_PRICE, freshness, verifiedAt: row.priceVerifiedAt ?? null };
   }
+
   return {
-    isDisplayable: true,
+    freshness,
+    hasAmount: true,
     isFree: row.isFree,
     currency: row.priceCurrency ?? null,
     matricula: row.matriculaGs ?? null,

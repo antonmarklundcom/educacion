@@ -11,10 +11,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { Textarea } from '@/components/ui';
-import {
-  resolveDisputeAction,
-  type ResolveDisputeState,
-} from '@/app/admin/disputas/[id]/actions';
+import { resolveDisputeAction, type ResolveDisputeState } from '@/app/admin/disputas/[id]/actions';
 
 /**
  * Two submit buttons, one `name="outcome"` each — the standard HTML pattern
@@ -58,7 +55,7 @@ export function DisputeResolveForm({ id }: { id: number }) {
         name="notes"
         rows={3}
         placeholder="Notas para el registro (opcional, se ven en el historial)."
-        className="min-h-24 w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-ink"
+        className="border-border-strong bg-surface text-ink min-h-24 w-full rounded-md border px-3 py-2 text-sm"
       />
       <div className="flex flex-wrap gap-3">
         <OutcomeButton outcome="corrected" label="Corregimos el dato" primary />

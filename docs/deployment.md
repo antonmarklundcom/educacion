@@ -74,7 +74,19 @@ curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-ret
 curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-digest
 curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/subscription-sweep
 curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/renewal-reminders
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/rebuild-search
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/admissions
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/staleness
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/purge-leads
 ```
+
+Cadence for the PR-33 jobs, matching `architecture.md` §10: `rebuild-search`
+nightly 03:00 -04, `admissions` daily 05:00, `staleness` weekly on Monday,
+`purge-leads` weekly. `sitemap` needs **no** cron — the route is generated per
+request and answers `not_needed` if you schedule it anyway.
+
+`purge-leads` is the one job that deletes: it enforces the 24-month retention
+`/legal/privacidad` promises. Everything else only reads, rebuilds or mails.
 
 Suggested cadence for the two billing jobs (PR-29): both daily, the sweep
 first — `subscription-sweep` at 06:00 -04 and `renewal-reminders` at 06:15, so
