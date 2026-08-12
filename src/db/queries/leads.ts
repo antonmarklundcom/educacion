@@ -20,7 +20,7 @@
  * to, its abuse metadata belongs to nobody.
  */
 
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { leads } from '@/db/schema';
@@ -136,6 +136,16 @@ export function countRecentByIpHash(
   return countSince(database, leads.ipHash, ipHash, since);
 }
 
+/** One lead by id, unscoped — callers check ownership themselves (`panel/scope.ts`). */
+export async function getLeadById(
+  id: number,
+  database: Db = defaultDb,
+): Promise<LeadRecord | null> {
+  const [row] = await database.select(RECORD_COLUMNS).from(leads).where(eq(leads.id, id)).limit(1);
+  if (!row) return null;
+  return { ...row, offeringId: row.offeringId ?? null };
+}
+
 /**
  * PR-23's read path, already scoped: there is no overload that omits
  * `institutionId`, so an inbox query cannot be written that returns another
@@ -158,4 +168,103 @@ export async function listLeadsForInstitution(
     .offset(query.offset ?? 0);
 
   return rows.map((row) => ({ ...row, offeringId: row.offeringId ?? null }));
+}
+
+/** Total matching `listLeadsForInstitution`'s filters, for pagination (PR-23). */
+export async function countLeadsForInstitution(
+  institutionId: number,
+  status?: LeadStatus,
+  database: Db = defaultDb,
+): Promise<number> {
+  const conditions = [eq(leads.institutionId, institutionId)];
+  if (status) conditions.push(eq(leads.status, status));
+
+  const [row] = await database
+    .select({ total: sql<number>`count(*)` })
+    .from(leads)
+    .where(and(...conditions));
+  return Number(row?.total ?? 0);
+}
+
+/**
+ * `contacted` / `qualified` / `discarded` — the transitions an institution
+ * makes from `/panel/leads`. `new` and `sent` are system states (set by
+ * `createLead` and `markLeadDelivered`) and are not reachable through this
+ * function; the panel action that calls it enforces that allow-list, not this
+ * layer, but only these three are ever passed in practice.
+ */
+export async function updateLeadStatus(
+  id: number,
+  status: LeadStatus,
+  database: Db = defaultDb,
+): Promise<void> {
+  await database.update(leads).set({ status }).where(eq(leads.id, id));
+}
+
+/**
+ * Leads still waiting on a first delivery attempt, oldest first. This is the
+ * whole read side of the hourly `lead-retry` cron (`architecture.md` §10):
+ * `status='new'` and `delivered_at is null` together mean "the row exists and
+ * nothing has told the institution yet" — `notifyInstitution` failing is the
+ * only way a lead gets here, since `submitLead` calls `markLeadDelivered`
+ * itself on success.
+ *
+ * Not institution-scoped: the cron runs for every institution at once and is
+ * never reachable from `/panel`, so there is no `scopeToInstitution` to apply.
+ */
+export async function listUndeliveredLeads(
+  limit = 200,
+  database: Db = defaultDb,
+): Promise<LeadRecord[]> {
+  const rows = await database
+    .select(RECORD_COLUMNS)
+    .from(leads)
+    .where(and(eq(leads.status, 'new'), isNull(leads.deliveredAt)))
+    .orderBy(leads.createdAt)
+    .limit(limit);
+
+  return rows.map((row) => ({ ...row, offeringId: row.offeringId ?? null }));
+}
+
+/**
+ * One row per institution that currently has at least one `status='new'`
+ * lead, with the count — the whole read side of the daily digest. `since` is
+ * the digest's own concern (it does not filter here): the email honestly
+ * reports "leads waiting right now", not "leads since last time", because
+ * there is no persisted "last sent" clock to measure the second sentence
+ * against (`architecture.md` §10 notes the digest as a live snapshot, safe to
+ * re-send).
+ */
+export async function listInstitutionsWithNewLeads(
+  database: Db = defaultDb,
+): Promise<Array<{ institutionId: number; newCount: number; oldestCreatedAt: Date }>> {
+  const rows = await database
+    .select({
+      institutionId: leads.institutionId,
+      newCount: sql<number>`count(*)`,
+      oldestCreatedAt: sql<Date>`min(${leads.createdAt})`,
+    })
+    .from(leads)
+    .where(eq(leads.status, 'new'))
+    .groupBy(leads.institutionId);
+
+  return rows.map((row) => ({
+    institutionId: row.institutionId,
+    newCount: Number(row.newCount),
+    oldestCreatedAt: row.oldestCreatedAt,
+  }));
+}
+
+/**
+ * `markLeadDelivered` at scale, for the retry cron: leads whose
+ * `notifyInstitution` call finally succeeded. `since` bounds it defensively —
+ * a cron job is not a place to run an unbounded `UPDATE`.
+ */
+export async function markLeadsDelivered(
+  ids: number[],
+  at: Date = new Date(),
+  database: Db = defaultDb,
+): Promise<void> {
+  if (ids.length === 0) return;
+  await database.update(leads).set({ status: 'sent', deliveredAt: at }).where(inArray(leads.id, ids));
 }

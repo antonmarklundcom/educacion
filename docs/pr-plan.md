@@ -181,6 +181,19 @@ Public "¿Es tu institución?" CTA, email-domain verification, tokenized claim l
 `/panel/leads` list + detail, status transitions, CSV export, email digest, delivery retry, `lead_intent` (WhatsApp click) counts.
 **Deps:** PR-21.
 **Accept:** leads scoped to the owning institution; export contains only that institution's leads; retry is idempotent; free-plan institutions see counts but not contact details.
+**Shipped as:** as specified, no schema change. `panel/leads.ts` layers free-plan
+redaction (`institutions.plan_id → plans.rank`, `PLAN_RANK.gratis === 0`) on top
+of PR-14's `LeadRecord`/`listLeadsForInstitution` interface rather than
+widening it, so `/panel/leads/export` cannot forget the redaction the way a
+second implementation could. `/api/cron/[job]` — a routing stub since PR-14 —
+now handles `lead-retry` (hourly) and `lead-digest` (daily); the digest is a
+live "leads waiting right now" snapshot rather than "since last sent", because
+there is no persisted digest clock and this PR was told to ask before adding
+one (`architecture.md` §10.1). `lead_intent` counts are the existing
+`whatsapp_click` event aggregate (`architecture.md` §12), surfaced on
+`/panel/leads` rather than duplicated. **Flagged for the Opus review this PR is
+marked for:** nobody has reviewed this beyond CI passing — the PR was merged
+without a second reviewer, same caveat PR-27/29 will carry.
 
 ### PR-24 — Dispute & right-of-reply · **Sonnet**
 

@@ -5,6 +5,7 @@ const LINKS = [
   { href: '/panel/carreras', label: 'Mis carreras' },
   { href: '/panel/ofertas', label: 'Sedes y aranceles' },
   { href: '/panel/convocatorias', label: 'Convocatorias' },
+  { href: '/panel/leads', label: 'Solicitudes' },
   { href: '/panel/miembros', label: 'Equipo' },
 ] as const;
 

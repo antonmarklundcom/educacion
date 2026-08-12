@@ -142,6 +142,7 @@ const {
   inviteMemberAction,
   changeMemberRoleAction,
   removeMemberAction,
+  setPanelLeadStatusAction,
 } = await import('@/app/panel/actions');
 
 const { assertSameInstitution, panelInstitutionId, requirePanelAdmin } = await import('./scope');
@@ -216,6 +217,12 @@ describe('cross-institution writes, against the route handlers', () => {
       await createPanelAdmissionAction(OWNED_BY_A, {}, form({ periodLabel: 'Convocatoria 2027' })),
     );
   });
+
+  it('refuses to change the status of another institution’s lead', async () => {
+    expectRefused(
+      await setPanelLeadStatusAction(OWNED_BY_A, {}, form({ status: 'contacted' })),
+    );
+  });
 });
 
 describe('a signed-out request reaches nothing', () => {
@@ -231,6 +238,7 @@ describe('a signed-out request reaches nothing', () => {
     expectRefused(await inviteMemberAction({}, form({ email: 'x@y.py' })));
     expectRefused(await changeMemberRoleAction(1, {}, form()));
     expectRefused(await removeMemberAction(1, {}));
+    expectRefused(await setPanelLeadStatusAction(1, {}, form({ status: 'contacted' })));
   });
 });
 

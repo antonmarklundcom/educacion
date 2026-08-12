@@ -27,7 +27,15 @@
 import { and, eq } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
-import { accreditations, admissions, campuses, offerings, prices, programs } from '@/db/schema';
+import {
+  accreditations,
+  admissions,
+  campuses,
+  leads,
+  offerings,
+  prices,
+  programs,
+} from '@/db/schema';
 import { AuthError, hasRole, isStaff, scopeToInstitution } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
 
@@ -152,6 +160,22 @@ export async function admissionInstitutionId(
   return null;
 }
 
+/**
+ * A lead carries `institution_id` directly — no join needed, unlike the
+ * polymorphic admission/accreditation lookups above (PR-23).
+ */
+export async function leadInstitutionId(
+  leadId: number,
+  database: Db = defaultDb,
+): Promise<number | null> {
+  const [row] = await database
+    .select({ institutionId: leads.institutionId })
+    .from(leads)
+    .where(eq(leads.id, leadId))
+    .limit(1);
+  return row?.institutionId ?? null;
+}
+
 export async function campusInstitutionId(
   campusId: number,
   database: Db = defaultDb,
@@ -218,6 +242,14 @@ export async function assertOwnsAdmission(
   database: Db = defaultDb,
 ): Promise<number> {
   return assertSameInstitution(user, await admissionInstitutionId(admissionId, database));
+}
+
+export async function assertOwnsLead(
+  user: SessionUser | null | undefined,
+  leadId: number,
+  database: Db = defaultDb,
+): Promise<number> {
+  return assertSameInstitution(user, await leadInstitutionId(leadId, database));
 }
 
 export async function assertOwnsCampus(

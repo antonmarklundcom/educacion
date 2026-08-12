@@ -36,6 +36,7 @@ import {
   removeMember,
   type MemberRole,
 } from '@/db/queries/panel/members';
+import { setPanelLeadStatus } from '@/db/queries/panel/leads';
 import { assertOwnsOffering } from '@/db/queries/panel/scope';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
@@ -233,6 +234,27 @@ export async function createPanelAdmissionAction(
     });
     revalidatePath('/panel/convocatorias');
     return { message: 'Publicamos tu convocatoria.' };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Leads (PR-23)                                                              */
+/* -------------------------------------------------------------------------- */
+
+export async function setPanelLeadStatusAction(
+  leadId: number,
+  _prevState: PanelFormState,
+  formData: FormData,
+): Promise<PanelFormState> {
+  try {
+    const user = await currentUser();
+    const status = String(formData.get('status') ?? '');
+    await setPanelLeadStatus(user, leadId, status);
+    revalidatePath('/panel/leads');
+    revalidatePath(`/panel/leads/${leadId}`);
+    return { message: 'Actualizamos el estado.' };
   } catch (error) {
     return failure(error);
   }
