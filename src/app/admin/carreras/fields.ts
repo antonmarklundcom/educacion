@@ -2,6 +2,7 @@ import { PROGRAM_LEVEL, PUBLICATION_STATUS } from '@/db/schema';
 import type { FieldDef } from '@/components/admin/AdminForm';
 import type { Option } from '@/db/queries/admin/options';
 import { STATUS_LABELS } from '@/lib/admin/labels';
+import { SALIDA_LABORAL_HINT, SALIDA_LABORAL_SECTIONS } from '@/lib/careers/salida-laboral';
 import { LEVEL_LABELS } from '@/lib/search/labels';
 
 /**
@@ -40,8 +41,8 @@ export function careerFields(areaOptions: Option[]): FieldDef[] {
     {
       type: 'textarea',
       name: 'salidaLaboralMd',
-      label: 'Salida laboral (cualitativo — sin cifras sin fuente, risks.md §R-11)',
-      rows: 6,
+      label: `Salida laboral — secciones sugeridas: ${SALIDA_LABORAL_SECTIONS.join(' · ')}. ${SALIDA_LABORAL_HINT}`,
+      rows: 14,
     },
     {
       type: 'select',

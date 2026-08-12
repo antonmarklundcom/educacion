@@ -42,6 +42,7 @@ import {
 import { formatMonthYear } from '@/lib/format';
 import { getWhatsappNumbers } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
+import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';
 import type { PlacementFlags } from '@/components/browse';
 import { parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
 
@@ -188,6 +189,25 @@ export default async function CareraHubPage({
         <aside className="border-border bg-card-alt rounded-lg border p-5 lg:sticky lg:top-6">
           <FilterRail filters={railFilters} facets={facets} basePath={basePath} compact />
         </aside>
+
+        {hasSalidaLaboral(career.salidaLaboralMd) && (
+          <section className="border-border bg-card-alt flex flex-col gap-2 rounded-md border p-5">
+            <h2 className="text-ink text-base font-semibold">
+              ¿Dónde se trabaja con {career.nameEs}?
+            </h2>
+            <p className="text-body max-w-prose text-sm leading-relaxed">
+              Escribimos dónde trabaja la gente que estudia esta carrera, qué sectores contratan y
+              cómo suele ser el primer trabajo. Sin sueldos promedio: no hay una fuente paraguaya
+              que podamos citar.
+            </p>
+            <Link
+              href={`/carreras/${career.slug}/empleos`}
+              className="text-ink self-start text-sm font-medium underline underline-offset-4"
+            >
+              Ver la salida laboral de {career.nameEs}
+            </Link>
+          </section>
+        )}
 
         <div className="flex flex-col gap-4">
           {results.length === 0 ? (

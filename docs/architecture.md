@@ -1059,3 +1059,48 @@ without saying whose is not information.
 §14.2 makes for `bulkVerify`: a beca is a dated claim about someone else's
 money, and "who said this was still true, and when" is the question that gets
 asked when it turns out not to be.
+
+---
+
+## 22. Salida laboral & empleos relacionados (settled in PR-32)
+
+Two things, scoped deliberately narrow, because `risks.md` §R-11 and §R-15 both
+point here.
+
+**No numbers, and the reason is written where the editor sees it.**
+`salida_laboral_md` is qualitative: where graduates work, which sectors hire,
+what a first job looks like. No average salary, no employment rate, no
+"carreras mejor pagadas" — Paraguay has no citable dataset for any of it. That
+rule **cannot be enforced by a validator** (a regex cannot tell "cinco años de
+carrera" from "el 80% consigue trabajo"), so what is enforced instead is that
+the rule and the section template are in the admin field label, at the moment
+of writing. `src/lib/careers/salida-laboral.ts` holds both.
+
+**Sections, not a paragraph.** Four suggested `##` headings, because "¿dónde
+trabajan?" and "¿cómo es el primer trabajo?" are separate questions a student
+asks and separate headings a search engine or an AI answer can quote.
+`hasSalidaLaboral()` treats an empty template as absent, so a form somebody
+opened and saved does not render four empty sections.
+
+**`/carreras/[carrera]/empleos` is a landing page that sends traffic onward.**
+It shows the qualitative copy plus a handful of real, dated, attributed
+postings, then links to trabajo.com.py with the career pre-filled. There is no
+application form, no candidate profile, no employer account and no saved
+search: §R-15 names that drift specifically, and trabajo.com.py already exists.
+The outbound link carries no affiliate or tracking parameter — if that ever
+changes it is a `monetization.md` decision, not a parameter somebody adds here
+quietly.
+
+**No scraper ships, and that is a decision rather than an omission.**
+`pr-plan.md` allowed "scraped with attribution or a light integration".
+Scraping a Paraguayan job board without an agreement answers a terms-of-service
+question on somebody else's behalf and adds a parser to maintain against a site
+we do not control. What ships is the storage, the attribution and the entry
+form; a handful of curated postings per carrera is what the page needs, and an
+integration can fill the same table later without changing a line of the page.
+
+**Expiry is the becas rule again**: shown while `expires_on` — or `posted_on +
+45 days` when the source states none — is still ahead of the request's own
+date. A vacancy filled a month ago is worse than no vacancy at all, and a cron
+would leave a window. `UNIQUE (url)` is what stops the same aviso being listed
+twice.

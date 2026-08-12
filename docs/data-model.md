@@ -283,6 +283,15 @@ activity_log
   // user_id is NULL for an automated write (PR-29's past-due sweep). No
   // "system user" row: it would be indistinguishable from staff in a report.
 
+job_postings       // PR-32 — a landing page's worth of real avisos, not a job board
+  id, career_id, title, employer_name, location_label?, url, source,
+  source_label, posted_on, expires_on?, summary?, status, created_at, updated_at
+  UNIQUE (url), INDEX (career_id, posted_on), INDEX (status, expires_on)
+  // url + source_label are NOT NULL: a posting we cannot attribute is somebody
+  // else's content shown as ours. posted_on is NOT NULL because an undated
+  // vacancy is indistinguishable from one filled last year, and may not be in
+  // the future. Expiry is the becas rule: expires_on, or posted_on + 45 days.
+
 becas              // PR-31 — real, sourced scholarships only
   id, slug, title, institution_id?, provider_name?, area_id?,
   type enum('institucional','estatal','privada','internacional'),

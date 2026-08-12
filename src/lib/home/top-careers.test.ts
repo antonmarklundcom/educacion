@@ -16,6 +16,7 @@ function career(
     nameEs,
     levelDefault: 'grado',
     descriptionMd: null,
+    salidaLaboralMd: null,
     areaId: Math.abs(hash(areaSlug)),
     areaSlug: null,
     areaName: null,
