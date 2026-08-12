@@ -228,6 +228,11 @@ Billing is `admin`-only including the read, `assertClaimed` gates activation (§
 Value proposition, the plan table from `monetization.md` §3, real screenshots of the panel, FAQ, contact/demo CTA.
 **Deps:** PR-25.
 **Accept:** prices match `plans` in the DB (rendered from it, not hardcoded); no fabricated customer logos or testimonials.
+**Shipped as:** as specified except the screenshots, which are **deferred rather than faked**, and the deferral is the PR's one real decision. A useful screenshot of `/panel` is a capture of a real institution's own data taken from a real signed-in session; there is no such account yet, and a mocked panel populated with a plausible university and plausible aranceles would be a fabricated screenshot of a product claim — CLAUDE.md rule 1 applies to marketing assets exactly as it applies to the comparador. `PANEL_SHOTS` in the page is the empty slot: fill it with real captures and the section appears with no other change. Until then the section says why there are none and offers a live demo, and the panel is described section by section in the wording `PanelNav` uses.
+
+Prices render from `plans` through `listPlans()`, and the **feature ticks render from `FEATURES_BY_RANK`** — the same matrix the server gates on — so the page cannot promise something the server would refuse. An unseeded `plans` table produces an honest "escribinos" line, never a hardcoded fallback price. There are no logos, no testimonials, no customer counts and no "empresas que confían en nosotros" strip, for the same reason PR-13 refused the homepage logo strip below six real logos.
+
+Two things the page states that are worth having in writing: the free tier still receives the lead **email** (the consent text promises it — `monetization.md` §7), and paid placement is always labelled and never overrides a filter or a sort the student chose. No JSON-LD: `FAQPage` markup belongs to PR-16's SEO pack, which has not shipped, and inventing the codebase's first JSON-LD convention inside a sales page is not this PR's concern.
 
 ### PR-27 — Verified & Destacado presentation · **Sonnet → Opus review**
 
