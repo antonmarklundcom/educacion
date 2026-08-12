@@ -1285,7 +1285,7 @@ affected rows ends the transaction before the password is touched**. The pure
 not. Order inside the transaction is the guarantee: claim the token, then write
 the password, then **invalidate every other outstanding token for that user** —
 a reset is the moment to assume the older links are somewhere they should not
-be. The scrypt hash is computed *before* the transaction opens, so a deliberate
+be. The scrypt hash is computed _before_ the transaction opens, so a deliberate
 100 ms KDF does not hold a row lock.
 
 ### 25.4 A reset does not start a session
@@ -1300,3 +1300,81 @@ message and the decoy-hash timing defence.
 Spent and expired rows are deleted by the existing `purge-leads` cron rather
 than by a sixth job — a used token proves nothing and its digest is the only
 thing in the table worth not keeping.
+
+---
+
+## 26. Accounts, and onboarding without email (settled in PR-36)
+
+§25 shipped password reset and closed PR-18's deferral. It left a gap nobody had
+written down: **every route into an account went through a mailbox.** The claim
+flow mails a token, reset mails a link, and `bootstrap-admin.ts` mints exactly
+one staff account and then refuses to run again — by design, so it is not a
+shell back door. With Resend unconfigured, the site could not onboard a single
+institution. Not a missing nicety: a closed front door.
+
+`/admin/usuarios` is the second door, and it does not touch the network.
+
+### 26.1 The admin-issued access link
+
+An admin creates the account and generates a link, then hands it over by
+WhatsApp or on the phone. **It is the same `password_reset_tokens` row §25
+built** — same unsalted SHA-256 digest at rest, same single-use
+`UPDATE … WHERE used_at IS NULL`, same invalidation of the user's other
+outstanding links when it is spent, same page redeems it. Two things differ:
+
+- **72 hours, not one.** The one-hour window is calibrated for a link anybody
+  can cause to be sent, to an inbox we do not control, by typing an address
+  into a public form. This one is handed over by a member of staff who verified
+  who they are handing it to, through a channel where "open this within the
+  hour" is a support ticket rather than a security control. 72 h is the claim
+  flow's number (§16.1), chosen for the same reason.
+- **It is shown once.** The plaintext is returned in the server action's result
+  and rendered on the admin's screen; it is never written to `activity_log`,
+  never re-derivable, and gone on navigation. An admin who loses it generates
+  another, which costs nothing — the alternative is the site keeping a table of
+  live credentials in readable form.
+
+Issuing a link invalidates any outstanding one for that user first. Two live
+links for one account is two chances for the wrong one to be forwarded, and an
+admin generating a second has already decided the first is lost.
+
+### 26.2 The refusals
+
+**`admin`, never `editor`.** Every function in the module calls
+`requireRole(actor, ['admin'])`, and `/admin/usuarios` answers an editor with
+`notFound()` rather than a permission message — the screen's existence is not
+information they need. `editor` satisfies every _other_ `/admin` screen, which
+is exactly why this is asserted in a test rather than assumed: an editor who
+could issue an access link for an admin account would be an admin.
+
+**A staff role may not carry an institution; an institution role must.** A
+`SessionUser` with both is a scope question nobody has answered, and an
+`institution_admin` with no institution is an account that reaches `/panel` and
+sees nothing. Refused at the boundary, in the parser _and_ in the query module.
+
+**No link for a suspended account, and suspending kills every outstanding
+link.** Suspension is how access is revoked; a link that revived it, or one
+still live in a WhatsApp thread afterwards, would make the revocation
+advisory.
+
+**An admin cannot suspend themselves.** Unrecoverable without another admin or
+a database edit, since the bootstrap refuses to run once an active admin
+exists.
+
+**An admin _can_ issue a link for another admin.** Lateral, not escalation —
+they already hold the role — and it is what makes "the other admin is on leave
+and locked out" solvable without a shell. `activity_log` records who issued it,
+for whom, and until when.
+
+### 26.3 What this does not do
+
+It does not let an `institution_admin` issue links for their own members. They
+can invite (PR-21) and the member still needs a link, which today means asking
+us. Handing that power to an institution admin means handing them the ability
+to take over a colleague's account, and the argument for it is convenience
+during the exact weeks when email is about to work anyway. Revisit it when
+somebody actually asks.
+
+Accounts are **created and disabled** here, not edited: changing an address or
+a role is rare, auditable and currently a database edit. A screen for it is
+worth building when it is needed, not before.

@@ -27,6 +27,7 @@ import {
   BECA_TYPE,
   BECA_COVERAGE,
   JOB_SOURCE,
+  USER_ROLE,
 } from '@/db/schema';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
 
@@ -1115,6 +1116,65 @@ export function parseJobPostingInput(
       expiresOn,
       summary: optStr(formData, 'summary'),
       status,
+    },
+    errors,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Accounts (PR-36)                                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface AdminUserInput {
+  email: string;
+  name: string | null;
+  role: UserRoleValue;
+  institutionId: number | null;
+}
+
+export type UserRoleValue = (typeof USER_ROLE)[number];
+
+/**
+ * The account form.
+ *
+ * **No password field, on purpose.** An admin who types somebody else's
+ * password knows their credential; the access link exists so nobody does
+ * (`db/queries/admin/users.ts`). The form creates an inert account and the
+ * link is a separate, deliberate second action.
+ *
+ * The role/institution pairing is validated here *and* refused again in the
+ * query module — this is the message a human reads, that one is the rule.
+ */
+export function parseAdminUserInput(formData: FormData): ParseResult<AdminUserInput> {
+  const errors: Record<string, string> = {};
+
+  const email = requireStr(formData, 'email', errors, 'El correo', 255).toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Esa dirección de correo no parece válida.';
+  }
+
+  const roleRaw = str(formData, 'role');
+  if (!USER_ROLE.includes(roleRaw as UserRoleValue)) {
+    errors.role = 'Elegí un rol.';
+  }
+  const role = roleRaw as UserRoleValue;
+
+  const institutionId = optInt(formData, 'institutionId', errors, 'La institución');
+  const needsInstitution = role === 'institution_admin' || role === 'institution_editor';
+
+  if (needsInstitution && institutionId == null && !errors.institutionId) {
+    errors.institutionId = 'Elegí la institución a la que pertenece esta cuenta.';
+  }
+  if (!needsInstitution && institutionId != null) {
+    errors.institutionId = 'Una cuenta del equipo no se vincula a una institución.';
+  }
+
+  return finish(
+    {
+      email,
+      name: optStr(formData, 'name'),
+      role,
+      institutionId: needsInstitution ? institutionId : null,
     },
     errors,
   );

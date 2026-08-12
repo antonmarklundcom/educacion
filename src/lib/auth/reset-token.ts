@@ -33,6 +33,23 @@ import { createHash, randomBytes } from 'node:crypto';
 /** One hour. See the docstring. */
 export const RESET_TTL_MINUTES = 60;
 
+/**
+ * An **admin-issued** access link lives 72 hours, not one (PR-36).
+ *
+ * The one-hour window above is calibrated for a link anybody can cause to be
+ * sent, to an inbox we do not control, by typing an address into a public
+ * form. An admin-issued link is a different object: a member of staff verified
+ * who they are handing it to, and hands it over by WhatsApp or on the phone —
+ * a channel where "open this within the hour" is a support ticket rather than
+ * a security control. 72 h is the claim flow's window (§16.1) and is chosen
+ * for the same reason: the recipient may need to find a moment.
+ *
+ * Everything else about the token is identical — same table, same digest, same
+ * single-use `UPDATE`, same invalidation of the user's other links on
+ * redemption. Only the clock differs.
+ */
+export const ADMIN_LINK_TTL_HOURS = 72;
+
 const TOKEN_BYTES = 32;
 
 export interface ResetToken {
@@ -53,6 +70,11 @@ export function hashResetToken(token: string): string {
 
 export function resetExpiry(now: Date = new Date()): Date {
   return new Date(now.getTime() + RESET_TTL_MINUTES * 60 * 1000);
+}
+
+/** Expiry for an admin-issued link. See `ADMIN_LINK_TTL_HOURS`. */
+export function adminLinkExpiry(now: Date = new Date()): Date {
+  return new Date(now.getTime() + ADMIN_LINK_TTL_HOURS * 60 * 60 * 1000);
 }
 
 /** The subset of the row that decides whether a token still works. */

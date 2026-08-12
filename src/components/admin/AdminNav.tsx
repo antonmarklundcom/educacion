@@ -18,6 +18,7 @@ const LINKS = [
   { href: '/admin/becas', label: 'Becas' },
   { href: '/admin/empleos', label: 'Empleos' },
   { href: '/admin/frescura', label: 'Frescura' },
+  { href: '/admin/usuarios', label: 'Cuentas' },
 ] as const;
 
 /** The `/admin` section nav. Plain links — no active-state JS needed. */
