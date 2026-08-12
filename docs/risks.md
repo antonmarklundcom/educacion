@@ -124,6 +124,17 @@ Accreditation is our differentiator, which means it is also our largest liabilit
 - Institutions can dispute via `/panel`; a dispute flips the badge to "en revisión" within one business day.
 - Import conflicts on accreditation **never auto-apply**.
 
+**Status after PR-24.** The dispute path is shipped: `/panel/carreras/[id]` lists
+the accreditation rows that could produce this programme's badge and a
+"Disputar" form on each, `assertOwnsAccreditation`-scoped so an institution can
+only dispute its own. Filing one sets `accreditations.is_disputed = true`
+immediately and rebuilds the index inline — `lib/search/accreditation.ts`'s
+`isUsable()` already dropped disputed rows from consideration since before
+this PR, so the badge disappears (falls back to the next-best row, or
+`sin_datos`) within the same request, not "one business day". `/admin/disputas`
+is the resolution queue; either outcome un-suppresses the row, and nothing is
+ever deleted, so provenance survives (`R-14`).
+
 ---
 
 ## R-10 — Faceted search performance on shared MySQL
@@ -174,6 +185,15 @@ One person, part-time, with agents. The failure mode is a half-built Phase 2 tha
 A university will eventually ask to hide a program, change an accreditation status, or be delisted entirely.
 
 **Mitigation:** documented policy — factual register data (existence, habilitación, accreditation as published by ANEAES/CONES) stays, with a right of reply displayed on the profile. Institution-supplied content (descriptions, photos, aranceles) is theirs to remove at will. Delisting entirely is refused politely with the source citation; nobody escalates a public register. Never argue over a logo — remove it on request.
+
+**The "right of reply" for accreditation is PR-24's dispute flow**, not a
+separate mechanism: filing one is the reply, `curation_conflicts.notes` is
+where it is recorded, and it is never deleted — resolved (`applied` /
+`rejected`), never erased, so the factual register data's provenance survives
+exactly as this section promises. Prices are excluded from the dispute flow on
+purpose: `architecture.md` §15 already gives the institution a faster
+remedy — it can supersede its own wrong arancel directly from `/panel/ofertas`,
+no waiting on a human.
 
 ---
 

@@ -252,6 +252,14 @@ export async function assertOwnsLead(
   return assertSameInstitution(user, await leadInstitutionId(leadId, database));
 }
 
+export async function assertOwnsAccreditation(
+  user: SessionUser | null | undefined,
+  accreditationId: number,
+  database: Db = defaultDb,
+): Promise<number> {
+  return assertSameInstitution(user, await accreditationInstitutionId(accreditationId, database));
+}
+
 export async function assertOwnsCampus(
   user: SessionUser | null | undefined,
   campusId: number,
