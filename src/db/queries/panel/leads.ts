@@ -5,13 +5,20 @@
  *
  * `architecture.md` §6.3 fixed `LeadRecord` with contact fields on it, so this
  * module is where "free-plan institutions see counts but not contact details"
- * (`pr-plan.md` PR-23) actually happens: `contactVisible` is resolved once per
- * call from `institutions.plan_id → plans.rank` (`PLAN_RANK.gratis === 0`, the
- * same column `rebuild-search.ts` already reads for `plan_rank` tiebreaking),
+ * (`pr-plan.md` PR-23) actually happens: `contactVisible` is one call to
+ * `getEntitlements(institutionId)` — PR-25 made `src/lib/entitlements` the
+ * single source of truth, so this no longer reads a plan pointer of its own —
  * and every row-shaping function nulls `name` / `phoneE164` / `email` /
- * `message` when it is false. The redaction happens **here**, not in a
- * component — `/panel/leads/export` renders no JSX and would otherwise be a
- * second place the rule could be forgotten.
+ * `message` when the `lead_contacts` feature is off. The redaction happens
+ * **here**, not in a component — `/panel/leads/export` renders no JSX and
+ * would otherwise be a second place the rule could be forgotten.
+ *
+ * **What is deliberately *not* gated: the delivery email.** The lead's consent
+ * text says in so many words that their data is sent to the institution they
+ * chose (`risks.md` §R-06), so withholding it from a free institution would
+ * make our own consent text false. What a plan buys is the inbox — the contact
+ * details in `/panel`, the export and the status workflow — not whether the
+ * student's request reaches anyone. `monetization.md` §7 records the decision.
  *
  * ### Why this is a second module rather than new parameters on `leads.ts`
  *
@@ -25,7 +32,7 @@
 import { eq, inArray } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
-import { institutions, offerings, plans, programs } from '@/db/schema';
+import { offerings, programs } from '@/db/schema';
 import {
   countLeadsForInstitution,
   getLeadById,
@@ -35,12 +42,9 @@ import {
 } from '@/db/queries/leads';
 import { logActivity } from '@/db/queries/admin/activity-log';
 import { AuthError } from '@/lib/auth/roles';
+import { can, getEntitlements } from '@/lib/entitlements';
 import type { SessionUser } from '@/lib/auth/session';
-import {
-  PANEL_LEAD_STATUSES,
-  type LeadStatus,
-  type PanelLeadStatus,
-} from '@/lib/leads/contract';
+import { PANEL_LEAD_STATUSES, type LeadStatus, type PanelLeadStatus } from '@/lib/leads/contract';
 
 import { assertOwnsLead, panelInstitutionId } from './scope';
 
@@ -74,18 +78,13 @@ export interface PanelLeadsPage {
 }
 
 /**
- * `plans.rank` is `PLAN_RANK.gratis === 0` (`db/schema.ts`); no row (no plan
- * assigned yet) is the same as `gratis` — an institution is never accidentally
- * treated as paid because it has not been put on a plan.
+ * No counting subscription resolves to the free baseline, whose `lead_contacts`
+ * is false — an institution is never accidentally treated as paid because a row
+ * is missing, and a subscription that ended yesterday stops counting today
+ * without anything having to run.
  */
 async function institutionContactVisible(institutionId: number, database: Db): Promise<boolean> {
-  const [row] = await database
-    .select({ rank: plans.rank })
-    .from(institutions)
-    .leftJoin(plans, eq(institutions.planId, plans.id))
-    .where(eq(institutions.id, institutionId))
-    .limit(1);
-  return (row?.rank ?? 0) > 0;
+  return can(await getEntitlements(institutionId, undefined, database), 'lead_contacts');
 }
 
 async function programNamesByOfferingIds(

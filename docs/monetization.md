@@ -117,3 +117,68 @@ Three plausible expansions, in order of likelihood:
 1. **Regional replication.** The same codebase for Bolivia/Uruguay is mostly a data problem, and the schema in `data-model.md` is already country-agnostic (departments/cities/agencies are data, not code). Keep it that way — no hardcoded "ANEAES" in the UI, use the `agency` field.
 2. **B2B2C with colegios.** Secondary schools need orientación vocacional material. A free tool for colegio counsellors is a distribution channel to the exact cohort, one year before they search.
 3. **The jobs side.** You mentioned comparing "utbildningar och jobb". A carrera→empleo bridge (which programs feed which roles, which employers hire from which institutions) is the most defensible long-term product — and the one place where a real paid data asset could exist. It is also the one with the biggest fabrication risk. See `risks.md` §R-11: **do not ship salary or employability numbers without a citable source.** Build it as "empleos relacionados" (real job postings) before "salario promedio" (invented statistics).
+
+---
+
+## 7. Entitlements — what a plan actually gates (settled in PR-25)
+
+§3 is the price list. This is the enforcement, and it corrects §3 in two places
+rather than leaving code and document disagreeing.
+
+**The matrix lives in code**, `src/lib/entitlements/contract.ts`, keyed by
+`plans.rank`:
+
+| Feature | Gratis | Verificado | Destacado (add-on) |
+|---|---|---|---|
+| Datos de contacto de cada solicitud (`lead_contacts`) | — | ✓ | ✓ |
+| Insignia "Perfil verificado" (`verified_badge`) | — | ✓ | ✓ |
+| Perfil ampliado: logo, fotos, video, descripción larga (`enhanced_profile`) | — | ✓ | ✓ |
+| Ubicación destacada, siempre etiquetada (`priority_placement`) | — | — | ✓ |
+| Estadísticas completas (`analytics_full`) | — | ✓ | ✓ |
+| Reporte mensual exportable (`monthly_report`) | — | ✓ | ✓ |
+
+An institution holding Verificado *and* Destacado gets the **union**, which is
+what an add-on means. `plans.features_json` is descriptive only — a typo in a
+JSON blob must never be able to switch a paid feature off for a paying
+customer.
+
+### Correction 1 — editing your own data is **not** a paid feature
+
+§3's Gratis row said "no editing". It is free, for every institution, forever.
+`plan.md` §6 calls arancel collection the actual cost centre of this business
+and `risks.md` §R-03 calls a stale price the largest data risk we carry;
+charging for the right to correct a wrong price buys a little revenue by making
+the index worse, which is the one trade this product cannot make. What is sold
+is **presentation, reach and lead access**; factual correction is free.
+
+### Correction 2 — the lead **delivery email** is never gated
+
+§3's Gratis row said "no lead delivery (leads visible as count only)". Half of
+that shipped. The student's consent text says in so many words that their data
+is sent to the institution they chose (`risks.md` §R-06) — withholding it would
+make our own consent text false, and the person harmed would be the 17-year-old,
+not the institution we are trying to sell to. So the email always goes out, and
+what a plan buys is the **inbox**: contact details in `/panel/leads`, the CSV
+export and the status workflow. A free institution sees counts and can still be
+reached; a paying one gets the working surface.
+
+The commercial consequence is stated rather than hidden: an institution that
+reads its email gets the lead either way. The upsell is the panel, the
+attribution and the report — not the student's phone number being held hostage.
+
+### Downgrades, expiry and past-due
+
+Entitlements are **recomputed from `subscriptions` on every request**. There is
+no cached plan column anywhere (PR-25 dropped `institutions.plan_id`), so:
+
+- cancelling takes effect on the next request, not the next cron;
+- a period that ends tonight stops granting anything tomorrow morning, whether
+  or not anybody remembered to cancel it;
+- `past_due` keeps its features only inside a grace window measured from
+  `ends_on`. PR-25 ships that window at **0 days**; PR-29 makes it configurable
+  and adds the reminders around it.
+
+The one derived copy is `program_search.plan_rank`, which every subscription
+write and the nightly rebuild refresh. It can only affect ordering — labels and
+badges are read live — so at worst a lapsed plan keeps a tiebreaker for a few
+hours, never a badge.

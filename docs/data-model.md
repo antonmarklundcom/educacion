@@ -73,7 +73,8 @@ institutions
   description_md,
   status enum('draft','published','archived'),
   claimed_by_user_id,           // nullable, set by the claim flow
-  plan_id,                      // nullable, Phase 3
+  // no plan_id — `subscriptions` is the only source of truth for the plan
+  // (dropped in migration 0004; architecture.md §17)
   created_at, updated_at
   UNIQUE (slug), UNIQUE (cones_code), INDEX (match_key)
 
@@ -251,8 +252,15 @@ plans              // 'gratis' | 'verificado' | 'destacado'
 
 subscriptions
   id, institution_id, plan_id, status enum('trial','active','past_due','cancelled'),
-  starts_on, ends_on, invoice_ref, notes
+  starts_on, ends_on, invoice_ref, invoiced_amount_pyg, notes
+  INDEX (institution_id), INDEX (status), INDEX (ends_on)
   // Phase 3 billing is manual (transferencia + factura). See monetization.md.
+  // We quote in USD on the plan and invoice in guaraníes at the day's rate, so
+  // `invoiced_amount_pyg` is a fact about this subscription that cannot be
+  // recomputed from `plans.price_usd_year` afterwards (monetization.md §5).
+  // An institution may hold more than one row at a time: Destacado is an
+  // add-on alongside Verificado, and the effective plan is their union
+  // (architecture.md §17). Nothing here is cached onto `institutions`.
 
 source_records     // raw provenance, never edited
   id, source enum('CONES','ANEAES','DATOS_GOV_PY','MEC','INSTITUCION','MANUAL'),

@@ -732,3 +732,78 @@ minute, 10 per hour — stricter than the lead form's, because nobody legitimate
 claims three profiles a minute), and a durable cap of five open claims per
 institution, which a rotating IP cannot get around. A claim that fails its
 checks writes nothing at all, so a prober cannot count rows or time a miss.
+
+---
+
+## 17. Plans, subscriptions & entitlements (settled in PR-25)
+
+The first PR of Phase 3, and the one every other Phase-3 PR reads from.
+
+**`subscriptions` is the only source of truth for what an institution has
+bought, and `institutions.plan_id` is gone** (migration `0004`). A plan pointer
+on the institution cannot express the one thing billing is about — *until when*
+— so it could only ever agree with the subscription rows by accident, and the
+day it disagreed the site would show a badge nobody was paying for. PR-23's
+lead redaction and `rebuild-search`'s `plan_rank` were the two readers; both now
+go through the entitlements layer.
+
+**`src/lib/entitlements` is the single source of truth for gating**, in four
+files with one rule each:
+
+| File | Holds |
+|---|---|
+| `contract.ts` | The feature vocabulary and the rank → features matrix. No I/O, importable anywhere. |
+| `resolve.ts` | `resolveEntitlements(institutionId, subscriptions, { now, graceDays })` — pure, unit-tested. |
+| `bands.ts` | Which Verificado band a programme count is quoted. Pricing only; never consulted to gate. |
+| `index.ts` | `getEntitlements`, `getEntitlementsForInstitutions`, `requireFeature`. |
+
+**Gating is a server-side read on the request that renders or writes the gated
+thing**, and `requireFeature` throws like `requireRole` does, for the same
+reason §7.1 gives: a caller who ignores a returned `false` still ships. There is
+no plan field on the session and no client-readable flag — a component may
+*render* differently, but nothing is decided there.
+
+**Expiry needs no cron.** Nothing stores "revoked"; entitlements are recomputed
+from dates every time. A subscription that ends tonight grants nothing on
+tomorrow's first request whether or not any job ran, which is what makes
+"downgrading immediately revokes gated features" a property of the model rather
+than of somebody remembering to do something. `cancelled` never counts, not even
+inside its paid period; `past_due` counts only inside a grace window measured
+from `ends_on`, which PR-25 ships at 0 days and PR-29 makes configurable.
+
+**Features union across subscriptions.** Destacado is an add-on held *alongside*
+a Verificado subscription (`monetization.md` §3), so the answer is the union of
+what counts today, not the top plan's set. Taking only the highest rank would
+work today and would break silently the first time a high-ranked narrow plan
+exists.
+
+**`program_search.plan_rank` is the one derived copy**, and it is computed from
+the same resolver during the rebuild (`planRanksByInstitution`). Every
+subscription write rebuilds, and the nightly rebuild picks up plans that simply
+ran out. Its staleness window is therefore hours and it can only affect
+*ordering*: PR-27 reads badges and the "Destacado" label live, per page, through
+`getEntitlementsForInstitutions(ids)` — one extra query per page, the same shape
+§6.2 established for `getWhatsappNumbers` — so a lapsed plan can never leave a
+paid-looking label on a page.
+
+**Two reads, deliberately split across modules.** `src/db/queries/plans.ts`
+holds the reads (plans, subscription facts) and `src/db/queries/subscriptions.ts`
+the admin mutations. The split is mechanical: mutations rebuild the search index,
+so that module imports `rebuild-search.ts`, which itself needs the reads — one
+file would be an import cycle.
+
+**Billing is `admin`, never `editor`**, including the *read* of
+`/admin/suscripciones`: §7's role table says an editor curates the national
+dataset and does not touch money, and `editor` is the role that satisfies every
+other `/admin` screen, so a mutation typed `['editor']` here would have read as
+correct in review. `subscriptions.test.ts` asserts the refusal for a null
+session, an `editor` and an `institution_admin`.
+
+**A plan may only be activated for a claimed institution** (§16.5's
+`assertClaimed`), because a subscription hands somebody a badge, a lead inbox
+and a panel. `cancelled` is exempt: recording that a sale ended must never be
+blocked by the state of the profile.
+
+**What a plan gates, and the two places `monetization.md` §3 was wrong, are in
+`monetization.md` §7** — editing your own data is free for everybody, and the
+lead *delivery email* is never gated because the consent text promises it.

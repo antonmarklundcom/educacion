@@ -29,6 +29,12 @@
  * - **One accreditation badge** out of however many rows cover the offering,
  *   by the documented precedence rule in `src/lib/search/accreditation.ts`.
  * - **`search_text`**, accent-stripped and lowercased — never left to collation.
+ * - **`plan_rank`**, from the institution's *effective* entitlements (PR-25):
+ *   `subscriptions` resolved through `resolveEntitlements`, not a plan pointer
+ *   on `institutions`. A subscription that ended yesterday contributes 0 from
+ *   the moment it ends, so the nightly rebuild un-ranks a lapsed plan without
+ *   anybody cancelling anything; every subscription write rebuilds too, so a
+ *   same-day change does not wait for the night.
  */
 
 import { and, eq, ne, sql } from 'drizzle-orm';
@@ -45,17 +51,23 @@ import {
   departments,
   institutions,
   offerings,
-  plans,
   prices,
   programSearch,
   programs,
 } from '@/db/schema';
+import {
+  PAST_DUE_GRACE_DAYS,
+  resolveEntitlements,
+  type SubscriptionFacts,
+} from '@/lib/entitlements';
 import {
   resolveAccreditation,
   toDateOnly,
   type AccreditationCandidate,
 } from '@/lib/search/accreditation';
 import { buildSearchText } from '@/lib/search/normalize';
+
+import { allSubscriptionFacts } from './plans';
 
 type ProgramSearchInsert = typeof programSearch.$inferInsert;
 
@@ -136,8 +148,6 @@ async function loadSourceRows(database: Db) {
         annualCost: prices.annualCost,
         isFree: prices.isFree,
         priceVerifiedAt: prices.verifiedAt,
-
-        planRank: plans.rank,
       })
       .from(offerings)
       .innerJoin(programs, eq(offerings.programId, programs.id))
@@ -150,7 +160,6 @@ async function loadSourceRows(database: Db) {
       // The generated `current_offering_id` is NULL on history rows, so this
       // join can only ever pick the one current price.
       .leftJoin(prices, eq(prices.currentOfferingId, offerings.id))
-      .leftJoin(plans, eq(institutions.planId, plans.id))
       .where(
         and(
           ne(offerings.status, 'archived'),
@@ -278,6 +287,28 @@ function resolveAdmissionCloses(
   return null;
 }
 
+/**
+ * `institution_id → plan_rank`, from the effective entitlements rather than
+ * from any stored plan pointer (PR-25). Institutions with nothing counting
+ * today are simply absent, and `buildIndexRow` reads an absent id as 0 —
+ * `plan_rank` is never inherited from a subscription that has ended.
+ */
+export function planRanksByInstitution(
+  facts: readonly SubscriptionFacts[],
+  now: Date,
+): Map<number, number> {
+  const ranks = new Map<number, number>();
+  for (const institutionId of new Set(facts.map((fact) => fact.institutionId))) {
+    const entitlements = resolveEntitlements(
+      institutionId,
+      facts.filter((fact) => fact.institutionId === institutionId),
+      { now, graceDays: PAST_DUE_GRACE_DAYS },
+    );
+    if (entitlements.planRank > 0) ranks.set(institutionId, entitlements.planRank);
+  }
+  return ranks;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Building one index row                                                     */
 /* -------------------------------------------------------------------------- */
@@ -287,6 +318,7 @@ export function buildIndexRow(
   accreditationIndex: ScopedIndex<AccreditationCandidate>,
   admissionIndex: ScopedIndex<string>,
   now: Date,
+  planRanks: ReadonlyMap<number, number> = new Map(),
 ): ProgramSearchInsert {
   const today = toDateOnly(now);
 
@@ -351,7 +383,7 @@ export function buildIndexRow(
     enrollmentStatus: row.enrollmentStatus,
     admissionClosesOn: resolveAdmissionCloses(admissionIndex, row, today),
 
-    planRank: row.planRank ?? 0,
+    planRank: planRanks.get(row.institutionId) ?? 0,
     isPublished:
       row.offeringStatus === 'published' &&
       row.programStatus === 'published' &&
@@ -392,15 +424,18 @@ export async function rebuildProgramSearch(options: RebuildOptions = {}): Promis
   const log = options.onProgress ?? (() => {});
 
   log('Reading curated tables…');
-  const [sourceRows, accreditationIndex, admissionIndex] = await Promise.all([
+  const [sourceRows, accreditationIndex, admissionIndex, subscriptionFacts] = await Promise.all([
     loadSourceRows(database),
     loadAccreditations(database),
     loadAdmissionCloses(database),
+    allSubscriptionFacts(database),
   ]);
   log(`  ${sourceRows.length} offerings`);
 
+  const planRanks = planRanksByInstitution(subscriptionFacts, now);
+
   const indexRows = sourceRows.map((row) =>
-    buildIndexRow(row, accreditationIndex, admissionIndex, now),
+    buildIndexRow(row, accreditationIndex, admissionIndex, now, planRanks),
   );
 
   log('Replacing the index…');

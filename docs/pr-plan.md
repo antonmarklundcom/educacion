@@ -213,6 +213,15 @@ Institution-initiated dispute on an accreditation or price record → flips the 
 `plans` + `subscriptions` tables, `lib/entitlements` (single source of truth for feature gating), band logic by program count, admin UI to activate/renew a subscription with an invoice reference.
 **Deps:** PR-21.
 **Accept:** every gated feature checks entitlements server-side; downgrading immediately revokes gated features; no pricing logic duplicated in components.
+**Shipped as:** as specified, with **one schema change beyond the brief** and **two corrections to `monetization.md` §3**, all in `architecture.md` §17 and `monetization.md` §7.
+
+The tables already existed from PR-02, so the schema work was the opposite of adding: migration `0004` **drops `institutions.plan_id`**. A plan pointer on the institution cannot say *until when*, so it could only agree with the subscription rows by accident — and it had two live readers (PR-23's lead redaction, `rebuild-search`'s `plan_rank`), which is exactly how a second source of truth gets used before anybody notices it is one. The same migration adds `subscriptions.invoiced_amount_pyg` (we quote in USD and invoice in guaraníes — `monetization.md` §5 asked for this column and nothing had it) and an index on `ends_on` for PR-29's sweeps.
+
+`resolveEntitlements` is pure and is where every expensive-to-reverse rule about money lives: `cancelled` never counts even inside its paid period, a lapsed period stops granting **without any cron**, `past_due` counts only inside a grace window measured from `ends_on` (0 days here; PR-29 owns making it configurable), and features **union** across subscriptions because Destacado is an add-on held alongside Verificado. `program_search.plan_rank` is the single derived copy, recomputed by the same resolver on every subscription write and nightly — so it can affect ordering for a few hours at most, never a badge, which PR-27 reads live.
+
+The two corrections: **editing your own data is free for every institution** (§3 said Gratis meant "no editing"; `plan.md` §6 and `risks.md` §R-03 make charging for the correction of a wrong price the one trade this product cannot make), and **the lead delivery email is never gated** (§3 said Gratis meant no lead delivery; the consent text promises the student their data reaches the institution they chose, so gating it would make our own consent text false). What a plan buys is presentation, reach and the lead *inbox* — contact details, export, status workflow.
+
+Billing is `admin`-only including the read, `assertClaimed` gates activation (§16.5), and `seed:plans` writes the §3 price list idempotently.
 
 ### PR-26 — `/para-instituciones` sales page · **Sonnet**
 

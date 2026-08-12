@@ -42,6 +42,7 @@ npm run import:aneaes    # ingest ANEAES data     → source_records
 npm run curate           # match + apply + queue conflicts
 npm run search:rebuild   # rebuild program_search
 npm run seed:taxonomy    # areas, departamentos, ciudades — idempotent
+npm run seed:plans       # the plan price list from monetization.md §3 — idempotent
 npm test                 # vitest (invariants, matching, search)
 ```
 

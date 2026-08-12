@@ -273,7 +273,13 @@ export const institutions = mysqlTable(
     descriptionMd: text('description_md'),
     status: mysqlEnum('status', PUBLICATION_STATUS).notNull().default('draft'),
     claimedByUserId: int('claimed_by_user_id', { unsigned: true }).references(() => users.id),
-    planId: int('plan_id', { unsigned: true }).references(() => plans.id),
+    /**
+     * There is deliberately no `plan_id` here (dropped in migration 0004).
+     * `subscriptions` is the only source of truth for what an institution has
+     * bought: a plan pointer with no start date, no end date and no invoice
+     * cannot say *until when*, so it could only agree with the subscription
+     * rows by accident. `src/lib/entitlements` resolves the effective plan.
+     */
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -732,6 +738,14 @@ export const subscriptions = mysqlTable(
     endsOn: date('ends_on', { mode: 'string' }),
     /** Phase 3 billing is manual: transferencia + factura. No gateway. */
     invoiceRef: varchar('invoice_ref', { length: 120 }),
+    /**
+     * What was actually invoiced, in guaraníes. `monetization.md` §5: we quote
+     * in USD (`plans.price_usd_year`, a stable reference for an annual
+     * contract) and invoice in guaraníes at the day's rate, so the amount on
+     * the factura is a fact about this subscription and cannot be recomputed
+     * from the plan afterwards.
+     */
+    invoicedAmountPyg: money('invoiced_amount_pyg'),
     notes: text('notes'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -739,6 +753,8 @@ export const subscriptions = mysqlTable(
   (t) => [
     index('subscriptions_institution_idx').on(t.institutionId),
     index('subscriptions_status_idx').on(t.status),
+    /** Renewal and expiry sweeps read by end date (PR-29). */
+    index('subscriptions_ends_on_idx').on(t.endsOn),
     check('subscriptions_date_order', sql`${t.endsOn} is null or ${t.endsOn} >= ${t.startsOn}`),
   ],
 );

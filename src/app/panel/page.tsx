@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { PanelNav } from '@/components/panel/PanelNav';
 import { getOwnInstitution } from '@/db/queries/panel/catalog';
 import { panelDashboard } from '@/db/queries/panel/dashboard';
+import { panelEntitlements } from '@/db/queries/panel/entitlements';
+import { FEATURE_LABELS, FEATURE_KEYS } from '@/lib/entitlements';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
@@ -58,8 +60,13 @@ export default async function PanelPage() {
 
   let stats;
   let profile;
+  let entitlements;
   try {
-    [stats, profile] = await Promise.all([panelDashboard(user), getOwnInstitution(user)]);
+    [stats, profile, entitlements] = await Promise.all([
+      panelDashboard(user),
+      getOwnInstitution(user),
+      panelEntitlements(user),
+    ]);
   } catch (error) {
     if (error instanceof AuthError) redirect('/ingresar');
     throw error;
@@ -170,6 +177,34 @@ export default async function PanelPage() {
             revisión. Te avisamos cuando los revisemos.
           </p>
         )}
+
+        <section className="border-border bg-surface flex flex-col gap-2 rounded-md border p-4">
+          <h2 className="text-ink text-sm font-semibold">
+            Tu plan: {entitlements.planName ?? 'Gratis'}
+          </h2>
+          <ul className="text-body flex flex-col gap-1 text-sm">
+            {FEATURE_KEYS.map((key) => (
+              <li key={key} className={entitlements.features[key] ? 'text-body' : 'text-faint'}>
+                {entitlements.features[key] ? '✓' : '·'} {FEATURE_LABELS[key]}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted text-sm">
+            Cargar y corregir tus datos —aranceles, convocatorias, descripciones— es gratis y
+            siempre lo va a ser.{' '}
+            {entitlements.planRank === 0 ? (
+              <>
+                Lo que suma un plan es cómo te ve el estudiante y a qué accedés vos:{' '}
+                <Link href="/para-instituciones" className="underline underline-offset-4">
+                  mirá los planes
+                </Link>
+                .
+              </>
+            ) : entitlements.currentPeriodEndsOn ? (
+              <>Tu período va hasta el {entitlements.currentPeriodEndsOn}.</>
+            ) : null}
+          </p>
+        </section>
 
         <p className="text-faint max-w-prose text-xs">
           Las vistas y los clics se cuentan del lado del navegador, así que un robot o un chequeo
