@@ -38,6 +38,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     // A closed convocatoria stays readable for whoever has the link, and stays
     // out of the index: it is not an answer to anybody's search any more.
     robots: beca.isClosed ? { index: false, follow: true } : undefined,
+    openGraph: {
+      type: 'website',
+      title: beca.title,
+      description: beca.summary,
+      images: [{ url: `/og/beca?slug=${beca.slug}`, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: beca.title,
+      description: beca.summary,
+      images: [`/og/beca?slug=${beca.slug}`],
+    },
   };
 }
 

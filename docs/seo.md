@@ -88,6 +88,17 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 
 **On stale prices and `Offer` (changed in PR-33).** The page now _shows_ an arancel older than 12 months, with a visible "dato desactualizado" and its date — but `Offer` markup still requires a price verified within 12 months. The two rules only look inconsistent: a warning is a thing a human reads and a rich result is a thing a machine repeats stripped of its context, so a price we are hedging on the page must not be handed to Google as a clean current offer. Schema mirrors what is _asserted_, not merely what is drawn.
 
+**OG images and Twitter cards (PR-39).** Each shareable page gets a 1200×630 card from a route handler under `/og`, not `/api` — `robots.ts` disallows `/api` but must keep `/og` reachable:
+
+| Route            | Query params           | Draws                                                                  |
+| ----------------- | ----------------------- | ----------------------------------------------------------------------- |
+| `/og/blog`        | `slug`                  | Title, author, publication date, wordmark                              |
+| `/og/beca`        | `slug`                  | Title, provider, type, `coverageLabel()`, `deadlineLabel()`            |
+| `/og/programa`    | `inst`, `program`       | Programme name, institution, duración, `priceDisplay()` output         |
+| `/og/comparar`    | `ids`                   | (existing, PR-33) up to N cards: name, institution, duración, arancel  |
+
+Same rules as the pages they mirror: a missing record is a 404 image response, not a broken card; `/og/programa` renders the arancel exactly as `priceDisplay()` returns it, staleness note included, never a raw number (CLAUDE.md rule 3); nothing draws a rating, review count or accreditation status that isn't also on the page. `generateMetadata` on `/blog/[slug]`, `/becas/[slug]` and `/universidades/[inst]/[program]` sets `openGraph.images` to the matching route and `twitter: { card: 'summary_large_image' }`; the root layout sets the same card type as a default.
+
 ## 6. Technical baseline
 
 - `sitemap.ts` producing a **sitemap index** split at 5,000 URLs (careers, institutions, programs, editorial as separate children). ~10k program URLs makes this mandatory, not optional.

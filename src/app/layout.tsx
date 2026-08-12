@@ -27,6 +27,9 @@ export const metadata: Metadata = {
     template: '%s | educacion.com.py',
   },
   description: 'El índice completo, buscable y comparable de la educación superior en Paraguay.',
+  twitter: {
+    card: 'summary_large_image',
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

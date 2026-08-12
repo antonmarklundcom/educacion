@@ -39,6 +39,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       publishedTime: post.publishedAt.toISOString(),
       modifiedTime: post.updatedAt.toISOString(),
       authors: [post.authorName],
+      images: [{ url: `/og/blog?slug=${post.slug}`, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+      images: [`/og/blog?slug=${post.slug}`],
     },
   };
 }

@@ -86,6 +86,22 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       .filter(Boolean)
       .join(' '),
     alternates: { canonical: `/universidades/${instSlug}/${programSlug}` },
+    openGraph: {
+      type: 'website',
+      title: `${primary.programName} – ${primary.institutionShort}`,
+      images: [
+        {
+          url: `/og/programa?inst=${instSlug}&program=${programSlug}`,
+          width: 1200,
+          height: 630,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${primary.programName} – ${primary.institutionShort}`,
+      images: [`/og/programa?inst=${instSlug}&program=${programSlug}`],
+    },
   };
 }
 
