@@ -7,7 +7,7 @@ import { listSubscriptionsAdmin, type AdminSubscriptionRow } from '@/db/queries/
 import { formatGs } from '@/lib/format';
 import { requireRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
-import { PAST_DUE_GRACE_DAYS, subscriptionStanding, dateOnly } from '@/lib/entitlements';
+import { pastDueGraceDays, subscriptionStanding, dateOnly } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -81,7 +81,7 @@ export default async function AdminSubscriptionsPage({
             includedLeadsMonth: null,
           },
           today,
-          PAST_DUE_GRACE_DAYS,
+          pastDueGraceDays(),
         );
         return standing ? 'Sí' : 'No';
       },

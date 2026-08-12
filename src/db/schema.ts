@@ -759,6 +759,36 @@ export const subscriptions = mysqlTable(
   ],
 );
 
+/**
+ * One row per reminder actually sent, and the row *is* the idempotency
+ * (PR-29).
+ *
+ * The unique key is `(subscription_id, period_ends_on, threshold_days)`, which
+ * is what makes the reminder cron safe to fire twice an hour: the second
+ * insert hits the key and changes nothing. `period_ends_on` is in the key
+ * rather than just the subscription id so that **renewing re-arms the
+ * reminders** — a subscription whose period moves to a new end date is a new
+ * period, and its 90/30/7 notices should go out again.
+ */
+export const subscriptionReminders = mysqlTable(
+  'subscription_reminders',
+  {
+    id: bigPk(),
+    subscriptionId: int('subscription_id', { unsigned: true })
+      .notNull()
+      .references(() => subscriptions.id),
+    /** The `subscriptions.ends_on` this reminder was about. */
+    periodEndsOn: date('period_ends_on', { mode: 'string' }).notNull(),
+    /** 90 / 30 / 7 — days before `period_ends_on`. */
+    thresholdDays: smallint('threshold_days', { unsigned: true }).notNull(),
+    sentAt: timestamp('sent_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('subscription_reminders_uq').on(t.subscriptionId, t.periodEndsOn, t.thresholdDays),
+    index('subscription_reminders_subscription_idx').on(t.subscriptionId),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Provenance & ops                                                           */
 /* -------------------------------------------------------------------------- */

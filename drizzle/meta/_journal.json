@@ -36,6 +36,13 @@
       "when": 1786528851402,
       "tag": "0004_subscriptions_source_of_truth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786531525736,
+      "tag": "0005_subscription_reminders",
+      "breakpoints": true
     }
   ]
 }

@@ -56,13 +56,14 @@ See `risks.md` §R-08.
 
 Beyond `DATABASE_URL` and `CRON_SECRET`, the lead pipeline and the event log read these (`architecture.md` §6, §12):
 
-| Var                            | Required                                        | What breaks without it                                                                                                                                                                                                                                                                                                |
-| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIVACY_SALT`                 | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate.                                                                      |
-| `NEXT_PUBLIC_SITE_URL`         | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                                                                                              |
+| Var                            | Required                                        | What breaks without it                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PRIVACY_SALT`                 | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate.                                                                                                             |
+| `NEXT_PUBLIC_SITE_URL`         | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                                                                                                                                     |
 | `RESEND_API_KEY`               | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`. Nothing is lost, and the hourly `lead-retry` cron (`/api/cron/lead-retry`, PR-23) keeps retrying `notifyInstitution` for every undelivered row — but with this unset it never succeeds, so a lead only becomes visible in the DB, not in an inbox. Set it before taking real traffic. |
-| `LEAD_FROM_EMAIL`              | Same as above                                   | Same as above. Sending domain must be verified in Resend first.                                                                                                                                                                                                                                                       |
-| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | No                                              | Unset means the Plausible script never loads. That is the correct state until someone subscribes — nothing is half-configured.                                                                                                                                                                                        |
+| `LEAD_FROM_EMAIL`              | Same as above                                   | Same as above. Sending domain must be verified in Resend first.                                                                                                                                                                                                                                                                                              |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | No                                              | Unset means the Plausible script never loads. That is the correct state until someone subscribes — nothing is half-configured.                                                                                                                                                                                                                               |
+| `BILLING_GRACE_DAYS`           | No (defaults to 15)                             | Days a `past_due` subscription keeps its paid features after `ends_on` (PR-29). Unparseable or negative falls back to 15 rather than to 0 — a typo must not cancel every paying institution's features. `0` is valid and means no grace. Capped at 90.                                                                                                       |
 
 ## 7. Cron
 
@@ -71,9 +72,23 @@ hPanel cron → `curl` the authenticated route handlers listed in `architecture.
 ```
 curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-retry
 curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-digest
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/subscription-sweep
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/renewal-reminders
 ```
 
-All jobs are idempotent, so a double-fire is harmless.
+Suggested cadence for the two billing jobs (PR-29): both daily, the sweep
+first — `subscription-sweep` at 06:00 -04 and `renewal-reminders` at 06:15, so
+a subscription that ended overnight is already `past_due` when the digest
+describes the day.
+
+All jobs are idempotent, so a double-fire is harmless. For the billing pair
+that is a property of the data rather than of the schedule: the sweep only
+matches rows that are still `active`, and each reminder is recorded against a
+UNIQUE `(subscription_id, period_ends_on, threshold_days)`. **Missing a run is
+also safe** — the reminders catch up on the next run rather than skipping a
+threshold, and a sweep that never runs can only under-grant (an `active`
+subscription that has ended already stops granting features at `ends_on`;
+`past_due` is what _extends_ them through the grace window).
 
 ## 8. Post-deploy checklist
 

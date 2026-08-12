@@ -24,6 +24,7 @@
 import type { Db } from '@/db';
 import { subscriptionFactsFor } from '@/db/queries/plans';
 import { AuthError } from '@/lib/auth/roles';
+import { billingGraceDays } from '@/lib/billing/config';
 
 import {
   placementFlags,
@@ -72,14 +73,24 @@ export {
 /**
  * Days a `past_due` subscription keeps its features after its period ends.
  *
- * Zero here on purpose: PR-25 ships the rule, PR-29 ships the ops around it
- * and makes the window configurable. Until then an unpaid subscription that
- * has run out grants nothing, which is the safe direction to be wrong in.
+ * PR-25 shipped this as a constant `0` and said PR-29 would make it
+ * configurable; it now reads `BILLING_GRACE_DAYS` (default 15,
+ * `lib/billing/config.ts`). It is a **function**, not a constant, because the
+ * value is read per call: changing a grace period on a live site should be an
+ * env change and a restart, not a redeploy, and a captured constant would
+ * silently keep the old value in a warm process.
+ *
+ * The window only matters for a subscription that has been marked `past_due`.
+ * An `active` row that simply ran out stops granting at `ends_on` — so a
+ * missed sweep can only ever under-grant, never extend features nobody paid
+ * for.
  */
-export const PAST_DUE_GRACE_DAYS = 0;
+export function pastDueGraceDays(): number {
+  return billingGraceDays();
+}
 
 function defaultOptions(options?: ResolveOptions): ResolveOptions {
-  return { graceDays: PAST_DUE_GRACE_DAYS, ...options };
+  return { graceDays: billingGraceDays(), ...options };
 }
 
 /** What this institution may have, right now. */

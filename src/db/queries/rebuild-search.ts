@@ -56,7 +56,7 @@ import {
   programs,
 } from '@/db/schema';
 import {
-  PAST_DUE_GRACE_DAYS,
+  pastDueGraceDays,
   resolveEntitlements,
   type SubscriptionFacts,
 } from '@/lib/entitlements';
@@ -302,7 +302,7 @@ export function planRanksByInstitution(
     const entitlements = resolveEntitlements(
       institutionId,
       facts.filter((fact) => fact.institutionId === institutionId),
-      { now, graceDays: PAST_DUE_GRACE_DAYS },
+      { now, graceDays: pastDueGraceDays() },
     );
     if (entitlements.planRank > 0) ranks.set(institutionId, entitlements.planRank);
   }
