@@ -27,6 +27,74 @@ Follows the `nextjs-deploy-hostinger` and `nodejs-mysql-hostinger-stack` playboo
 - `connectionLimit: 8` in the pool. Hostinger caps concurrent connections per user; a bigger pool buys nothing and fails loudly under load.
 - `timezone: "Z"` — store UTC, render `America/Asuncion`.
 
+## 3.1 The migration runbook (PowerShell, from a new window)
+
+Every command below runs on **your machine**, not over SSH, for the reason
+above. `drizzle-kit` loads `.env`; `tsx` does not (§5), so the environment
+variable is set explicitly and the whole run happens in one window.
+
+```powershell
+# 1. The repo, on the branch that is deployed.
+cd C:\ruta\a\educacion
+git checkout main
+git pull
+
+# 2. Dependencies exactly as the lockfile has them.
+npm ci
+
+# 3. The connection string. Remote MySQL host from hPanel — NOT localhost,
+#    which is only correct inside the app container. Quote it: the password
+#    can contain characters PowerShell would otherwise eat.
+$env:DATABASE_URL = "mysql://user:pass@srvXXXX.hstgr.io:3306/dbname"
+
+# 4. Look before you write. `check` reads the journal and reports what is
+#    pending without touching a table.
+npm run db:check
+
+# 5. Apply. Drizzle runs only the files the journal says are missing, in order.
+npm run db:migrate
+
+# 6. The plan price list. Idempotent — matched on `code`, updated in place,
+#    never duplicated. Safe to re-run any time prices change.
+npm run seed:plans
+
+# 7. Rebuild the search index, because 0004 changed what feeds `plan_rank`.
+npm run search:rebuild
+```
+
+**If your public IP has rotated**, step 5 fails with
+`Access denied for user '...'@'<ip>'` before writing anything — re-add the IP
+under Remote MySQL in hPanel and run it again. `ECONNREFUSED` with correct
+credentials means DNS: try the raw IP in the connection string (§5).
+
+**What migrations 0004–0009 do**, so nothing here is a surprise:
+
+| File   | Change                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------ |
+| `0004` | **Drops `institutions.plan_id`** and its FK; adds `subscriptions.invoiced_amount_pyg` and an `ends_on` index |
+| `0005` | `subscription_reminders`                                                                                     |
+| `0006` | `posts` (editorial)                                                                                          |
+| `0007` | `becas`                                                                                                      |
+| `0008` | `job_postings`                                                                                               |
+| `0009` | `password_reset_tokens`                                                                                      |
+
+`0004` is the only destructive one. Dropping `plan_id` is the point of PR-25 —
+it was a second source of truth for what an institution pays for, and
+`subscriptions` is now the only one (`architecture.md` §17). Nothing in the
+codebase reads the column, so the drop cannot orphan a query; what it can
+orphan is a **hand-edited value nobody recorded as a subscription**. If any
+institution was ever marked as paying by editing that column directly, read it
+out before step 5 and re-enter it as a subscription afterwards:
+
+```sql
+-- hPanel → phpMyAdmin, before step 5. Empty result = nothing to carry over.
+SELECT id, name_short, plan_id FROM institutions WHERE plan_id IS NOT NULL;
+```
+
+**After a migration that changes the schema, redeploy** — the running app was
+built against the old types, and 0004 in particular removes a column its build
+still knows about.
+
 ## 4. Uploads (institution logos & photos) — decide in PR-19
 
 Hostinger's git deploy **replaces the application directory**. Anything written under the app dir is destroyed on the next deploy, silently.
