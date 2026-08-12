@@ -219,3 +219,35 @@ the three shells.
 **The one accent rule survives the a11y pass unchanged.** Focus rings are ink,
 not accent (§2 — the accent means "primary CTA" and nothing else), which also
 keeps them legible on top of an accent button.
+
+## 16. The admin shell (the sidebar)
+
+**`/admin` navigates from a vertical rail, not a horizontal strip.** The
+section has twenty-one destinations. In a `overflow-x-auto` row everything past
+`Ofertas` was off-screen until you dragged for it, which put `Frescura`,
+`Cuentas` and the whole billing group behind a gesture nobody performs on a
+desktop. The rail shows all of it at once.
+
+**The rail is grouped, and the grouping is load-bearing.** `Catálogo`,
+`Datos con fecha`, `Cola de trabajo`, `Negocio`, `Contenido`, `Sistema`. An
+alphabetical or arbitrary list says these twenty-one screens are twenty-one
+unrelated jobs; the groups say `Aranceles` and `Frescura` are the same job seen
+from two ends, and that `Facturación` is not the same job as `Blog`.
+`/admin`'s index page repeats the same groups in the same order — two lists
+that disagree teach two mental models of one section.
+
+**`AdminNav` is the section's only client component** (CLAUDE.md rule 6). It
+needs `usePathname` for the active state, which a server component cannot read.
+Everything in it is a plain `Link`; with JS off the rail still navigates and
+only loses its highlight. The active match is a prefix, so `/admin/carreras/12`
+keeps `Carreras` lit — the edit screens have no entry of their own and would
+otherwise blank the rail.
+
+**Admin-only entries are hidden from an editor, and that is UX only.**
+`Suscripciones`, `Facturación`, `Métricas` and `Cuentas` each call
+`requireRole(user, ['admin'])` and answer 404 themselves (CLAUDE.md rule 4).
+Hiding them saves an editor four dead ends; it is not what stops them.
+
+**On mobile the rail becomes a `<details>` disclosure.** A 240 px column on a
+390 px screen (§7) leaves nothing for the tables these pages exist to show, and
+the disclosure costs no script.

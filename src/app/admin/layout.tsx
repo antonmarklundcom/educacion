@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { Footer } from '@/components/layout/Footer';
 import { SignOutButton } from '@/components/layout/SignOutButton';
-import { requireRole } from '@/lib/auth/roles';
+import { hasRole, requireRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
 export const metadata: Metadata = {
@@ -38,9 +38,11 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         <span className="text-ink text-sm font-semibold">Admin</span>
         <SignOutButton />
       </header>
-      <AdminNav />
-      <div id="contenido" tabIndex={-1} className="flex-1">
-        {children}
+      <div className="flex flex-1 flex-col md:flex-row">
+        <AdminNav isAdmin={hasRole(user, ['admin'])} />
+        <div id="contenido" tabIndex={-1} className="min-w-0 flex-1">
+          {children}
+        </div>
       </div>
       <Footer />
     </div>
