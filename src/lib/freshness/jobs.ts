@@ -11,6 +11,7 @@ import { lt, sql } from 'drizzle-orm';
 
 import { db, type Db } from '@/db';
 import { leads } from '@/db/schema';
+import { purgeUsedResetTokens } from '@/db/queries/password-reset';
 import { rebuildProgramSearch } from '@/db/queries/rebuild-search';
 import { refreshEnrollmentStatuses } from '@/db/queries/admin/admissions';
 import { stalenessCountsForCron } from '@/db/queries/admin/staleness';
@@ -69,5 +70,15 @@ export async function runLeadPurge(now: Date = new Date(), database: Db = db) {
     await database.delete(leads).where(lt(leads.createdAt, cutoff));
   }
 
-  return { deleted: deletable, cutoff: cutoff.toISOString().slice(0, 10) };
+  // Spent and expired reset tokens ride along (PR-35): they are not evidence
+  // of anything once used, and a table of dead credentials is a liability with
+  // no upside. Same job because it is the same kind of housekeeping, and one
+  // cron entry is one thing to forget instead of two.
+  const resetTokens = await purgeUsedResetTokens(now, database);
+
+  return {
+    deleted: deletable,
+    resetTokensPurged: resetTokens,
+    cutoff: cutoff.toISOString().slice(0, 10),
+  };
 }

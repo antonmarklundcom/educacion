@@ -355,6 +355,17 @@ Lighthouse CI with budgets, bundle-size check in CI, a11y pass (keyboard nav thr
 
 Promoting `next/core-web-vitals`' a11y rules from warnings to errors found two real defects: `Button`'s anchor form spread its children so a link's text was invisible to the linter, and `LeadModal`'s backdrop was a `div` with a mouse handler that no keyboard could reach. One skip link in the root layout targets a `#contenido` wrapper in each of the three shells (three edits, not eighty), and `globals.css` gained a `:focus-visible` floor plus a global `prefers-reduced-motion` block.
 
+### PR-35 — Password reset by email · **Opus**
+
+The deferral PR-18 recorded and PR-21 restated: `password_reset_tokens`, the request form, the tokenised reset page, and the Resend mail.
+**Deps:** PR-18, PR-21.
+**Accept:** the request form answers the identical sentence for an unknown address, a suspended account and a real one, and writes **no row** in the first two cases; tokens hashed at rest, 60-minute TTL, single-use enforced by `UPDATE … WHERE used_at IS NULL`; opening the link does not spend it; a successful reset invalidates the user's other outstanding links and does **not** start a session; spent rows purged by the existing cron.
+**Shipped as:** as specified. `architecture.md` §25, and §15.4 rewritten — the "do not open `/panel` to real institutions without it" block is lifted, and `/panel`'s invite note now points a new member at `/recuperar-contrasena` instead of at us.
+
+This PR needs migration `0009_password_reset_tokens.sql`, which — like every migration in this repo — is generated in CI and applied from a local machine.
+
+The one deliberate leak: a **send failure** is reported to the user, which is only reachable for an address that exists. The alternative is a locked-out person watching a success screen for a mail that is not coming, now that admin recovery is no longer the fallback.
+
 ---
 
 ## Summary
@@ -366,6 +377,7 @@ Promoting `next/core-web-vitals`' a11y rules from warnings to errors found two r
 | 2 — Backend & portal | 18–24 | 7      | 3      | 1      | 3                    |
 | 3 — Monetization     | 25–29 | 5      | 1      | 2      | 2                    |
 | 4 — Depth & growth   | 30–34 | 5      | 2      | 3      | 0                    |
-| **Total**            |       | **34** | **11** | **15** | **8**                |
+| 5 — Closing PR-18    | 35    | 1      | 1      | 0      | 0                    |
+| **Total**            |       | **35** | **12** | **15** | **8**                |
 
-Sonnet writes **23 of 34 PRs (68%)** and, weighted by lines of code, closer to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's. Opus owns the 11 PRs where a wrong decision is expensive to unwind, and reviews the 8 that touch data integrity, PII, access control or money.
+Sonnet writes **23 of 35 PRs (66%)** and, weighted by lines of code, closer to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's. Opus owns the 12 PRs where a wrong decision is expensive to unwind, and reviews the 8 that touch data integrity, PII, access control or money.

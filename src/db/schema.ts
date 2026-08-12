@@ -688,6 +688,39 @@ export const institutionMembers = mysqlTable(
   ],
 );
 
+/**
+ * Password reset by email (PR-35) — the table PR-18 deferred and PR-21 named
+ * as the thing standing between `/panel` and a real institution.
+ *
+ * Shaped exactly like `claims.token_hash` and for the same reasons
+ * (`architecture.md` §16.1): the token is 32 random bytes, only its SHA-256
+ * lives here, it is single-use, and it expires — so a leaked backup or a
+ * read-only injection cannot mint a login. `used_at` rather than a delete,
+ * because "this link was already used" is a different message from "this link
+ * never existed", and a user who clicks twice deserves the true one.
+ *
+ * There is no `email` column: the token names a `user_id`, and the address is
+ * read from `users` at send time. Copying it here would let a row keep working
+ * after an address changed.
+ */
+export const passwordResetTokens = mysqlTable(
+  'password_reset_tokens',
+  {
+    id: pk(),
+    userId: int('user_id', { unsigned: true })
+      .notNull()
+      .references(() => users.id),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('password_reset_tokens_hash_uq').on(t.tokenHash),
+    index('password_reset_tokens_user_idx').on(t.userId, t.createdAt),
+  ],
+);
+
 export const claims = mysqlTable(
   'claims',
   {

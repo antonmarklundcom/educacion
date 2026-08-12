@@ -235,6 +235,15 @@ users
 
 institution_members(id, user_id, institution_id, role, created_at)  UNIQUE (user_id, institution_id)
 
+password_reset_tokens   // reset by email (PR-35, architecture.md §25)
+  id, user_id, token_hash, expires_at, used_at?, created_at
+  UNIQUE (token_hash)                   // hash is the lookup key, so it is the index
+  INDEX (user_id, created_at)
+  // 32 random bytes, stored as an unsalted SHA-256 digest — the plaintext exists
+  // only in the email. TTL 60 min. Single-use is enforced by
+  // UPDATE ... WHERE used_at IS NULL, not by a read. Spent and expired rows are
+  // deleted by the purge-leads cron.
+
 claims             // claim-your-profile flow (PR-22, architecture.md §16)
   id, institution_id, user_id, email, email_domain,
   contact_name?, note?,                 // who says they are asking — the admin path needs it
