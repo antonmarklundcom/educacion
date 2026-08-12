@@ -298,14 +298,16 @@ Inherited from `conversion-design` and `seo-web-builds`:
 
 Hostinger managed Node has no built-in scheduler you should rely on. Use hPanel cron hitting authenticated route handlers:
 
-| Job                                                         | Cadence           | Route                      |
-| ----------------------------------------------------------- | ----------------- | -------------------------- |
-| Search index rebuild                                        | nightly 03:00 -04 | `/api/cron/rebuild-search` |
-| Data-staleness scan → admin digest                          | weekly Mon        | `/api/cron/staleness`      |
-| Convocatoria status transitions (abiertas/cerradas by date) | daily 05:00       | `/api/cron/admissions`     |
-| Lead-delivery retry for failed notifications                | hourly            | `/api/cron/lead-retry`     |
-| Lead email digest, per institution with `status='new'` leads | daily 08:00 -04   | `/api/cron/lead-digest`    |
-| Sitemap regeneration                                        | nightly           | `/api/cron/sitemap`        |
+| Job                                                          | Cadence           | Route                          |
+| ------------------------------------------------------------ | ----------------- | ------------------------------ |
+| Search index rebuild                                         | nightly 03:00 -04 | `/api/cron/rebuild-search`     |
+| Data-staleness scan → admin digest                           | weekly Mon        | `/api/cron/staleness`          |
+| Convocatoria status transitions (abiertas/cerradas by date)  | daily 05:00       | `/api/cron/admissions`         |
+| Lead-delivery retry for failed notifications                 | hourly            | `/api/cron/lead-retry`         |
+| Lead email digest, per institution with `status='new'` leads | daily 08:00 -04   | `/api/cron/lead-digest`        |
+| Sitemap regeneration                                         | nightly           | `/api/cron/sitemap`            |
+| Past-due sweep (ended subscriptions → `past_due`)            | daily 06:00 -04   | `/api/cron/subscription-sweep` |
+| Renewal reminders (90/30/7 days), one digest to the operator | daily 06:15 -04   | `/api/cron/renewal-reminders`  |
 
 All guarded by `CRON_SECRET`, sent as the `x-cron-secret` header (`src/lib/cron/auth.ts`, PR-23). All idempotent.
 
@@ -741,7 +743,7 @@ The first PR of Phase 3, and the one every other Phase-3 PR reads from.
 
 **`subscriptions` is the only source of truth for what an institution has
 bought, and `institutions.plan_id` is gone** (migration `0004`). A plan pointer
-on the institution cannot express the one thing billing is about — *until when*
+on the institution cannot express the one thing billing is about — _until when_
 — so it could only ever agree with the subscription rows by accident, and the
 day it disagreed the site would show a badge nobody was paying for. PR-23's
 lead redaction and `rebuild-search`'s `plan_rank` were the two readers; both now
@@ -750,18 +752,18 @@ go through the entitlements layer.
 **`src/lib/entitlements` is the single source of truth for gating**, in four
 files with one rule each:
 
-| File | Holds |
-|---|---|
-| `contract.ts` | The feature vocabulary and the rank → features matrix. No I/O, importable anywhere. |
-| `resolve.ts` | `resolveEntitlements(institutionId, subscriptions, { now, graceDays })` — pure, unit-tested. |
-| `bands.ts` | Which Verificado band a programme count is quoted. Pricing only; never consulted to gate. |
-| `index.ts` | `getEntitlements`, `getEntitlementsForInstitutions`, `requireFeature`. |
+| File          | Holds                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| `contract.ts` | The feature vocabulary and the rank → features matrix. No I/O, importable anywhere.          |
+| `resolve.ts`  | `resolveEntitlements(institutionId, subscriptions, { now, graceDays })` — pure, unit-tested. |
+| `bands.ts`    | Which Verificado band a programme count is quoted. Pricing only; never consulted to gate.    |
+| `index.ts`    | `getEntitlements`, `getEntitlementsForInstitutions`, `requireFeature`.                       |
 
 **Gating is a server-side read on the request that renders or writes the gated
 thing**, and `requireFeature` throws like `requireRole` does, for the same
 reason §7.1 gives: a caller who ignores a returned `false` still ships. There is
 no plan field on the session and no client-readable flag — a component may
-*render* differently, but nothing is decided there.
+_render_ differently, but nothing is decided there.
 
 **Expiry needs no cron.** Nothing stores "revoked"; entitlements are recomputed
 from dates every time. A subscription that ends tonight grants nothing on
@@ -771,7 +773,7 @@ than of somebody remembering to do something. `cancelled` never counts, not even
 inside its paid period; `past_due` counts only inside a grace window measured
 from `ends_on`, which PR-25 ships at 0 days and PR-29 makes configurable.
 
-**Features union across subscriptions.** Destacado is an add-on held *alongside*
+**Features union across subscriptions.** Destacado is an add-on held _alongside_
 a Verificado subscription (`monetization.md` §3), so the answer is the union of
 what counts today, not the top plan's set. Taking only the highest rank would
 work today and would break silently the first time a high-ranked narrow plan
@@ -781,7 +783,7 @@ exists.
 the same resolver during the rebuild (`planRanksByInstitution`). Every
 subscription write rebuilds, and the nightly rebuild picks up plans that simply
 ran out. Its staleness window is therefore hours and it can only affect
-*ordering*: PR-27 reads badges and the "Destacado" label live, per page, through
+_ordering_: PR-27 reads badges and the "Destacado" label live, per page, through
 `getEntitlementsForInstitutions(ids)` — one extra query per page, the same shape
 §6.2 established for `getWhatsappNumbers` — so a lapsed plan can never leave a
 paid-looking label on a page.
@@ -792,7 +794,7 @@ the admin mutations. The split is mechanical: mutations rebuild the search index
 so that module imports `rebuild-search.ts`, which itself needs the reads — one
 file would be an import cycle.
 
-**Billing is `admin`, never `editor`**, including the *read* of
+**Billing is `admin`, never `editor`**, including the _read_ of
 `/admin/suscripciones`: §7's role table says an editor curates the national
 dataset and does not touch money, and `editor` is the role that satisfies every
 other `/admin` screen, so a mutation typed `['editor']` here would have read as
@@ -806,7 +808,7 @@ blocked by the state of the profile.
 
 **What a plan gates, and the two places `monetization.md` §3 was wrong, are in
 `monetization.md` §7** — editing your own data is free for everybody, and the
-lead *delivery email* is never gated because the consent text promises it.
+lead _delivery email_ is never gated because the consent text promises it.
 
 ### 17.1 What PR-27 settled — labels are live, ordering is indexed
 
@@ -827,7 +829,7 @@ into a filtered set it does not belong in.
 **"Perfil verificado" says something narrow and true**: somebody at the
 institution has an account here and maintains this profile. It deliberately
 says nothing about accreditation, quality or price — conflating the badge we
-*sell* with the badge we *cite* would be selling the wedge itself. The
+_sell_ with the badge we _cite_ would be selling the wedge itself. The
 institution profile spells that out in a sentence under the badge.
 
 **The disclosure line renders only when a paid placement is on the page.** A
@@ -900,3 +902,66 @@ the other open.
 database and fails if another institution's id ever appears in one, or if the
 session's own id is missing — the PR-21/PR-23 shape, aimed at the query
 parameters rather than at an error message.
+
+---
+
+## 19. Billing operations & renewals (settled in PR-29)
+
+PR-25 built the model; this is the operating layer around it. No payment
+gateway — `monetization.md` §5 rules one out until self-serve cursos exist, and
+fifteen contracts a year do not pay for one.
+
+**Reminders fire "at or inside" a threshold, not on an exact day.** The obvious
+rule — `ends_on - today === 30` — silently drops a notice whenever the cron
+misses that one day (a deploy, a restart, an hPanel cron that skipped), and
+nobody finds out until a renewal is missed. So a threshold is due once the
+subscription is inside it and that threshold has not been recorded for this
+period. A missed run catches up; an hourly run sends nothing extra.
+
+**Idempotency is a UNIQUE key, not a flag.** `subscription_reminders
+(subscription_id, period_ends_on, threshold_days)` — sending is inserting the
+row, and a second run inserts nothing. `period_ends_on` is in the key so that
+**renewing re-arms the notices**: a new period is a new 90/30/7. The row is
+written _after_ the mail leaves, because a notice marked sent that never went
+is the failure the table exists to prevent, and a duplicate is the cheaper
+mistake. Only the **narrowest unsent** threshold fires per run, so an account
+first seen five days out gets one mail, not three.
+
+**The digest goes to the operator, not to the institution.** The sales motion
+is a WhatsApp thread, a meeting and a factura issued by hand (§5); the useful
+artefact 90 days out is the operator knowing which contracts are coming up,
+before the institution's budget is set. An automated "tu suscripción vence"
+mail to a university that has not been quoted a renewal is a dunning notice in
+a relationship that is not transactional. Adding the institution as a recipient
+is a one-line change once there is a quote to put in the mail; the thresholds
+and the idempotency do not change.
+
+**Past-due extends, it never revokes.** An `active` subscription that runs out
+stops granting features at `ends_on` on its own — `resolveEntitlements` reads
+dates, not statuses. Marking it `past_due` is what _starts_ the grace window
+(`BILLING_GRACE_DAYS`, default 15). So a sweep that fails to run can only
+under-grant: the customer loses grace they were owed, and never keeps features
+nobody paid for. That is why the sweep is not load-bearing for correctness, and
+why the grace default is 15 rather than 0 — a bank transfer plus a hand-issued
+factura does not clear in a day.
+
+**A cron never cancels.** `graceExpired` is reported and acted on by nobody:
+the subscription already grants nothing, and ending a commercial relationship
+is a decision a person makes. The row keeps its invoice and its period.
+
+**`BILLING_GRACE_DAYS` is read per call, not captured at import.** Changing a
+grace period on a live site should be an env change and a restart, not a
+redeploy. An unparseable or negative value falls back to the default rather
+than to 0 — a typo in an env var must not quietly switch off every paying
+institution's features — and it is capped at 90.
+
+**`activity_log.user_id` is now nullable in the type as well as the column.**
+The sweep is a write nobody made; inventing a "system user" would make an
+automated write indistinguishable from a staff member's in every report we ever
+build.
+
+**The revenue view says "contratado", never "cobrado".** This app does not know
+whether a transferencia arrived. USD figures are list price × subscriptions
+currently in force — the same predicate `resolveEntitlements` applies, so the
+spreadsheet cannot claim a customer the site is no longer honouring — and the
+guaraní figure is the sum of what was actually invoiced.

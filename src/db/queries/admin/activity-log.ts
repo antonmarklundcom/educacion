@@ -29,7 +29,13 @@ export type Writable = Pick<Db, 'insert'>;
 export type ActivityAction = 'create' | 'update' | 'delete' | 'archive';
 
 export interface ActivityLogEntry {
-  userId: number;
+  /**
+   * Null for a write nobody made — the past-due sweep is a cron, not a person
+   * (PR-29). Keeping the column nullable rather than inventing a "system user"
+   * is what makes "who did this" answerable honestly: a system user id in this
+   * column would be indistinguishable from a staff account in every report.
+   */
+  userId: number | null;
   entityType: string;
   entityId: number | null;
   action: ActivityAction;

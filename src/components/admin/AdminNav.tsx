@@ -12,6 +12,7 @@ const LINKS = [
   { href: '/admin/disputas', label: 'Disputas' },
   { href: '/admin/reclamos', label: 'Reclamos' },
   { href: '/admin/suscripciones', label: 'Suscripciones' },
+  { href: '/admin/facturacion', label: 'Facturación' },
   { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 

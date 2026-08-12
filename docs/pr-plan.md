@@ -215,11 +215,11 @@ Institution-initiated dispute on an accreditation or price record → flips the 
 **Accept:** every gated feature checks entitlements server-side; downgrading immediately revokes gated features; no pricing logic duplicated in components.
 **Shipped as:** as specified, with **one schema change beyond the brief** and **two corrections to `monetization.md` §3**, all in `architecture.md` §17 and `monetization.md` §7.
 
-The tables already existed from PR-02, so the schema work was the opposite of adding: migration `0004` **drops `institutions.plan_id`**. A plan pointer on the institution cannot say *until when*, so it could only agree with the subscription rows by accident — and it had two live readers (PR-23's lead redaction, `rebuild-search`'s `plan_rank`), which is exactly how a second source of truth gets used before anybody notices it is one. The same migration adds `subscriptions.invoiced_amount_pyg` (we quote in USD and invoice in guaraníes — `monetization.md` §5 asked for this column and nothing had it) and an index on `ends_on` for PR-29's sweeps.
+The tables already existed from PR-02, so the schema work was the opposite of adding: migration `0004` **drops `institutions.plan_id`**. A plan pointer on the institution cannot say _until when_, so it could only agree with the subscription rows by accident — and it had two live readers (PR-23's lead redaction, `rebuild-search`'s `plan_rank`), which is exactly how a second source of truth gets used before anybody notices it is one. The same migration adds `subscriptions.invoiced_amount_pyg` (we quote in USD and invoice in guaraníes — `monetization.md` §5 asked for this column and nothing had it) and an index on `ends_on` for PR-29's sweeps.
 
 `resolveEntitlements` is pure and is where every expensive-to-reverse rule about money lives: `cancelled` never counts even inside its paid period, a lapsed period stops granting **without any cron**, `past_due` counts only inside a grace window measured from `ends_on` (0 days here; PR-29 owns making it configurable), and features **union** across subscriptions because Destacado is an add-on held alongside Verificado. `program_search.plan_rank` is the single derived copy, recomputed by the same resolver on every subscription write and nightly — so it can affect ordering for a few hours at most, never a badge, which PR-27 reads live.
 
-The two corrections: **editing your own data is free for every institution** (§3 said Gratis meant "no editing"; `plan.md` §6 and `risks.md` §R-03 make charging for the correction of a wrong price the one trade this product cannot make), and **the lead delivery email is never gated** (§3 said Gratis meant no lead delivery; the consent text promises the student their data reaches the institution they chose, so gating it would make our own consent text false). What a plan buys is presentation, reach and the lead *inbox* — contact details, export, status workflow.
+The two corrections: **editing your own data is free for every institution** (§3 said Gratis meant "no editing"; `plan.md` §6 and `risks.md` §R-03 make charging for the correction of a wrong price the one trade this product cannot make), and **the lead delivery email is never gated** (§3 said Gratis meant no lead delivery; the consent text promises the student their data reaches the institution they chose, so gating it would make our own consent text false). What a plan buys is presentation, reach and the lead _inbox_ — contact details, export, status workflow.
 
 Billing is `admin`-only including the read, `assertClaimed` gates activation (§16.5), and `seed:plans` writes the §3 price list idempotently.
 
@@ -258,7 +258,7 @@ Views, WhatsApp clicks, leads, comparador appearances, month-over-month, per-pro
 
 Solicitudes are counted from **`leads`**, not from the `lead_submit` event: the two can differ, and the row is both the truth and the number an institution can check against its own inbox — the page says so rather than presenting one as the other. `compare_add` needs a join to `program_search` to find its institution, which is a direct consequence of §12's decision not to widen a persisted client structure for an analytics need.
 
-**Month-over-month means two different things.** A rolling 7/30/90-day window compares against the equally long window before it; the *monthly report* compares against the previous **calendar** month, because July shifted back by its own 31 days lands on 31 May and counts a day of May as June. The first version of this PR had the second case wrong and the test caught it.
+**Month-over-month means two different things.** A rolling 7/30/90-day window compares against the equally long window before it; the _monthly report_ compares against the previous **calendar** month, because July shifted back by its own 31 days lands on 31 May and counts a day of May as June. The first version of this PR had the second case wrong and the test caught it.
 
 `deltaPct` returns null rather than a percentage when the previous period was zero — "subiste 100%" from nothing is arithmetic dressed as a result, and every institution's first month would be full of them.
 
@@ -271,6 +271,17 @@ The leakage test (`analytics.access.test.ts`) is aimed at the query parameters r
 Manual invoice reference tracking, renewal reminders (90/30/7 days), past-due state and its effect on entitlements, admin revenue view.
 **Deps:** PR-25.
 **Accept:** past-due degrades to free-tier features after a configurable grace period; reminders idempotent; no payment gateway integrated (deliberate — see `monetization.md` §5).
+**Shipped as:** as specified, with **one schema change** (migration `0005`, `subscription_reminders`) and the reminder recipient decided rather than assumed. `architecture.md` §19 has it all.
+
+**Idempotency is the UNIQUE key `(subscription_id, period_ends_on, threshold_days)`,** not a flag: sending is inserting the row, a second run inserts nothing, and because the period end is in the key, renewing re-arms the 90/30/7. Reminders fire "at or inside" a threshold rather than on an exact day, so a cron that missed three days catches up instead of silently dropping a notice — the failure mode that would only surface as a missed renewal.
+
+**The digest goes to the operator, not to the institution.** The sales motion is a WhatsApp thread, a meeting and a hand-issued factura (`monetization.md` §5); an automated "tu suscripción vence" to a university nobody has quoted yet is a dunning notice in a relationship that is not transactional. Adding the institution is a one-line recipient change once there is a quote to send.
+
+**Past-due extends, it never revokes.** An `active` subscription that runs out already stops granting at `ends_on` — entitlements read dates, not statuses — so marking it `past_due` is what _starts_ the grace window. A sweep that fails to run can therefore only under-grant, never keep features nobody paid for. `BILLING_GRACE_DAYS` defaults to **15**, not 0: a bank transfer plus a hand-issued factura does not clear in a day, and an unparseable value falls back to the default rather than to 0 so a typo cannot cancel every customer.
+
+**No cron cancels anything.** Grace expiry is reported and acted on by nobody: the subscription already grants nothing, and ending a commercial relationship is a person's decision.
+
+`/admin/facturacion` says **contratado**, never cobrado — the app does not know whether a transferencia arrived. `activity_log.user_id` became nullable in the type as well as the column, so the sweep's writes are distinguishable from a person's forever.
 
 **Phase 3 exit:** first paid institution invoiced and live.
 
