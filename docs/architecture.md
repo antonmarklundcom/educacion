@@ -1022,3 +1022,40 @@ renaming or deleting one is a seed change, not a form field. The list shows each
 área's word count against `MIN_EDITORIAL_WORDS`, because that number is what
 decides whether its hub is `noindex` (`seo.md` §4.1) and an editor should not
 have to discover it by publishing.
+
+---
+
+## 21. Becas (settled in PR-31)
+
+**`source_url` is NOT NULL.** A beca is money somebody is promising a student;
+an unsourced one is the most damaging row this site could hold. The column
+enforces it, `parseBecaInput` explains it, and the public page renders the link
+— publishing it is what earns us the right to publish the rest.
+
+**Coverage is an enum with an explicit unknown.** `total` / `parcial` /
+`monto_fijo` / `sin_datos`, and a CHECK ties the amount to the coverage: a
+"cubre el 100%" row cannot also carry a guaraní figure, and a "parcial" row
+cannot omit its percentage. `sin_datos` renders as "no sabemos cuánto cubre"
+rather than as blank space — same rule as "Sin datos de acreditación", and for
+the same reason: this is the field a reader fills in optimistically.
+
+**Expiry is a query predicate, not a cron.** A beca past its deadline leaves
+the listing and the sitemap on the day it closes, because `livePredicate`
+compares against the request's own date. A job would leave a window between the
+deadline and the next firing — exactly the window in which a student plans
+around a date that has passed. A beca with no deadline stays listed:
+"convocatoria permanente" is real, and treating null as expired would hide it.
+
+**A closed beca is not a 404.** The link may be in somebody's WhatsApp thread,
+so the detail page still renders, says "esta convocatoria ya cerró", and goes
+`noindex, follow` — readable for whoever has the link, and out of the index
+because it is no longer an answer to anybody's search.
+
+**Provider is required in one of two forms**: an institution from our index, or
+a typed name for the ones that are not (Itaú, MEC, Becal). "Hay una beca"
+without saying whose is not information.
+
+**Every save re-stamps `verified_at` with the saving user**, the same argument
+§14.2 makes for `bulkVerify`: a beca is a dated claim about someone else's
+money, and "who said this was still true, and when" is the question that gets
+asked when it turns out not to be.

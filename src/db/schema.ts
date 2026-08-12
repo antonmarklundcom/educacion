@@ -825,6 +825,69 @@ export const posts = mysqlTable(
   ],
 );
 
+export const BECA_TYPE = ['institucional', 'estatal', 'privada', 'internacional'] as const;
+export const BECA_COVERAGE = ['total', 'parcial', 'monto_fijo', 'sin_datos'] as const;
+
+/**
+ * Becas (PR-31).
+ *
+ * **Every row needs a `source_url`** — it is NOT NULL, which is the schema
+ * saying what CLAUDE.md rule 1 says in words: a beca is money somebody is
+ * promising a student, and an unsourced one is the most damaging thing this
+ * site could publish. `coverage` distinguishes "cubre el 100%" from "cubre una
+ * parte" from "un monto fijo" from **we do not know**, so a partial scholarship
+ * can never be rendered as a full one by an empty column.
+ *
+ * `amount_pyg` / `percentage` are both nullable and only one is meaningful per
+ * `coverage`, checked below. `deadline` drives auto-expiry: a beca whose
+ * deadline has passed stops being listed without anybody archiving it, because
+ * the failure mode of a stale beca is a student missing a real deadline.
+ */
+export const becas = mysqlTable(
+  'becas',
+  {
+    id: pk(),
+    slug: varchar('slug', { length: 160 }).notNull(),
+    title: varchar('title', { length: 240 }).notNull(),
+    /** Who gives it. Null when it is not tied to an institution in our index. */
+    institutionId: int('institution_id', { unsigned: true }).references(() => institutions.id),
+    /** Free text for a provider we do not have as an institution: "Itaú", "MEC". */
+    providerName: varchar('provider_name', { length: 200 }),
+    areaId: int('area_id', { unsigned: true }).references(() => areas.id),
+    type: mysqlEnum('type', BECA_TYPE).notNull(),
+    coverage: mysqlEnum('coverage', BECA_COVERAGE).notNull().default('sin_datos'),
+    /** Only for `coverage = 'monto_fijo'`. Guaraníes, integer. */
+    amountPyg: money('amount_pyg'),
+    /** Only for `coverage = 'parcial'`. 1–99. */
+    percentage: tinyint('percentage', { unsigned: true }),
+    summary: varchar('summary', { length: 320 }).notNull(),
+    detailsMd: text('details_md'),
+    requirementsMd: text('requirements_md'),
+    /** Where a student actually applies. */
+    applyUrl: varchar('apply_url', { length: 512 }),
+    /** Where we read this, and the reason the column is NOT NULL. */
+    sourceUrl: varchar('source_url', { length: 512 }).notNull(),
+    deadline: date('deadline', { mode: 'string' }),
+    verifiedAt: timestamp('verified_at'),
+    verifiedByUserId: int('verified_by_user_id', { unsigned: true }).references(() => users.id),
+    status: mysqlEnum('status', PUBLICATION_STATUS).notNull().default('draft'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('becas_slug_uq').on(t.slug),
+    index('becas_status_deadline_idx').on(t.status, t.deadline),
+    index('becas_institution_idx').on(t.institutionId),
+    index('becas_area_idx').on(t.areaId),
+    check(
+      'becas_amount_matches_coverage',
+      sql`(${t.coverage} = 'monto_fijo' and ${t.amountPyg} is not null and ${t.percentage} is null)
+       or (${t.coverage} = 'parcial' and ${t.percentage} between 1 and 99 and ${t.amountPyg} is null)
+       or (${t.coverage} in ('total', 'sin_datos') and ${t.amountPyg} is null and ${t.percentage} is null)`,
+    ),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Provenance & ops                                                           */
 /* -------------------------------------------------------------------------- */

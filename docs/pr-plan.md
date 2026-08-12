@@ -307,6 +307,13 @@ The accreditation explainer is deliberately **in the page file, not the database
 `becas` entity, listing, filters (institución, área, tipo, monto), detail pages, deadlines, `ItemList` + `BreadcrumbList` schema.
 **Deps:** PR-30.
 **Accept:** only real, sourced becas; deadlines auto-expire; no fabricated amounts.
+**Shipped as:** as specified, plus the `/admin` CRUD, and **one schema change** (migration `0007`, `becas`). `architecture.md` §21.
+
+`source_url` is **NOT NULL** — the acceptance criterion as a column, not as a habit. Coverage is an enum with an explicit `sin_datos` and a CHECK tying the amount to it, so "cubre el 100%" cannot carry a guaraní figure and "parcial" cannot omit its percentage; the unknown case renders as "no sabemos cuánto cubre" rather than as blank space.
+
+**Auto-expiry is a predicate, not a job**: a beca past its deadline leaves the listing and the sitemap the same day, because the query compares against the request's own date — a cron would leave a window in which a student plans around a date that has passed. A closed beca still renders at its own URL (`noindex, follow`) saying so, because the link may be in somebody's WhatsApp thread and a 404 teaches nothing.
+
+`ItemList` + `BreadcrumbList` on the listing, `BreadcrumbList` on the detail. No `Offer` markup: the amounts here are somebody else's promise, not ours to mark up as a price.
 
 ### PR-32 — Salida laboral & empleos relacionados · **Opus**
 
