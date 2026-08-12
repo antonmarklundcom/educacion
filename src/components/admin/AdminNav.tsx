@@ -3,6 +3,7 @@ const LINKS = [
   { href: '/admin/instituciones', label: 'Instituciones' },
   { href: '/admin/sedes', label: 'Sedes' },
   { href: '/admin/carreras', label: 'Carreras' },
+  { href: '/admin/areas', label: 'Áreas' },
   { href: '/admin/programas', label: 'Programas' },
   { href: '/admin/ofertas', label: 'Ofertas' },
   { href: '/admin/aranceles', label: 'Aranceles' },
@@ -13,6 +14,7 @@ const LINKS = [
   { href: '/admin/reclamos', label: 'Reclamos' },
   { href: '/admin/suscripciones', label: 'Suscripciones' },
   { href: '/admin/facturacion', label: 'Facturación' },
+  { href: '/admin/blog', label: 'Blog' },
   { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 

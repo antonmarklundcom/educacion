@@ -811,3 +811,126 @@ export function parseSubscriptionInput(formData: FormData): ParseResult<Subscrip
 
   return finish(data, errors);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Editorial posts (PR-30)                                                    */
+/* -------------------------------------------------------------------------- */
+
+export interface PostInput {
+  slug: string | null;
+  title: string;
+  excerpt: string;
+  bodyMd: string;
+  authorName: string;
+  authorBio: string | null;
+  status: PublicationStatus;
+  /** `YYYY-MM-DD`; blank means "stamp it when it first goes live". */
+  publishedAt: string | null;
+}
+
+/**
+ * The prefixes that count as a money page for `seo.md` §7's rule — *"every
+ * blog post links to at least one money page with descriptive anchor text, no
+ * orphans"*.
+ */
+export const MONEY_PAGE_PREFIXES = [
+  '/carreras',
+  '/universidades',
+  '/areas',
+  '/becas',
+  '/acreditacion',
+] as const;
+
+/** Anchor text that describes nothing. A link is only useful if its words are. */
+const EMPTY_ANCHORS = [
+  'acá',
+  'aca',
+  'aquí',
+  'aqui',
+  'click',
+  'hacé click',
+  'hace click',
+  'este enlace',
+  'link',
+  'leer más',
+  'leer mas',
+  'ver más',
+  'ver mas',
+];
+
+export function linksToMoneyPage(bodyMd: string): boolean {
+  for (const match of bodyMd.matchAll(/\[([^\]]+)\]\((\/[^)]*)\)/g)) {
+    const anchor = match[1]!.trim().toLowerCase();
+    const href = match[2]!.trim();
+    if (!MONEY_PAGE_PREFIXES.some((prefix) => href.startsWith(prefix))) continue;
+    if (EMPTY_ANCHORS.includes(anchor)) continue;
+    if (anchor.length < 4) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * `seo.md` §7 is enforced here rather than left to discipline: a post that
+ * links to no money page is an orphan that spends crawl budget and returns
+ * nothing, and the cheapest moment to catch it is before it is saved. It
+ * blocks **publishing**, not saving — a draft is allowed to be unfinished.
+ */
+export function parsePostInput(formData: FormData): ParseResult<PostInput> {
+  const errors: Record<string, string> = {};
+
+  const title = requireStr(formData, 'title', errors, 'El título', 200);
+  const excerpt = requireStr(formData, 'excerpt', errors, 'El resumen', 320);
+  const bodyMd = requireStr(formData, 'bodyMd', errors, 'El cuerpo', 60_000);
+  const authorName = requireStr(formData, 'authorName', errors, 'El autor', 160);
+  const status = requireEnum(formData, 'status', PUBLICATION_STATUS, errors, 'el estado');
+  const slug = optionalSlug(formData, 'slug', errors);
+  const publishedAt = optionalDate(formData, 'publishedAt', errors, 'La fecha de publicación');
+
+  if (status === 'published' && bodyMd && !linksToMoneyPage(bodyMd)) {
+    errors.bodyMd =
+      'Antes de publicar, el post tiene que enlazar al menos una página de destino (/carreras, /universidades, /areas, /becas o /acreditacion) con un texto que describa el enlace — “acá” o “click” no cuentan (seo.md §7).';
+  }
+
+  return finish(
+    {
+      slug,
+      title,
+      excerpt,
+      bodyMd,
+      authorName,
+      authorBio: optStr(formData, 'authorBio'),
+      status,
+      publishedAt,
+    },
+    errors,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Areas — the editorial description only (PR-30)                             */
+/* -------------------------------------------------------------------------- */
+
+export interface AreaInput {
+  nameEs: string;
+  descriptionMd: string | null;
+  sortOrder: number;
+}
+
+/**
+ * An área's slug is **not** editable. It is in the URL of an indexed hub and in
+ * every internal link that points there; renaming it silently 404s a page
+ * Google already has. Renaming an área is a migration, not a form field.
+ */
+export function parseAreaInput(formData: FormData): ParseResult<AreaInput> {
+  const errors: Record<string, string> = {};
+  const nameEs = requireStr(formData, 'nameEs', errors, 'El nombre', 160);
+
+  const sortRaw = str(formData, 'sortOrder');
+  const sortOrder = sortRaw === '' ? 0 : Number(sortRaw);
+  if (!Number.isInteger(sortOrder)) {
+    errors.sortOrder = 'El orden tiene que ser un número entero.';
+  }
+
+  return finish({ nameEs, descriptionMd: optStr(formData, 'descriptionMd'), sortOrder }, errors);
+}

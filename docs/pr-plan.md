@@ -294,6 +294,13 @@ Manual invoice reference tracking, renewal reminders (90/30/7 days), past-due st
 `/blog` (MDX or DB-backed), `/acreditacion` hub, and the "¿Está acreditada tu carrera?" checker tool. Internal linking rules from `seo.md`.
 **Deps:** PR-16.
 **Accept:** every post links to at least one money page with descriptive anchor text; `Article` + `Person` schema; the checker reads live accreditation data with sources.
+**Shipped as:** as specified, plus the admin editors that make it maintainable, and **one schema change** (migration `0006`, `posts`). `architecture.md` §20.
+
+Posts are DB-backed rather than MDX — the writer is the operator, in a browser, and MDX makes every typo a deploy. The "no orphans" rule is enforced in `parsePostInput` rather than left to discipline: publishing is refused until the body links to a money page with anchor text that describes it. Markdown is a small subset **rendered to React elements**, never to an HTML string, so no sanitizer and no markdown dependency were added and an editorial `<script>` is text by construction.
+
+The accreditation explainer is deliberately **in the page file, not the database**: it is what we assert about ANEAES and CONES, and R-09 makes that a thing to review in a diff. The checker is a GET form over `searchPrograms` — live badges with their sources, never "no acreditada" inferred from silence, and every answer has a shareable URL.
+
+`/admin/blog` and `/admin/areas` follow the PR-19 form pattern; áreas expose the description and sort order only, since their slugs are in indexed URLs. The área list shows each description's word count against the 150 that decides `noindex`. JSON-LD begins here at three types (`Article`+`Person`, `BreadcrumbList`, `FAQPage`) as the shape PR-16 can extend; the sitemap gains the editorial URLs, which are the ones with no other way in.
 
 ### PR-31 — Becas module · **Sonnet**
 

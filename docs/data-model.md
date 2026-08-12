@@ -280,6 +280,17 @@ curation_conflicts // the moderation queue — nothing auto-publishes on a confl
 
 activity_log
   id, user_id, entity_type, entity_id, action, before_json, after_json, created_at
+  // user_id is NULL for an automated write (PR-29's past-due sweep). No
+  // "system user" row: it would be indistinguishable from staff in a report.
+
+posts              // editorial, DB-backed so the operator publishes without a deploy (PR-30)
+  id, slug, title, excerpt, body_md, author_name, author_bio?,
+  status enum('draft','published','archived'), published_at?, created_at, updated_at
+  UNIQUE (slug), INDEX (status, published_at)
+  // A post is live only when status='published' AND published_at <= now, which
+  // is what makes scheduling possible without a second column or a cron.
+  // author_name is a string, not a users FK: a byline is an editorial fact, and
+  // deleting a staff account must not rewrite the authorship of published work.
 ```
 
 `UNIQUE (source, checksum)` on `source_records` is what makes re-running an importer a no-op rather than a duplicate factory — PR-05's acceptance criterion is a property of this index, not of the importer's cleverness.
