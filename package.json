@@ -21,7 +21,9 @@
     "import:aneaes": "tsx scripts/import-aneaes.ts",
     "curate": "tsx scripts/curate.ts",
     "search:rebuild": "tsx scripts/rebuild-search.ts",
-    "search:bench": "tsx scripts/search-bench.ts"
+    "search:bench": "tsx scripts/search-bench.ts",
+    "perf:budget": "tsx scripts/check-bundle-size.ts",
+    "perf:lighthouse": "lhci autorun"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

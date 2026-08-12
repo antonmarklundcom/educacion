@@ -39,7 +39,9 @@ export default async function PanelLayout({ children }: Readonly<{ children: Rea
         <span className="text-ink text-sm font-semibold">Panel</span>
         <SignOutButton />
       </header>
-      <div className="flex-1">{children}</div>
+      <div id="contenido" tabIndex={-1} className="flex-1">
+        {children}
+      </div>
       <div className="print:hidden">
         <Footer />
       </div>

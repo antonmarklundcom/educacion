@@ -102,6 +102,23 @@ threshold, and a sweep that never runs can only under-grant (an `active`
 subscription that has ended already stops granting features at `ends_on`;
 `past_due` is what _extends_ them through the grace window).
 
+## 7.1 Performance checks (PR-34)
+
+`npm run perf:budget` runs in CI after `npm run build` and fails when a public
+route exceeds 150 kB of gzipped JS. Run it locally the same way: build first,
+then the budget.
+
+Lighthouse is **not** in the PR check — CI has no `DATABASE_URL`, so it would
+audit error pages. Run it against something that is actually serving:
+
+```
+gh workflow run lighthouse.yml -f url=https://educacion.com.py
+```
+
+Thresholds live in `lighthouserc.json`. They are configured and **not yet
+measured against production** — the first run needs a deployed site with real
+data in it.
+
 ## 8. Post-deploy checklist
 
 ```

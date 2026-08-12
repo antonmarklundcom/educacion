@@ -347,6 +347,13 @@ Five crons landed: `rebuild-search`, `admissions` (a pure re-derivation through 
 Lighthouse CI with budgets, bundle-size check in CI, a11y pass (keyboard nav through filters and the comparador, focus states, labels, contrast), image optimisation sweep.
 **Deps:** all public pages.
 **Accept:** LCP < 2.5 s, CLS < 0.1, INP < 200 ms on a throttled mid-range mobile profile; public JS ≤ 150 kb gz enforced in CI; comparador fully keyboard-operable.
+**Shipped as:** the budget and the a11y rules **enforced in CI**; Lighthouse **on demand against a deployed URL**, not in the PR check, and that split is the PR's one real decision. `architecture.md` §24.
+
+`npm run perf:budget` reads the manifest `next build` just wrote, gzips every chunk a route loads and fails when a public route exceeds 150 kB — no database, no server, runs in CI. `/admin` and `/panel` are exempt with the reason stated: staff tools on a laptop, where `useActionState` keeping a half-filled form alive is worth its kilobytes.
+
+**Lighthouse cannot run in the PR check honestly.** Every SEO surface is `force-dynamic` against MySQL and CI has no `DATABASE_URL`, so a run there would audit error pages and report a number that means nothing — a green build that measured 500s is worse than no measurement. `lighthouserc.json` carries the budgets (LCP < 2.5 s, CLS < 0.1, TBT < 200 ms, a11y and SEO at 100) and `workflows/lighthouse.yml` is `workflow_dispatch` against a URL you pass it. **The acceptance thresholds are therefore configured and not yet measured** — the first real run needs a deployed site with real data.
+
+Promoting `next/core-web-vitals`' a11y rules from warnings to errors found two real defects: `Button`'s anchor form spread its children so a link's text was invisible to the linter, and `LeadModal`'s backdrop was a `div` with a mouse handler that no keyboard could reach. One skip link in the root layout targets a `#contenido` wrapper in each of the three shells (three edits, not eighty), and `globals.css` gained a `:focus-visible` floor plus a global `prefers-reduced-motion` block.
 
 ---
 

@@ -197,3 +197,25 @@ The rail and the cards survived implementation with four decisions worth not red
 **No analytics event fires from this page.** `ClientEventType` is fixed at `offering_view`, `whatsapp_click`, `compare_add`, `profile_view`; nothing on the homepage is any of those, and inventing a fifth type to count hero searches would both change a closed contract and add the client component the page otherwise does not need. The search itself lands on `/carreras` with `q` in the URL, where it is already visible to page analytics.
 
 **Two accents, both CTAs: "Buscar carreras" in the hero and "Ver todas las carreras" at the close.** The área entry points, the carrera list and the teaser link are navigation and carry ink, border and underline only (§2).
+
+## 15. What PR-34 settled (a11y and the budgets)
+
+**Focus has a floor.** Components that care still set their own
+`focus-visible:ring-*`; `globals.css` now draws a 2 px ink outline on anything
+interactive that does not, so a control nobody thought about is still visible
+to a keyboard. `:focus-visible`, not `:focus` — a ring on every mouse click is
+what made people delete focus styles in the first place.
+
+**The motion list in §6 is enforced globally.** A `prefers-reduced-motion`
+block reduces every animation and transition to 0.01 ms, so a component that
+ships a transition without asking is covered by the rule rather than being an
+exception to it.
+
+**The skip link is the first tab stop on every page.** `/carreras` renders ~40
+filter links before the first result; without it, a keyboard user tabs the
+whole rail on every navigation. It targets `#contenido`, a wrapper in each of
+the three shells.
+
+**The one accent rule survives the a11y pass unchanged.** Focus rings are ink,
+not accent (§2 — the accent means "primary CTA" and nothing else), which also
+keeps them legible on top of an accent button.

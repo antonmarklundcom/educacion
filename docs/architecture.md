@@ -1178,3 +1178,58 @@ request.
 **"Última actualización" is on every page that shows maintained data**
 (`FreshnessNote`). With nothing verified it says so instead of rendering
 nothing — an empty space is not information.
+
+---
+
+## 24. Performance, accessibility & the CI budgets (settled in PR-34)
+
+**The JS budget is enforced, not remembered.** `npm run perf:budget` reads the
+manifest `next build` just wrote, gzips every chunk each route loads at level 9
+and fails when a **public** route exceeds §9's 150 kB. It runs in CI right
+after the build, needs no database and no server. It measures rather than
+scraping `next build`'s table, because that table is human output whose format
+belongs to Next: a budget that depends on scraping it breaks on an upgrade with
+no signal.
+
+`/admin` and `/panel` are exempt, with the reason in the script: they are staff
+tools used on a laptop, and `AdminForm`'s `useActionState` — which keeps a
+half-filled form alive through a validation error — is worth its kilobytes
+there in a way it would not be to a student on 4G.
+
+**Lighthouse runs against a deployed URL, on demand, and is deliberately not a
+PR check.** Every SEO surface is `force-dynamic` against MySQL (§3) and CI has
+no `DATABASE_URL`, so a run inside the PR check would measure error pages and
+report a number that means nothing — a green build that audited 500s is worse
+than no audit. `.github/workflows/lighthouse.yml` is `workflow_dispatch` with a
+URL input, and `lighthouserc.json` carries the budgets: LCP < 2.5 s, CLS < 0.1,
+TBT < 200 ms on throttled mobile, accessibility and SEO at 100.
+
+**The a11y rules `next/core-web-vitals` ships as warnings are errors here.**
+Every one of them is a mistake that makes the site unusable with a keyboard or
+a screen reader, and "it is only a warning" is how a warning survives for a
+year. Promoting them found two real defects: `Button`'s anchor form spread its
+children so the linter could not see a link's text, and `LeadModal`'s backdrop
+was a `div` with a mouse handler — a control a keyboard could never reach. It
+is now a labelled `<button>`.
+
+**One skip link, in the root layout, targeting a `#contenido` wrapper in each
+of the three shells.** `/carreras` puts ~40 filter links before the first
+result; without a skip link, reaching the results with a keyboard means tabbing
+through the entire rail on every navigation. Three edits rather than eighty:
+the id lives on the layout's content wrapper, not on each page's `<main>`.
+
+**A focus floor and a motion floor in `globals.css`.** `:focus-visible` on
+every interactive element that did not set its own ring, so a control nobody
+thought about is still visible to a keyboard; and a global
+`prefers-reduced-motion` block, because `design-system.md` §6 says the whole
+motion list is disabled under it and a component that ships a transition
+without asking should not be an exception.
+
+**Images:** `next/image`'s `remotePatterns` is derived from
+`S3_PUBLIC_BASE_URL` — the same variable the uploader writes to, so the bucket
+hostname is not hardcoded in two places — with sizes trimmed to what this site
+actually renders (square logos; there is no hero photography, §14). Immutable
+caching for `/_next/static/*`, whose filenames are content-hashed. The
+homepage logo strip keeps its plain `<img>` for the reason `design-system.md`
+§14 already records; with a bucket configured, switching it to `next/image` is
+now a one-line change rather than a config discussion.
