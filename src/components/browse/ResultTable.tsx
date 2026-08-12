@@ -31,6 +31,7 @@ import {
 
 import { AccreditationBadge } from './AccreditationBadge';
 import { InstitutionMonogram } from './InstitutionMonogram';
+import { DestacadoBadge, NO_PLACEMENT, VerifiedBadge, type PlacementFlags } from './PlanBadges';
 import { PriceLabel } from './PriceLabel';
 import type { ExtraParams } from './FilterRail';
 import { offeringHref } from './hrefs';
@@ -45,9 +46,22 @@ export interface ResultTableProps {
   sort: SortKey;
   basePath: string;
   extra?: ExtraParams;
+  /**
+   * Plan marks per institution id, read live by the page (PR-27). The dense
+   * view labels a paid placement exactly like the card view does — the
+   * disclosure cannot depend on which view the student happens to be in.
+   */
+  placements?: ReadonlyMap<number, PlacementFlags>;
 }
 
-export function ResultTable({ results, filters, sort, basePath, extra }: ResultTableProps) {
+export function ResultTable({
+  results,
+  filters,
+  sort,
+  basePath,
+  extra,
+  placements,
+}: ResultTableProps) {
   const sortHref = (key: SortKey) =>
     searchHref(basePath, { ...filters, sort: key, page: undefined }, extra);
 
@@ -90,7 +104,10 @@ export function ResultTable({ results, filters, sort, basePath, extra }: ResultT
               index % 2 === 1 && 'bg-card-alt/60',
             )}
           >
-            <Row offering={offering} />
+            <Row
+              offering={offering}
+              placement={placements?.get(offering.institutionId) ?? NO_PLACEMENT}
+            />
           </li>
         ))}
       </ul>
@@ -98,7 +115,13 @@ export function ResultTable({ results, filters, sort, basePath, extra }: ResultT
   );
 }
 
-function Row({ offering }: { offering: OfferingSummary }) {
+function Row({
+  offering,
+  placement = NO_PLACEMENT,
+}: {
+  offering: OfferingSummary;
+  placement?: PlacementFlags;
+}) {
   const href = offeringHref(offering);
   const duration =
     offering.durationMonths != null ? formatDurationMonths(offering.durationMonths) : 'Sin datos';
@@ -121,7 +144,11 @@ function Row({ offering }: { offering: OfferingSummary }) {
             >
               {offering.programName}
             </Link>
-            <span className="text-muted block truncate text-xs">{offering.institutionShort}</span>
+            <span className="text-muted flex flex-wrap items-center gap-1.5 truncate text-xs">
+              {offering.institutionShort}
+              {placement.verified && <VerifiedBadge />}
+              {placement.destacado && <DestacadoBadge />}
+            </span>
           </div>
         </div>
         <span className="text-body text-sm">{MANAGEMENT_LABELS[offering.management]}</span>
@@ -154,7 +181,11 @@ function Row({ offering }: { offering: OfferingSummary }) {
             >
               {offering.programName}
             </Link>
-            <span className="text-muted block truncate text-xs">{offering.institutionShort}</span>
+            <span className="text-muted flex flex-wrap items-center gap-1.5 truncate text-xs">
+              {offering.institutionShort}
+              {placement.verified && <VerifiedBadge />}
+              {placement.destacado && <DestacadoBadge />}
+            </span>
           </div>
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">

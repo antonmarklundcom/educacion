@@ -16,6 +16,18 @@
  * what the server enforces. `plans.rank` is the join between the two, and it
  * is the same 0/1/2 `program_search.plan_rank` already carries.
  *
+ * ### Why there is no `enhanced_profile` key (removed in PR-27)
+ *
+ * PR-25 declared one, for "logo, fotos, video y descripción larga". PR-27 went
+ * to implement it and found nothing to gate: photos and video have no columns
+ * and no upload path anywhere in the schema, and the logo and the description
+ * are already rendered for every institution — gating those would mean either
+ * hiding public information from students or telling an institution "you may
+ * write this and we will not show it". Both are worse products. The key is
+ * therefore gone rather than shipped as an empty promise on a price table; it
+ * comes back the day institution media exists, with the migration that creates
+ * it. `monetization.md` §7 records it.
+ *
  * ### Why "editing your own data" is not on this list
  *
  * `monetization.md` §3's Gratis row originally read "no editing". It is not
@@ -40,8 +52,6 @@ export const FEATURE_KEYS = [
   'lead_contacts',
   /** The "Perfil verificado" badge on the institution profile and result cards. */
   'verified_badge',
-  /** Logo, photos, video and the long description on the public profile. */
-  'enhanced_profile',
   /** `plan_rank` placement in results, always rendered with a "Destacado" label. */
   'priority_placement',
   /** The full institution analytics dashboard rather than the free summary. */
@@ -75,14 +85,12 @@ export const FEATURES_BY_RANK: Readonly<Record<PlanRank, FeatureSet>> = Object.f
   [PLAN_RANKS.verificado]: featureSet([
     'lead_contacts',
     'verified_badge',
-    'enhanced_profile',
     'analytics_full',
     'monthly_report',
   ]),
   [PLAN_RANKS.destacado]: featureSet([
     'lead_contacts',
     'verified_badge',
-    'enhanced_profile',
     'priority_placement',
     'analytics_full',
     'monthly_report',
@@ -93,7 +101,6 @@ export const FEATURES_BY_RANK: Readonly<Record<PlanRank, FeatureSet>> = Object.f
 export const FEATURE_LABELS: Readonly<Record<FeatureKey, string>> = Object.freeze({
   lead_contacts: 'Datos de contacto de cada solicitud',
   verified_badge: 'Insignia “Perfil verificado”',
-  enhanced_profile: 'Perfil ampliado: logo, fotos, video y descripción larga',
   priority_placement: 'Ubicación destacada en los resultados, siempre etiquetada',
   analytics_full: 'Estadísticas completas de tu institución',
   monthly_report: 'Reporte mensual exportable',
@@ -138,7 +145,34 @@ export function freeEntitlements(institutionId: number): Entitlements {
   };
 }
 
+/**
+ * The two plan-derived marks a public page renders. Declared here, in the
+ * I/O-free module, so a component can import the *type* without pulling the
+ * database driver into its module graph (`architecture.md` §5.1 — the same
+ * hazard the search barrel has).
+ */
+export interface PlacementFlags {
+  /** `verified_badge` — the institution maintains this profile itself. */
+  verified: boolean;
+  /** `priority_placement` — this institution's rows may win a tie. */
+  destacado: boolean;
+}
+
+export const NO_PLACEMENT: PlacementFlags = Object.freeze({ verified: false, destacado: false });
+
 /** The read every gate goes through. Server-side only — see `requireFeature`. */
 export function can(entitlements: Entitlements, feature: FeatureKey): boolean {
   return entitlements.features[feature];
+}
+
+/**
+ * Entitlements → the two marks a public page renders. Pure, so "does a
+ * cancelled plan still show the badge" is answerable in a unit test rather
+ * than by loading a page (PR-27).
+ */
+export function placementFlags(entitlements: Entitlements): PlacementFlags {
+  return {
+    verified: entitlements.features.verified_badge,
+    destacado: entitlements.features.priority_placement,
+  };
 }

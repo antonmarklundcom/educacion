@@ -22,6 +22,7 @@ import {
   ActiveFilters,
   EmptyState,
   FilterRail,
+  PlacementDisclosure,
   ResultCard,
   SortControl,
   areaHref,
@@ -40,6 +41,8 @@ import {
 } from '@/lib/careers';
 import { formatMonthYear } from '@/lib/format';
 import { getWhatsappNumbers } from '@/lib/institutions';
+import { getPlacementFlags } from '@/lib/entitlements';
+import type { PlacementFlags } from '@/components/browse';
 import { parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
 
 export const dynamic = 'force-dynamic';
@@ -106,10 +109,18 @@ export default async function CareraHubPage({
     .filter((date): date is Date => date != null)
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  const whatsappNumbers =
+  const institutionIds = results.map((offering) => offering.institutionId);
+  const [whatsappNumbers, placements] = await Promise.all([
     results.length === 0
-      ? new Map<number, string>()
-      : await getWhatsappNumbers(results.map((offering) => offering.institutionId));
+      ? Promise.resolve(new Map<number, string>())
+      : getWhatsappNumbers(institutionIds),
+    results.length === 0
+      ? Promise.resolve(new Map<number, PlacementFlags>())
+      : getPlacementFlags(institutionIds),
+  ]);
+  const hasPaidPlacement = results.some(
+    (offering) => placements.get(offering.institutionId)?.destacado,
+  );
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
@@ -133,7 +144,9 @@ export default async function CareraHubPage({
         </div>
 
         {latestVerifiedAt && (
-          <p className="text-faint text-xs">Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.</p>
+          <p className="text-faint text-xs">
+            Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.
+          </p>
         )}
       </header>
 
@@ -155,7 +168,7 @@ export default async function CareraHubPage({
         </section>
       )}
 
-      <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-border mt-6 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-ink text-base font-semibold">
           Universidades{' '}
           <span className="text-muted font-mono text-sm">
@@ -186,8 +199,10 @@ export default async function CareraHubPage({
                   key={offering.offeringId}
                   offering={offering}
                   whatsappE164={whatsappNumbers.get(offering.institutionId) ?? null}
+                  placement={placements.get(offering.institutionId)}
                 />
               ))}
+              {hasPaidPlacement && <PlacementDisclosure className="text-faint mt-1 text-xs" />}
               <Pagination
                 className="mt-2 justify-center"
                 currentPage={page}

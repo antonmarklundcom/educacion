@@ -25,7 +25,12 @@ import type { Db } from '@/db';
 import { subscriptionFactsFor } from '@/db/queries/plans';
 import { AuthError } from '@/lib/auth/roles';
 
-import type { Entitlements, FeatureKey } from './contract';
+import {
+  placementFlags,
+  type Entitlements,
+  type FeatureKey,
+  type PlacementFlags,
+} from './contract';
 import { resolveEntitlements, type ResolveOptions } from './resolve';
 
 export {
@@ -33,13 +38,16 @@ export {
   FEATURE_LABELS,
   FEATURES_BY_RANK,
   NO_FEATURES,
+  NO_PLACEMENT,
   PLAN_RANKS,
   can,
+  placementFlags,
   freeEntitlements,
   type Entitlements,
   type EntitlementStatus,
   type FeatureKey,
   type FeatureSet,
+  type PlacementFlags,
   type PlanRank,
 } from './contract';
 
@@ -132,6 +140,24 @@ export async function requireFeature(
     throw new AuthError('Esa función no está incluida en el plan de tu institución.', 'forbidden');
   }
   return entitlements;
+}
+
+/**
+ * The two plan-derived marks a public page renders, for a set of institutions,
+ * in **one** query (PR-27).
+ *
+ * Pages call this rather than reading `program_search.plan_rank`, which is a
+ * derived copy refreshed on writes and nightly: good enough to order rows, not
+ * good enough to make a claim about a commercial relationship in front of a
+ * student. Every requested id is present in the map, so a caller cannot mistake
+ * a missing entry for "no answer".
+ */
+export async function getPlacementFlags(
+  institutionIds: readonly number[],
+  database?: Db,
+): Promise<Map<number, PlacementFlags>> {
+  const entitlements = await getEntitlementsForInstitutions(institutionIds, undefined, database);
+  return new Map([...entitlements].map(([id, value]) => [id, placementFlags(value)]));
 }
 
 /** The free baseline, for callers that need a value when there is no institution. */

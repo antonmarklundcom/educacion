@@ -16,10 +16,22 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 
-import { areaHref, careerHref, ResultCard } from '@/components/browse';
-import { buildCareerCityIntro, getCareerBySlug, getCareerCitySupply, passesCityGate } from '@/lib/careers';
+import {
+  areaHref,
+  careerHref,
+  PlacementDisclosure,
+  ResultCard,
+  type PlacementFlags,
+} from '@/components/browse';
+import {
+  buildCareerCityIntro,
+  getCareerBySlug,
+  getCareerCitySupply,
+  passesCityGate,
+} from '@/lib/careers';
 import { formatMonthYear } from '@/lib/format';
 import { getWhatsappNumbers } from '@/lib/institutions';
+import { getPlacementFlags } from '@/lib/entitlements';
 import { searchPrograms } from '@/lib/search';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +82,16 @@ export default async function CareraCiudadPage({ params }: { params: Params }) {
     .filter((date): date is Date => date != null)
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  const whatsappNumbers = await getWhatsappNumbers(offerings.map((offering) => offering.institutionId));
+  const institutionIds = offerings.map((offering) => offering.institutionId);
+  const [whatsappNumbers, placements] = await Promise.all([
+    getWhatsappNumbers(institutionIds),
+    offerings.length === 0
+      ? Promise.resolve(new Map<number, PlacementFlags>())
+      : getPlacementFlags(institutionIds),
+  ]);
+  const hasPaidPlacement = offerings.some(
+    (offering) => placements.get(offering.institutionId)?.destacado,
+  );
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
@@ -78,7 +99,10 @@ export default async function CareraCiudadPage({ params }: { params: Params }) {
         <div className="text-muted flex flex-wrap items-center gap-1.5 text-xs">
           {career.areaName && career.areaSlug && (
             <>
-              <a href={areaHref(career.areaSlug)} className="hover:text-ink underline underline-offset-2">
+              <a
+                href={areaHref(career.areaSlug)}
+                className="hover:text-ink underline underline-offset-2"
+              >
                 {career.areaName}
               </a>
               <span aria-hidden>·</span>
@@ -102,7 +126,9 @@ export default async function CareraCiudadPage({ params }: { params: Params }) {
         </div>
 
         {latestVerifiedAt && (
-          <p className="text-faint text-xs">Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.</p>
+          <p className="text-faint text-xs">
+            Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.
+          </p>
         )}
       </header>
 
@@ -115,8 +141,10 @@ export default async function CareraCiudadPage({ params }: { params: Params }) {
             key={offering.offeringId}
             offering={offering}
             whatsappE164={whatsappNumbers.get(offering.institutionId) ?? null}
+            placement={placements.get(offering.institutionId)}
           />
         ))}
+        {hasPaidPlacement && <PlacementDisclosure />}
       </div>
     </main>
   );
