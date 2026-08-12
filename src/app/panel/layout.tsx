@@ -32,12 +32,17 @@ export default async function PanelLayout({ children }: Readonly<{ children: Rea
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6">
+      {/* `print:hidden` for PR-28's monthly report: the printed sheet is an
+          artefact an institution sends on, and the shell around it is not part
+          of it. */}
+      <header className="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6 print:hidden">
         <span className="text-ink text-sm font-semibold">Panel</span>
         <SignOutButton />
       </header>
       <div className="flex-1">{children}</div>
-      <Footer />
+      <div className="print:hidden">
+        <Footer />
+      </div>
     </div>
   );
 }

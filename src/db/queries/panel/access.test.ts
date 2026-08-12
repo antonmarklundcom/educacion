@@ -220,9 +220,7 @@ describe('cross-institution writes, against the route handlers', () => {
   });
 
   it('refuses to change the status of another institution’s lead', async () => {
-    expectRefused(
-      await setPanelLeadStatusAction(OWNED_BY_A, {}, form({ status: 'contacted' })),
-    );
+    expectRefused(await setPanelLeadStatusAction(OWNED_BY_A, {}, form({ status: 'contacted' })));
   });
 
   it('refuses to file a dispute on another institution’s accreditation', async () => {
@@ -252,7 +250,12 @@ describe('a signed-out request reaches nothing', () => {
     expectRefused(await removeMemberAction(1, {}));
     expectRefused(await setPanelLeadStatusAction(1, {}, form({ status: 'contacted' })));
     expectRefused(
-      await fileAccreditationDisputeAction(1, 7, {}, form({ reason: 'Motivo suficientemente largo.' })),
+      await fileAccreditationDisputeAction(
+        1,
+        7,
+        {},
+        form({ reason: 'Motivo suficientemente largo.' }),
+      ),
     );
   });
 });

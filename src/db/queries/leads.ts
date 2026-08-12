@@ -20,7 +20,7 @@
  * to, its abuse metadata belongs to nobody.
  */
 
-import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { leads } from '@/db/schema';
@@ -187,6 +187,33 @@ export async function countLeadsForInstitution(
 }
 
 /**
+ * Leads of one institution inside a half-open date range (PR-28).
+ *
+ * The dashboard reports solicitudes from **this table** rather than from the
+ * `lead_submit` event, and the two can differ: a lead is a row that exists and
+ * can be answered, the event is a count of a page action. When they disagree
+ * the row is the truth, and it is also the number an institution can check
+ * against its own inbox.
+ */
+export async function countLeadsForInstitutionSince(
+  institutionId: number,
+  range: { since: Date; until: Date },
+  database: Db = defaultDb,
+): Promise<number> {
+  const [row] = await database
+    .select({ total: sql<number>`count(*)` })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.institutionId, institutionId),
+        gte(leads.createdAt, range.since),
+        lt(leads.createdAt, range.until),
+      ),
+    );
+  return Number(row?.total ?? 0);
+}
+
+/**
  * `contacted` / `qualified` / `discarded` — the transitions an institution
  * makes from `/panel/leads`. `new` and `sent` are system states (set by
  * `createLead` and `markLeadDelivered`) and are not reachable through this
@@ -266,5 +293,8 @@ export async function markLeadsDelivered(
   database: Db = defaultDb,
 ): Promise<void> {
   if (ids.length === 0) return;
-  await database.update(leads).set({ status: 'sent', deliveredAt: at }).where(inArray(leads.id, ids));
+  await database
+    .update(leads)
+    .set({ status: 'sent', deliveredAt: at })
+    .where(inArray(leads.id, ids));
 }

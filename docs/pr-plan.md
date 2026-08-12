@@ -254,6 +254,17 @@ Two things the page states that are worth having in writing: the free tier still
 Views, WhatsApp clicks, leads, comparador appearances, month-over-month, per-program breakdown, exportable monthly report PDF/CSV — the artefact used in renewal conversations.
 **Deps:** PR-23, PR-17.
 **Accept:** numbers reconcile with `events`; free-tier sees a limited version (this is the upsell); no cross-institution leakage.
+**Shipped as:** as specified, with the PDF being the browser's print dialog rather than a rendering library, and one correctness decision the brief did not anticipate. `architecture.md` §18 has it all.
+
+Solicitudes are counted from **`leads`**, not from the `lead_submit` event: the two can differ, and the row is both the truth and the number an institution can check against its own inbox — the page says so rather than presenting one as the other. `compare_add` needs a join to `program_search` to find its institution, which is a direct consequence of §12's decision not to widen a persisted client structure for an analytics need.
+
+**Month-over-month means two different things.** A rolling 7/30/90-day window compares against the equally long window before it; the *monthly report* compares against the previous **calendar** month, because July shifted back by its own 31 days lands on 31 May and counts a day of May as June. The first version of this PR had the second case wrong and the test caught it.
+
+`deltaPct` returns null rather than a percentage when the previous period was zero — "subiste 100%" from nothing is arithmetic dressed as a result, and every institution's first month would be full of them.
+
+**PDF:** `puppeteer` is a second Chromium on a shared Hostinger slot and a PDF layout library is a second layout engine to keep in sync forever, so the report page is designed to print instead — `print:hidden` shell, single column, selectable text. One layout, one set of numbers, no dependency.
+
+The leakage test (`analytics.access.test.ts`) is aimed at the query parameters rather than at an error message: it records every value that reaches the database and fails if another institution's id ever appears, or if the session's own is missing. It also pins that no function in the module takes an institution id at all.
 
 ### PR-29 — Billing ops & renewals · **Sonnet → Opus review**
 
