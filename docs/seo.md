@@ -86,6 +86,27 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 
 **Never** emit `aggregateRating` or `review` — we have no reviews, and inventing them violates the anti-fabrication rule the whole product rests on.
 
+**OG image routes (PR-39).** Every shared page needs a real card (§1), so each
+carries its own route handler rather than a static image — a card is per-record
+and the record isn't known at build time. All are 1200×630, `runtime = 'nodejs'`,
+`dynamic = 'force-dynamic'`, and live outside `/api` so `robots.ts` doesn't hide
+them from Facebook's and WhatsApp's scrapers. A missing record 404s; none of
+them ever render blank.
+
+| Route                                   | Draws                                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `/og/blog?slug=…`                        | title, author, publication date, wordmark                                        |
+| `/og/beca?slug=…`                        | title, provider, coverage and deadline (same wording as the page)                |
+| `/og/programa?instSlug=…&programSlug=…`  | programme name, institution, duración, arancel via `priceDisplay()`              |
+| `/og/comparar?ids=…`                     | up to N compared programmes (PR-33)                                              |
+
+`/og/programa` mirrors `/og/comparar`'s handling of the arancel exactly: a
+number needs `priceDisplay()`, never a raw value, and an arancel older than 12
+months carries the visible "dato desactualizado" note rather than being hidden
+(CLAUDE.md rule 3). Each detail page's `generateMetadata` points
+`openGraph.images` and `twitter.images` (`card: 'summary_large_image'`) at its
+route.
+
 **On stale prices and `Offer` (changed in PR-33).** The page now _shows_ an arancel older than 12 months, with a visible "dato desactualizado" and its date — but `Offer` markup still requires a price verified within 12 months. The two rules only look inconsistent: a warning is a thing a human reads and a rich result is a thing a machine repeats stripped of its context, so a price we are hedging on the page must not be handed to Google as a clean current offer. Schema mirrors what is _asserted_, not merely what is drawn.
 
 ## 6. Technical baseline

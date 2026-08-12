@@ -28,6 +28,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const post = await getPostBySlug(slug);
   if (!post) return { title: 'Artículo no encontrado' };
 
+  const ogImage = `/og/blog?slug=${encodeURIComponent(post.slug)}`;
+
   return {
     title: post.title,
     description: post.excerpt,
@@ -39,6 +41,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       publishedTime: post.publishedAt.toISOString(),
       modifiedTime: post.updatedAt.toISOString(),
       authors: [post.authorName],
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+      images: [ogImage],
     },
   };
 }
