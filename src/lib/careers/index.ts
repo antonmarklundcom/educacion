@@ -47,6 +47,7 @@ export const CITY_GATE_MIN_INSTITUTIONS = 2;
 
 export function passesCityGate(stat: { offeringCount: number; institutionCount: number }): boolean {
   return (
-    stat.offeringCount >= CITY_GATE_MIN_OFFERINGS && stat.institutionCount >= CITY_GATE_MIN_INSTITUTIONS
+    stat.offeringCount >= CITY_GATE_MIN_OFFERINGS &&
+    stat.institutionCount >= CITY_GATE_MIN_INSTITUTIONS
   );
 }

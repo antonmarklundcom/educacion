@@ -320,6 +320,13 @@ The accreditation explainer is deliberately **in the page file, not the database
 Qualitative `salida_laboral_md` per canonical career, plus real dated job postings matched to careers with attribution. **No salary or employability statistics** unless a citable source exists (`risks.md` §R-11).
 **Deps:** PR-30.
 **Accept:** zero numeric employability or salary claims without an on-page citation; job postings show source and date; expired postings hidden.
+**Shipped as:** as specified and no wider, with **one schema change** (migration `0008`, `job_postings`) and **no scraper**. `architecture.md` §22.
+
+`salida_laboral_md` gains four suggested sections and, more importantly, the R-11 rule in the admin field label — the constraint cannot be enforced by a validator (no regex separates "cinco años de carrera" from "el 80% consigue trabajo"), so it is enforced where the writing happens. `hasSalidaLaboral()` treats an empty template as absent so a form somebody opened and saved does not render four empty headings.
+
+`/carreras/[carrera]/empleos` shows the qualitative copy plus a few real, dated, attributed postings and then links to trabajo.com.py with the career pre-filled — no application form, no candidate profile, no employer account, no affiliate parameter. **The scraper is deliberately not built**: scraping a job board without an agreement answers a ToS question on somebody else's behalf and adds a parser to maintain against a site we do not control. The table, the attribution and the entry form ship; an integration can fill the same table later without changing the page.
+
+Expiry reuses PR-31's predicate-not-cron rule (`expires_on`, or `posted_on + 45 days`), and `UNIQUE (url)` stops the same aviso being listed twice.
 
 ### PR-33 — Data-freshness system · **Opus**
 

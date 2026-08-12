@@ -4,14 +4,23 @@ import { CITY_GATE_MIN_INSTITUTIONS, CITY_GATE_MIN_OFFERINGS, passesCityGate } f
 
 describe('passesCityGate', () => {
   it('requires both the offering floor and the institution floor', () => {
-    expect(passesCityGate({ offeringCount: CITY_GATE_MIN_OFFERINGS, institutionCount: CITY_GATE_MIN_INSTITUTIONS })).toBe(
-      true,
-    );
     expect(
-      passesCityGate({ offeringCount: CITY_GATE_MIN_OFFERINGS - 1, institutionCount: CITY_GATE_MIN_INSTITUTIONS }),
+      passesCityGate({
+        offeringCount: CITY_GATE_MIN_OFFERINGS,
+        institutionCount: CITY_GATE_MIN_INSTITUTIONS,
+      }),
+    ).toBe(true);
+    expect(
+      passesCityGate({
+        offeringCount: CITY_GATE_MIN_OFFERINGS - 1,
+        institutionCount: CITY_GATE_MIN_INSTITUTIONS,
+      }),
     ).toBe(false);
     expect(
-      passesCityGate({ offeringCount: CITY_GATE_MIN_OFFERINGS, institutionCount: CITY_GATE_MIN_INSTITUTIONS - 1 }),
+      passesCityGate({
+        offeringCount: CITY_GATE_MIN_OFFERINGS,
+        institutionCount: CITY_GATE_MIN_INSTITUTIONS - 1,
+      }),
     ).toBe(false);
   });
 

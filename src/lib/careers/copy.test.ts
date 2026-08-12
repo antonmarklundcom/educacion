@@ -148,7 +148,12 @@ describe('buildCareerCityIntro', () => {
         institutionShort: 'UNA',
         modality: 'presencial',
         durationMonths: 60,
-        accreditation: { status: 'vigente', agency: 'ANEAES', sourceUrl: 'https://x.test', validTo: null },
+        accreditation: {
+          status: 'vigente',
+          agency: 'ANEAES',
+          sourceUrl: 'https://x.test',
+          validTo: null,
+        },
         price: {
           isDisplayable: true,
           isFree: false,

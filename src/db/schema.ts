@@ -888,6 +888,59 @@ export const becas = mysqlTable(
   ],
 );
 
+export const JOB_SOURCE = [
+  'manual',
+  'trabajo_com_py',
+  'empleos_com_py',
+  'institucion',
+  'otra',
+] as const;
+
+/**
+ * Real, dated job postings attached to a career (PR-32).
+ *
+ * This is **not** a job board. `risks.md` §R-15 warns about exactly that drift,
+ * and trabajo.com.py already exists; what this table backs is a landing page
+ * per carrera that shows a handful of real postings with their source and date
+ * and then sends the reader onward. That is why there is no application, no
+ * candidate profile and no employer account anywhere near it.
+ *
+ * Every row carries `url` and `source_url_label` because a posting we cannot
+ * attribute is a posting we may not show (CLAUDE.md rule 1), and `posted_on`
+ * because an undated vacancy is indistinguishable from one filled last year.
+ * `expires_on` drives the same predicate-not-cron expiry `becas` uses.
+ */
+export const jobPostings = mysqlTable(
+  'job_postings',
+  {
+    id: pk(),
+    careerId: int('career_id', { unsigned: true })
+      .notNull()
+      .references(() => careers.id),
+    title: varchar('title', { length: 240 }).notNull(),
+    employerName: varchar('employer_name', { length: 200 }).notNull(),
+    /** Free text: postings name a city we may not have as a row. */
+    locationLabel: varchar('location_label', { length: 160 }),
+    /** Where the posting lives. Outbound — we never host an application. */
+    url: varchar('url', { length: 512 }).notNull(),
+    source: mysqlEnum('source', JOB_SOURCE).notNull().default('manual'),
+    /** How the source is credited on the page, e.g. "trabajo.com.py". */
+    sourceLabel: varchar('source_label', { length: 120 }).notNull(),
+    postedOn: date('posted_on', { mode: 'string' }).notNull(),
+    /** When the posting stops being shown. Null = 45 days after `posted_on`. */
+    expiresOn: date('expires_on', { mode: 'string' }),
+    summary: varchar('summary', { length: 320 }),
+    status: mysqlEnum('status', PUBLICATION_STATUS).notNull().default('published'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('job_postings_career_posted_idx').on(t.careerId, t.postedOn),
+    index('job_postings_status_expires_idx').on(t.status, t.expiresOn),
+    uniqueIndex('job_postings_url_uq').on(t.url),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Provenance & ops                                                           */
 /* -------------------------------------------------------------------------- */

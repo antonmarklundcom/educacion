@@ -23,6 +23,8 @@ export interface CareerRecord {
   nameEs: string;
   levelDefault: Level;
   descriptionMd: string | null;
+  /** Qualitative only — never salary or employability figures (risks.md R-11). */
+  salidaLaboralMd: string | null;
   areaId: number | null;
   areaSlug: string | null;
   areaName: string | null;
@@ -68,6 +70,7 @@ export async function getCareerBySlug(
       nameEs: careers.nameEs,
       levelDefault: careers.levelDefault,
       descriptionMd: careers.descriptionMd,
+      salidaLaboralMd: careers.salidaLaboralMd,
       areaId: careers.areaId,
       areaSlug: areas.slug,
       areaName: areas.nameEs,
@@ -208,6 +211,9 @@ export async function listCareersByArea(
 
   return rows.map((row) => ({
     ...row,
+    // This list feeds the área hub, which renders names and counts only —
+    // `salida_laboral_md` is a detail-page field and is not selected here.
+    salidaLaboralMd: null,
     areaSlug: null,
     areaName: null,
     stats: statsById.get(row.id) ?? EMPTY_STATS,

@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/admin/facturacion', label: 'Facturación' },
   { href: '/admin/blog', label: 'Blog' },
   { href: '/admin/becas', label: 'Becas' },
+  { href: '/admin/empleos', label: 'Empleos' },
   { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 

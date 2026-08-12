@@ -26,6 +26,7 @@ import {
   SUBSCRIPTION_STATUS,
   BECA_TYPE,
   BECA_COVERAGE,
+  JOB_SOURCE,
 } from '@/db/schema';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
 
@@ -1041,6 +1042,79 @@ export function parseBecaInput(formData: FormData): ParseResult<BecaInput> {
       sourceUrl: sourceUrl ?? '',
       deadline,
       status: requireEnum(formData, 'status', PUBLICATION_STATUS, errors, 'el estado'),
+    },
+    errors,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Job postings (PR-32)                                                       */
+/* -------------------------------------------------------------------------- */
+
+export type JobSourceValue = (typeof JOB_SOURCE)[number];
+
+export interface JobPostingInput {
+  careerId: number;
+  title: string;
+  employerName: string;
+  locationLabel: string | null;
+  url: string;
+  source: JobSourceValue;
+  sourceLabel: string;
+  postedOn: string;
+  expiresOn: string | null;
+  summary: string | null;
+  status: PublicationStatus;
+}
+
+/**
+ * A posting we cannot attribute or date is one we may not show: an undated
+ * vacancy is indistinguishable from one filled last year, and an unattributed
+ * one is somebody else's content presented as ours. Both are required here,
+ * and `posted_on` may not be in the future — a "publicado mañana" row would
+ * sort to the top of every list forever.
+ */
+export function parseJobPostingInput(
+  formData: FormData,
+  today: string = new Date().toISOString().slice(0, 10),
+): ParseResult<JobPostingInput> {
+  const errors: Record<string, string> = {};
+
+  const careerId = requireInt(formData, 'careerId', errors, 'La carrera');
+  const title = requireStr(formData, 'title', errors, 'El título', 240);
+  const employerName = requireStr(formData, 'employerName', errors, 'La empresa', 200);
+  const sourceLabel = requireStr(formData, 'sourceLabel', errors, 'La fuente visible', 120);
+  const source = requireEnum(formData, 'source', JOB_SOURCE, errors, 'el origen');
+  const status = requireEnum(formData, 'status', PUBLICATION_STATUS, errors, 'el estado');
+
+  const url = optionalUrl(formData, 'url', errors, 'El enlace al aviso');
+  if (!url && !errors.url) errors.url = 'El enlace al aviso es obligatorio.';
+
+  const postedRaw = str(formData, 'postedOn');
+  const postedOn = optionalDate(formData, 'postedOn', errors, 'La fecha de publicación');
+  if (!postedRaw) errors.postedOn = 'La fecha de publicación es obligatoria.';
+  else if (postedOn && postedOn > today) {
+    errors.postedOn = 'La fecha de publicación no puede ser futura.';
+  }
+
+  const expiresOn = optionalDate(formData, 'expiresOn', errors, 'La fecha de vencimiento');
+  if (postedOn && expiresOn && expiresOn < postedOn) {
+    errors.expiresOn = 'El vencimiento no puede ser anterior a la publicación.';
+  }
+
+  return finish(
+    {
+      careerId,
+      title,
+      employerName,
+      locationLabel: optStr(formData, 'locationLabel'),
+      url: url ?? '',
+      source,
+      sourceLabel,
+      postedOn: postedOn ?? '',
+      expiresOn,
+      summary: optStr(formData, 'summary'),
+      status,
     },
     errors,
   );
