@@ -64,6 +64,13 @@
       "when": 1786535089849,
       "tag": "0008_job_postings",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1786541429905,
+      "tag": "0009_password_reset_tokens",
+      "breakpoints": true
     }
   ]
 }

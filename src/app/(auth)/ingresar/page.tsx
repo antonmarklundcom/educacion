@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { currentUser } from '@/lib/auth/session';
@@ -48,8 +49,10 @@ export default async function LoginPage({
 
       <LoginForm />
 
-      <p className="text-faint text-xs">
-        ¿Olvidaste tu contraseña? Escribinos y te ayudamos a recuperarla.
+      <p className="text-muted text-sm">
+        <Link href="/recuperar-contrasena" className="text-ink underline underline-offset-4">
+          ¿Olvidaste tu contraseña?
+        </Link>
       </p>
     </main>
   );

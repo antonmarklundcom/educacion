@@ -264,7 +264,7 @@ scopeToInstitution(user, requested?): number   // the ONLY id that may reach a W
 
 **Login answers one message for every failure.** Unknown address, wrong password, suspended account and never-set password are indistinguishable in the response — and in the _timing_: a miss verifies against a decoy hash of the same cost, because returning early on "no such user" is a user-enumeration oracle over a slow KDF.
 
-**Password reset by email is not built.** It needs a `password_reset_tokens` table and the codebase's first Resend integration, neither of which is verifiable from the environment PR-18 was written in, so shipping a half-tested credential-recovery path was the worse option. `/cambiar-contrasena` closes the loop the bootstrap opens — re-authenticate with the current password, clear the flag, re-issue the cookie — and until reset lands a locked-out user is recovered by an admin. **PR-21 must not open `/panel` to real institutions without it**; telling a university to email us for a password is acceptable for staff and not for customers.
+**Password reset by email was not built in PR-18** — it needs a `password_reset_tokens` table and a Resend integration, neither of which was verifiable from the environment that PR was written in, so shipping a half-tested credential-recovery path was the worse option. `/cambiar-contrasena` closes the loop the bootstrap opens — re-authenticate with the current password, clear the flag, re-issue the cookie — and until reset landed a locked-out user was recovered by an admin. **PR-35 closes that gap** (§25); the constraint it was blocking, "do not open `/panel` to real institutions without it", is now satisfied.
 
 **The bootstrap script cannot leave a default credential in place.** There is no default password: it generates a random one, prints it once, sets `must_change_password`, and refuses to run at all once an active admin exists — so it is the bootstrap, not a shell back door for minting admins.
 
@@ -574,19 +574,16 @@ would leave the institution recoverable only by us; and a removed member's
 says so in those words rather than implying an email is coming. That is PR-18's
 deferred password reset surfacing where a customer can feel it — see §15.4.
 
-### 15.4 The password-reset gap, restated
+### 15.4 The password-reset gap, closed in PR-35
 
 PR-18 deferred password reset by email and wrote: _"Do not ship `/panel` to real
-institutions without it."_ That still holds and this PR does not change it.
-`/panel` is built, guarded and tested; what it is not is **announced**. The
-posture is the one PR-18 already established for staff: a locked-out user is
-recovered by an admin, and the invite form says so plainly instead of promising
-a mail that never arrives.
+institutions without it."_ PR-21 did not change that, and said so here: `/panel`
+was built, guarded and tested, but not **announced**, and the invite form told
+the truth — an admin sets the password — instead of promising a mail that never
+arrived.
 
-Before the first real institution is given a login, PR-18's reset flow —
-`password_reset_tokens` plus the Resend integration — has to land. Telling a
-university to email us for a password is acceptable for staff and not for
-customers.
+**PR-35 built the flow** (§25), so the block is lifted. The invite note now
+points a new member at `/recuperar-contrasena` rather than at us.
 
 ---
 
@@ -1233,3 +1230,73 @@ caching for `/_next/static/*`, whose filenames are content-hashed. The
 homepage logo strip keeps its plain `<img>` for the reason `design-system.md`
 §14 already records; with a bucket configured, switching it to `next/image` is
 now a one-line change rather than a config discussion.
+
+---
+
+## 25. Password reset by email (settled in PR-35)
+
+The one deferral PR-18 left open, and the last thing standing between `/panel`
+and a real customer. It is credential-recovery, so every decision below is a
+security decision stated out loud rather than left in the code.
+
+### 25.1 The token is the claim token, again
+
+`password_reset_tokens (user_id, token_hash, expires_at, used_at)` — 32 random
+bytes, base64url, **stored as an unsalted SHA-256 digest** and never as
+plaintext. Same construction as §16.1 and for the same reasons: the secret is
+already 256 bits of entropy, so a salt buys nothing a dictionary attack could
+have exploited, and an unsalted digest is what makes the lookup a `UNIQUE`
+index hit instead of a table scan. A database dump therefore contains no usable
+reset link. TTL is **60 minutes**, not the claim flow's 72 hours: a claim waits
+on somebody finding the mail in a rectorate inbox, a reset is somebody sitting
+at the login screen right now.
+
+### 25.2 The request path answers the same sentence to everybody
+
+Unknown address, suspended account, address that exists — one screen, one
+wording, and **no row is written** in the first two cases. That last part is
+the property the test asserts, because a caller that minted a token for a
+suspended user would still render the same sentence and look correct in a
+browser while leaving a detectable trace. It is §7.1's uniform-failure rule
+extended from login to recovery: the two paths would otherwise disagree, and an
+enumeration oracle only needs one of them.
+
+Rate limits are per-address and per-IP (3/min, 10/hour) so the form cannot be
+turned into a mail cannon aimed at somebody else's inbox.
+
+**One bit is leaked deliberately.** When a send fails we say so — "no pudimos
+enviar el correo" — which is only reachable for an address that exists. The
+alternative is a locked-out user staring at a success screen waiting for a mail
+that is not coming, with the admin-recovery path we just removed. An operator
+can fix a mail outage they are told about.
+
+### 25.3 The link is spent by the POST, never by the GET
+
+Opening `/recuperar-contrasena/<token>` is a **read**: it renders a form or an
+honest refusal, and the page sets `referrer: 'no-referrer'` so the token does
+not walk out in a Referer header. Only submitting the new password consumes it —
+otherwise a mail scanner that prefetches links would burn every reset link in
+transit.
+
+Single-use is enforced by the database, not by the check above it:
+`UPDATE … SET used_at = NOW() WHERE id = ? AND used_at IS NULL`, and **zero
+affected rows ends the transaction before the password is touched**. The pure
+`resetTokenState()` check is a courtesy that races; the conditional update does
+not. Order inside the transaction is the guarantee: claim the token, then write
+the password, then **invalidate every other outstanding token for that user** —
+a reset is the moment to assume the older links are somewhere they should not
+be. The scrypt hash is computed *before* the transaction opens, so a deliberate
+100 ms KDF does not hold a row lock.
+
+### 25.4 A reset does not start a session
+
+Same call as §16.4: the flow ends at `/ingresar` with the new password, not at
+a logged-in browser. A second path to a session is a second path to keep
+correct forever, and the ordinary login already carries the uniform failure
+message and the decoy-hash timing defence.
+
+### 25.5 Housekeeping
+
+Spent and expired rows are deleted by the existing `purge-leads` cron rather
+than by a sixth job — a used token proves nothing and its digest is the only
+thing in the table worth not keeping.
