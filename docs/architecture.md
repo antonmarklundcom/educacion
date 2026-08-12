@@ -965,3 +965,60 @@ whether a transferencia arrived. USD figures are list price × subscriptions
 currently in force — the same predicate `resolveEntitlements` applies, so the
 spreadsheet cannot claim a customer the site is no longer honouring — and the
 guaraní figure is the sum of what was actually invoiced.
+
+---
+
+## 20. Editorial & the accreditation hub (settled in PR-30)
+
+**Posts are DB-backed, not MDX.** §1 allowed either; the deciding fact is that
+the person writing them is the operator, from a browser, and MDX would make
+every typo a git commit and a Hostinger rebuild. `posts` carries its own
+`author_name` as a string rather than a `users` reference — a byline is an
+editorial fact, and deleting a staff account must not rewrite the authorship of
+published work.
+
+**Markdown is a small subset rendered to React elements, not HTML.**
+`src/lib/content/markdown.ts` parses (pure, unit-tested) and `Markdown.tsx`
+renders. Nothing in the pipeline ever produces an HTML string, so an editorial
+body containing `<script>` is *text* by construction rather than by a
+sanitizer's configuration — which is also why no markdown or sanitizer
+dependency was added. Unsupported constructs degrade to visible text so an
+editor can see that they did not work, and a link whose scheme is neither
+relative nor `http(s)` renders as plain text, which closes `javascript:` without
+a sanitizer in the loop.
+
+**`seo.md` §7's "no orphans" rule is enforced in validation, not by
+discipline.** `parsePostInput` refuses to **publish** a post that does not link
+to at least one money page with anchor text that describes it — "acá", "click"
+and anything under four characters do not count. A draft is allowed to be
+unfinished.
+
+**Publishing stamps `published_at` once.** A later edit is an update, not a
+republication; moving the date would reorder the blog every time a typo is
+fixed. An explicit date always wins, which is what makes scheduling and
+backdating work.
+
+**The accreditation explainer lives in the page file, not in the database.**
+That is a deliberate exception to "the operator edits content without touching
+code": this text is what we assert about ANEAES and CONES, and getting it wrong
+is `risks.md` §R-09 pointed at our own foot — so it is reviewed in a diff by
+whoever merges. Career and área copy, where the risk is dullness rather than
+defamation, stays editable in `/admin`.
+
+**The checker is a GET form over `searchPrograms`.** It shows the badge we
+actually hold with its source, or says we could not verify one; it never
+answers "no acreditada" from an absence of data. Being a GET means every answer
+has a shareable URL and it works with JavaScript off.
+
+**JSON-LD starts here, deliberately small.** `src/lib/seo/jsonld.tsx` holds
+`Article` + `Person`, `BreadcrumbList` and `FAQPage` — the three the editorial
+pages need. PR-16's full SEO pack has not shipped; this is the shape it can
+extend rather than replace. The FAQ markup is generated from the same constant
+the page renders, so schema cannot drift from visible content (§5).
+
+**`/admin/areas` edits descriptions and sort order only.** Áreas are the browse
+taxonomy the matcher maps onto and their slugs are in indexed URLs, so creating,
+renaming or deleting one is a seed change, not a form field. The list shows each
+área's word count against `MIN_EDITORIAL_WORDS`, because that number is what
+decides whether its hub is `noindex` (`seo.md` §4.1) and an editor should not
+have to discover it by publishing.

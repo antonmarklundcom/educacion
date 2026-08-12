@@ -789,6 +789,42 @@ export const subscriptionReminders = mysqlTable(
   ],
 );
 
+/**
+ * Editorial posts (PR-30).
+ *
+ * DB-backed rather than MDX in the repo, for one reason: `architecture.md` §1
+ * says editorial is "MDX in-repo (Phase 4) **or** DB-backed", and the person
+ * who will write these is the operator, from a browser, without a deploy. MDX
+ * would make every typo a git commit and a Hostinger rebuild.
+ *
+ * `author_name` is a plain string and not a `users` reference: the byline on a
+ * public article is an editorial fact ("Anton Marklund"), not an account, and
+ * tying it to a login would mean a deleted staff account silently rewrites the
+ * authorship of published work.
+ */
+export const posts = mysqlTable(
+  'posts',
+  {
+    id: pk(),
+    slug: varchar('slug', { length: 160 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    /** Shown in the list and used as the meta description. */
+    excerpt: varchar('excerpt', { length: 320 }).notNull(),
+    bodyMd: text('body_md').notNull(),
+    authorName: varchar('author_name', { length: 160 }).notNull(),
+    /** One or two sentences, rendered under the byline and in `Person` JSON-LD. */
+    authorBio: varchar('author_bio', { length: 320 }),
+    status: mysqlEnum('status', PUBLICATION_STATUS).notNull().default('draft'),
+    publishedAt: timestamp('published_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('posts_slug_uq').on(t.slug),
+    index('posts_status_published_idx').on(t.status, t.publishedAt),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Provenance & ops                                                           */
 /* -------------------------------------------------------------------------- */
