@@ -132,7 +132,6 @@ rather than leaving code and document disagreeing.
 |---|---|---|---|
 | Datos de contacto de cada solicitud (`lead_contacts`) | — | ✓ | ✓ |
 | Insignia "Perfil verificado" (`verified_badge`) | — | ✓ | ✓ |
-| Perfil ampliado: logo, fotos, video, descripción larga (`enhanced_profile`) | — | ✓ | ✓ |
 | Ubicación destacada, siempre etiquetada (`priority_placement`) | — | — | ✓ |
 | Estadísticas completas (`analytics_full`) | — | ✓ | ✓ |
 | Reporte mensual exportable (`monthly_report`) | — | ✓ | ✓ |
@@ -141,6 +140,21 @@ An institution holding Verificado *and* Destacado gets the **union**, which is
 what an add-on means. `plans.features_json` is descriptive only — a typo in a
 JSON blob must never be able to switch a paid feature off for a paying
 customer.
+
+### Correction 0 — there is no "perfil ampliado" feature (removed in PR-27)
+
+PR-25 declared `enhanced_profile` for "logo, fotos, video y descripción larga",
+straight from §3. PR-27 went to implement it and found nothing to gate: photos
+and video have no columns, no upload path and no panel screen anywhere in the
+product, and the logo and the description are **already rendered for every
+institution**. Gating those would mean either hiding public information from
+students or telling an institution "you may write this and we will not show
+it" — both worse products than the one we have.
+
+So the key is gone rather than shipped as an empty row on a price table. It
+comes back the day institution media exists, with the migration that creates
+it. Until then Verificado sells the badge, the lead inbox, the statistics and
+the report, which are all real.
 
 ### Correction 1 — editing your own data is **not** a paid feature
 

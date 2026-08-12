@@ -36,6 +36,7 @@ import {
 } from '@/lib/search';
 
 import { AccreditationBadge } from './AccreditationBadge';
+import { DestacadoBadge, VerifiedBadge, NO_PLACEMENT, type PlacementFlags } from './PlanBadges';
 import { EnrollmentBadge } from './EnrollmentBadge';
 import { InstitutionMonogram } from './InstitutionMonogram';
 import { PriceLabel } from './PriceLabel';
@@ -45,9 +46,15 @@ export interface ResultCardProps {
   offering: OfferingSummary;
   /** The institution's published WhatsApp number, when it has one. */
   whatsappE164?: string | null;
+  /**
+   * The institution's plan marks, read live by the page (PR-27). Absent means
+   * the free baseline — a card never infers a paid placement from
+   * `offering.planRank`, which is a nightly-refreshed copy.
+   */
+  placement?: PlacementFlags;
 }
 
-export function ResultCard({ offering, whatsappE164 }: ResultCardProps) {
+export function ResultCard({ offering, whatsappE164, placement = NO_PLACEMENT }: ResultCardProps) {
   const href = offeringHref(offering);
 
   return (
@@ -69,12 +76,18 @@ export function ResultCard({ offering, whatsappE164 }: ResultCardProps) {
               {offering.programName}
             </Link>
           </h3>
-          <p className="text-muted mt-0.5 text-sm">{offering.institutionShort}</p>
+          <p className="text-muted mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+            {offering.institutionShort}
+            {placement.verified && <VerifiedBadge />}
+          </p>
         </div>
-        <EnrollmentBadge
-          status={offering.enrollmentStatus}
-          className="hidden shrink-0 sm:inline-flex"
-        />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {placement.destacado && <DestacadoBadge />}
+          <EnrollmentBadge
+            status={offering.enrollmentStatus}
+            className="hidden shrink-0 sm:inline-flex"
+          />
+        </div>
       </div>
 
       <dl className="text-body mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">

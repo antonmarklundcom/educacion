@@ -20,6 +20,7 @@ import {
   EmptyState,
   FilterRail,
   MobileFilterSheet,
+  PlacementDisclosure,
   ResultCard,
   ResultTable,
   SearchBar,
@@ -27,10 +28,12 @@ import {
   ViewToggle,
 } from '@/components/browse';
 import { countActiveFilters } from '@/components/browse/filter-model';
+import type { PlacementFlags } from '@/components/browse';
 import { CompareBar } from '@/components/compare/CompareBar';
 import { CompareProvider } from '@/components/compare/CompareProvider';
 import { compareLabel, parseCompareIds } from '@/lib/compare/state';
 import { getWhatsappNumbers } from '@/lib/institutions';
+import { getPlacementFlags } from '@/lib/entitlements';
 import { Pagination } from '@/components/ui';
 import {
   COMPARE_PARAM,
@@ -93,10 +96,24 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
   // number's correctness to the nightly rebuild (architecture.md §6.2). One
   // query for the institutions on this page, keyed by ids the rows already
   // carry; never one query per row.
-  const whatsappNumbers =
+  const institutionIds = results.map((offering) => offering.institutionId);
+
+  // The plan marks are read live rather than from `offering.planRank`, which is
+  // a nightly-refreshed copy: ordering can be a few hours stale, a label about
+  // a commercial relationship may not be (architecture.md §17). One query per
+  // page, keyed by the ids the rows already carry — the §6.2 shape again.
+  const [whatsappNumbers, placements] = await Promise.all([
     view === 'tabla' || results.length === 0
-      ? new Map<number, string>()
-      : await getWhatsappNumbers(results.map((offering) => offering.institutionId));
+      ? Promise.resolve(new Map<number, string>())
+      : getWhatsappNumbers(institutionIds),
+    results.length === 0
+      ? Promise.resolve(new Map<number, PlacementFlags>())
+      : getPlacementFlags(institutionIds),
+  ]);
+
+  const hasPaidPlacement = results.some(
+    (offering) => placements.get(offering.institutionId)?.destacado,
+  );
 
   const totalPages = Math.ceil(total / pageSize);
   const activeCount = countActiveFilters(filters);
@@ -159,6 +176,7 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
                     sort={sort}
                     basePath={BASE_PATH}
                     extra={extra}
+                    placements={placements}
                   />
                 ) : (
                   results.map((offering) => (
@@ -166,9 +184,11 @@ export default async function CarrerasPage({ searchParams }: { searchParams: Sea
                       key={offering.offeringId}
                       offering={offering}
                       whatsappE164={whatsappNumbers.get(offering.institutionId) ?? null}
+                      placement={placements.get(offering.institutionId)}
                     />
                   ))
                 )}
+                {hasPaidPlacement && <PlacementDisclosure className="text-faint mt-1 text-xs" />}
                 <Pagination
                   className="mt-2 justify-center"
                   currentPage={page}

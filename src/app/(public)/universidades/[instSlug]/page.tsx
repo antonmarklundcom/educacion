@@ -25,6 +25,7 @@ import {
   ResultCard,
   SortControl,
   countActiveFilters,
+  VerifiedBadge,
 } from '@/components/browse';
 import { EventBeacon } from '@/components/analytics';
 import { AccreditationSummary } from '@/components/institution/AccreditationSummary';
@@ -32,6 +33,7 @@ import { ClaimCta } from '@/components/institution/ClaimCta';
 import { ContactBlock } from '@/components/institution/ContactBlock';
 import { Badge, Pagination } from '@/components/ui';
 import { getInstitutionBySlug } from '@/lib/institutions';
+import { getPlacementFlags } from '@/lib/entitlements';
 import {
   INSTITUTION_TYPE_LABELS,
   MANAGEMENT_LABELS,
@@ -85,6 +87,10 @@ export default async function InstitutionPage({
   const totalPages = Math.ceil(total / pageSize);
   const activeCount = countActiveFilters(railFilters);
 
+  // One institution, so one lookup — and it is a live read, not
+  // `program_search.plan_rank` (architecture.md §17).
+  const placement = (await getPlacementFlags([institution.id])).get(institution.id);
+
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
       {/* Browser-reported, for the same reason as the program page's. */}
@@ -100,9 +106,20 @@ export default async function InstitutionPage({
             <h1 className="text-ink text-xl leading-tight font-bold lg:text-2xl">
               {institution.nameOfficial}
             </h1>
-            <p className="text-muted mt-1 text-sm">{institution.nameShort}</p>
+            <p className="text-muted mt-1 flex flex-wrap items-center gap-2 text-sm">
+              {institution.nameShort}
+              {placement?.verified && <VerifiedBadge />}
+            </p>
           </div>
         </div>
+
+        {placement?.verified && (
+          <p className="text-muted max-w-prose text-sm">
+            Esta institución mantiene su perfil desde su propia cuenta: los datos que cargó los
+            cargó ella. La acreditación y la habilitación siguen saliendo de la ANEAES y del CONES,
+            con su fuente, y ningún plan las cambia.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="neutral">{MANAGEMENT_LABELS[institution.management]}</Badge>
@@ -154,6 +171,9 @@ export default async function InstitutionPage({
                 <ResultCard
                   key={offering.offeringId}
                   offering={offering}
+                  /* Every card here belongs to this institution, so the one
+                     lookup above answers for all of them. */
+                  placement={placement}
                   /* This page already loaded the profile, so the number is in
                      hand — no extra query, and no card here missing the CTA
                      its twin on /carreras has. */

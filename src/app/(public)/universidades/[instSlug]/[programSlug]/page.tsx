@@ -26,6 +26,7 @@ import {
   AccreditationBadge,
   EnrollmentBadge,
   InstitutionMonogram,
+  VerifiedBadge,
   careerHref,
   institutionHref,
   priceDisplay,
@@ -39,6 +40,7 @@ import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
 import { Badge } from '@/components/ui';
 import { getInstitutionBySlug } from '@/lib/institutions';
+import { getPlacementFlags } from '@/lib/entitlements';
 import { formatDurationMonths } from '@/lib/format';
 import { findProgramOfferings, findRelatedOfferings } from '@/lib/programs/lookup';
 import {
@@ -94,7 +96,7 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
   if (!primary) notFound();
 
-  const [related, institution] = await Promise.all([
+  const [related, institution, placements] = await Promise.all([
     findRelatedOfferings(primary),
     // The WhatsApp number lives on `institutions`, not on the index — one value
     // per institution against ~10k offerings, and a number corrected in the
@@ -102,7 +104,11 @@ export default async function ProgramPage({ params }: { params: Params }) {
     // (architecture.md §6.2). This page already reads one institution, so the
     // cost is one query and the number is always current.
     getInstitutionBySlug(instSlug),
+    // The badge is a claim about a commercial relationship *now*, so it is read
+    // live rather than from `primary.planRank` (architecture.md §17).
+    getPlacementFlags([primary.institutionId]),
   ]);
+  const placement = placements.get(primary.institutionId);
 
   // Secondary since PR-14: it pre-selects this program in the comparador and
   // lands on the table view scoped to the same carrera. The primary slot now
@@ -159,12 +165,15 @@ export default async function ProgramPage({ params }: { params: Params }) {
             <h1 className="text-ink text-xl leading-tight font-bold lg:text-2xl">
               {primary.programName}
             </h1>
-            <Link
-              href={institutionHref(primary.institutionSlug)}
-              className="text-body hover:text-ink mt-1 block text-sm underline underline-offset-2"
-            >
-              {primary.institutionName}
-            </Link>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Link
+                href={institutionHref(primary.institutionSlug)}
+                className="text-body hover:text-ink text-sm underline underline-offset-2"
+              >
+                {primary.institutionName}
+              </Link>
+              {placement?.verified && <VerifiedBadge />}
+            </div>
           </div>
         </div>
 

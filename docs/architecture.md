@@ -807,3 +807,40 @@ blocked by the state of the profile.
 **What a plan gates, and the two places `monetization.md` §3 was wrong, are in
 `monetization.md` §7** — editing your own data is free for everybody, and the
 lead *delivery email* is never gated because the consent text promises it.
+
+### 17.1 What PR-27 settled — labels are live, ordering is indexed
+
+`plan_rank` in `program_search` decides **order**; `getPlacementFlags(ids)`
+decides **labels**, live, one query per page keyed by the institution ids the
+rows already carry (the §6.2 shape). The split is the point: a few hours of
+staleness in a tiebreaker is invisible, while a stale label would tell a
+student a placement is paid when it is not — or hide that it is. Nothing in
+the label path reads `planRank`, which `placement.test.ts` pins with a
+subscription that is cancelled but still carries rank 2.
+
+**The ordering guarantees were already built and tested in PR-07** (§4.1:
+`plan_rank` is appended after the user's sort key, always) and PR-27 changed
+none of it. `engine.test.ts` asserts both halves — a Destacado row never jumps
+ahead of a cheaper one under `arancel_asc`, and `plan_rank` never pulls a row
+into a filtered set it does not belong in.
+
+**"Perfil verificado" says something narrow and true**: somebody at the
+institution has an account here and maintains this profile. It deliberately
+says nothing about accreditation, quality or price — conflating the badge we
+*sell* with the badge we *cite* would be selling the wedge itself. The
+institution profile spells that out in a sentence under the badge.
+
+**The disclosure line renders only when a paid placement is on the page.** A
+permanent notice about advertising on a page with no advertising teaches people
+to skip the notice.
+
+**`enhanced_profile` was removed from the feature matrix**, not implemented:
+there is nothing to gate until institution media exists. `monetization.md` §7
+carries the reasoning.
+
+**Area-page banner placements are not built.** `pr-plan.md` PR-27 mentions
+them; they need a placement table (which institution is destacado in which
+área, for which period) that no schema has, and inventing one to satisfy a
+line item would be a second, parallel way to sell placement alongside the
+subscription. Destacado today is exactly what §17 defines: a labelled
+tiebreaker wherever results appear.

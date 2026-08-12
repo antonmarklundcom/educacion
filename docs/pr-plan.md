@@ -239,6 +239,15 @@ Two things the page states that are worth having in writing: the free tier still
 "Perfil verificado" badge, enhanced profile blocks (photos, video, longer description), `plan_rank` ordering in search results with a **visible "Destacado" label**, area-page placements.
 **Deps:** PR-25, PR-07.
 **Accept:** paid placement is always visibly labelled; default sort remains relevance-based with `plan_rank` as a tiebreaker only — never overriding a filter the user set; disclosure line present on results pages.
+**Shipped as:** the badge, the label and the disclosure, plus **one feature removed from the plan rather than faked**. `architecture.md` §17.1 has the detail.
+
+`plan_rank` orders; `getPlacementFlags(ids)` labels — live, one query per results page. A label is a claim about a commercial relationship at the moment the page renders, and `program_search.plan_rank` is a nightly-refreshed copy; nothing in the label path reads it, which `placement.test.ts` pins with a cancelled subscription that still carries rank 2. The ordering half needed no work: PR-07 built `plan_rank` as a trailing tiebreaker and `engine.test.ts` already asserts that a Destacado row never jumps ahead of a cheaper one and never enters a filtered set it does not belong in.
+
+**`enhanced_profile` is gone from the feature matrix.** PR-25 declared it for "logo, fotos, video y descripción larga"; there is no media schema, no upload path and no panel screen for any of that, and the logo and description are already shown for every institution — so the only ways to "gate" it were to hide public information from students or to tell an institution we would not display what it wrote. An empty row on a price table is a promise we cannot keep, so the key was removed and comes back with the migration that creates institution media (`monetization.md` §7, correction 0).
+
+**Area-page banner placements are not built**, and deliberately: they need a placement table (which institution, which área, which period) that no schema has, and building one would create a second way to sell placement alongside the subscription. Destacado is a labelled tiebreaker wherever results appear.
+
+**This PR is marked Sonnet → Opus review and had neither.** It was written by the same Opus session that wrote PR-25, which is also the only reviewer it got — so the review that is supposed to catch a money-and-presentation PR's mistakes was performed by its own author. Treat the entitlement→label path and the disclosure wording as unreviewed until a second pass happens.
 
 ### PR-28 — Institution analytics dashboard · **Sonnet**
 
