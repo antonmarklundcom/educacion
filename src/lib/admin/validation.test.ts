@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  parseAdminUserInput,
   parseCampusInput,
   parseCareerInput,
   parseInstitutionInput,
@@ -191,5 +192,45 @@ describe('parseOfferingInput', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.planUrl).toBeDefined();
+  });
+});
+
+describe('parseAdminUserInput', () => {
+  it('accepts an institution account with its institution', () => {
+    const result = parseAdminUserInput(
+      fd({ email: 'Ana@UNI.edu.py', name: 'Ana', role: 'institution_admin', institutionId: '9' }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.email).toBe('ana@uni.edu.py');
+      expect(result.data.institutionId).toBe(9);
+    }
+  });
+
+  it('rejects an institution role with no institution', () => {
+    const result = parseAdminUserInput(fd({ email: 'ana@uni.edu.py', role: 'institution_editor' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.institutionId).toBeDefined();
+  });
+
+  /** A staff account scoped to one institution is a question nobody answered. */
+  it('rejects a staff role carrying an institution', () => {
+    const result = parseAdminUserInput(
+      fd({ email: 'staff@educacion.com.py', role: 'editor', institutionId: '9' }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.institutionId).toBeDefined();
+  });
+
+  it('rejects a role that is not one of ours', () => {
+    const result = parseAdminUserInput(fd({ email: 'a@b.com', role: 'superadmin' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.role).toBeDefined();
+  });
+
+  it('rejects an address that is not one', () => {
+    const result = parseAdminUserInput(fd({ email: 'sin-arroba', role: 'editor' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.email).toBeDefined();
   });
 });

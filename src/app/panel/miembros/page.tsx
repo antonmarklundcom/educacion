@@ -72,7 +72,7 @@ export default async function PanelMembersPage() {
             <PanelForm
               action={inviteMemberAction}
               submitLabel="Agregá a esta persona"
-              note="La persona entra pidiendo su contraseña desde “¿Olvidaste tu contraseña?” en la pantalla de ingreso: le llega un enlace a este mismo correo y elige la suya. No le mandamos una contraseña por mail."
+              note="La persona entra pidiendo su contraseña desde “¿Olvidaste tu contraseña?” en la pantalla de ingreso: le llega un enlace a este mismo correo y elige la suya. Nunca mandamos una contraseña por mail. Si el correo no le llega, escribinos y te pasamos un enlace directo."
             >
               <label className="text-body flex flex-col gap-1.5 text-sm font-medium">
                 Correo

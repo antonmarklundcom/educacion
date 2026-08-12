@@ -366,6 +366,17 @@ This PR needs migration `0009_password_reset_tokens.sql`, which — like every m
 
 The one deliberate leak: a **send failure** is reported to the user, which is only reachable for an address that exists. The alternative is a locked-out person watching a success screen for a mail that is not coming, now that admin recovery is no longer the fallback.
 
+### PR-36 — Accounts & onboarding without email · **Opus**
+
+`/admin/usuarios`: create an account, issue a one-time access link, suspend and reactivate.
+**Deps:** PR-35.
+**Accept:** admin-only, asserted against `editor` with a write canary; an account is created inert (no password, `status='invited'`); the link is the PR-35 token, digest at rest, shown once and never logged; issuing one invalidates the previous; no link for a suspended account and suspending kills every outstanding one; an admin cannot suspend themselves.
+**Shipped as:** as specified. `architecture.md` §26. No schema change — it reuses `password_reset_tokens`.
+
+**Why it exists:** PR-35 closed the deferral but left every route into an account running through a mailbox — claims mail a token, reset mails a link, and the bootstrap script mints one staff account and then refuses to run again. With Resend unconfigured, nobody could onboard a single institution. This is the door that does not touch the network: the admin generates the link and hands it over by WhatsApp.
+
+The link's TTL is **72 h, not the self-service hour**, because a member of staff verified who they are handing it to and the channel is not an inbox. Everything else about the token is identical, deliberately — one implementation of single-use, one redemption page.
+
 ---
 
 ## Summary
@@ -377,7 +388,7 @@ The one deliberate leak: a **send failure** is reported to the user, which is on
 | 2 — Backend & portal | 18–24 | 7      | 3      | 1      | 3                    |
 | 3 — Monetization     | 25–29 | 5      | 1      | 2      | 2                    |
 | 4 — Depth & growth   | 30–34 | 5      | 2      | 3      | 0                    |
-| 5 — Closing PR-18    | 35    | 1      | 1      | 0      | 0                    |
-| **Total**            |       | **35** | **12** | **15** | **8**                |
+| 5 — Closing PR-18    | 35–36 | 2      | 2      | 0      | 0                    |
+| **Total**            |       | **36** | **13** | **15** | **8**                |
 
-Sonnet writes **23 of 35 PRs (66%)** and, weighted by lines of code, closer to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's. Opus owns the 12 PRs where a wrong decision is expensive to unwind, and reviews the 8 that touch data integrity, PII, access control or money.
+Sonnet writes **23 of 36 PRs (64%)** and, weighted by lines of code, closer to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's. Opus owns the 13 PRs where a wrong decision is expensive to unwind, and reviews the 8 that touch data integrity, PII, access control or money.
