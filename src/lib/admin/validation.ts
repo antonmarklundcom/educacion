@@ -24,6 +24,8 @@ import {
   SHIFT,
   INSTITUTION_TYPE,
   SUBSCRIPTION_STATUS,
+  BECA_TYPE,
+  BECA_COVERAGE,
 } from '@/db/schema';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
 
@@ -933,4 +935,113 @@ export function parseAreaInput(formData: FormData): ParseResult<AreaInput> {
   }
 
   return finish({ nameEs, descriptionMd: optStr(formData, 'descriptionMd'), sortOrder }, errors);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Becas (PR-31)                                                              */
+/* -------------------------------------------------------------------------- */
+
+export type BecaTypeValue = (typeof BECA_TYPE)[number];
+export type BecaCoverageValue = (typeof BECA_COVERAGE)[number];
+
+export interface BecaInput {
+  slug: string | null;
+  title: string;
+  institutionId: number | null;
+  providerName: string | null;
+  areaId: number | null;
+  type: BecaTypeValue;
+  coverage: BecaCoverageValue;
+  amountPyg: number | null;
+  percentage: number | null;
+  summary: string;
+  detailsMd: string | null;
+  requirementsMd: string | null;
+  applyUrl: string | null;
+  sourceUrl: string;
+  deadline: string | null;
+  status: PublicationStatus;
+}
+
+/**
+ * The anti-fabrication rule, as a form (CLAUDE.md rule 1).
+ *
+ * A beca is money somebody is promising a student, so:
+ *
+ * - **`source_url` is required**, always, draft or not. The column is NOT NULL
+ *   for the same reason; this is the message a human reads instead of a MySQL
+ *   error.
+ * - **The amount has to match the coverage.** "Cubre el 100%" with a guaraní
+ *   figure attached, or "cubre una parte" with no percentage, are two different
+ *   ways of publishing a number nobody stated. The database has the same rule
+ *   as a CHECK; this is where it gets explained.
+ * - **A provider is required**: either an institution from our index or a name
+ *   typed by hand. "Hay una beca" without saying whose is not information.
+ */
+export function parseBecaInput(formData: FormData): ParseResult<BecaInput> {
+  const errors: Record<string, string> = {};
+
+  const title = requireStr(formData, 'title', errors, 'El título', 240);
+  const summary = requireStr(formData, 'summary', errors, 'El resumen', 320);
+  const type = requireEnum(formData, 'type', BECA_TYPE, errors, 'el tipo');
+  const coverage = requireEnum(formData, 'coverage', BECA_COVERAGE, errors, 'la cobertura');
+  const slug = optionalSlug(formData, 'slug', errors);
+  const deadline = optionalDate(formData, 'deadline', errors, 'La fecha límite');
+  const applyUrl = optionalUrl(formData, 'applyUrl', errors, 'El enlace para postularse');
+
+  const sourceUrl = optionalUrl(formData, 'sourceUrl', errors, 'La fuente');
+  if (!sourceUrl && !errors.sourceUrl) {
+    errors.sourceUrl =
+      'La fuente es obligatoria: publicamos una beca solo si podemos mostrar de dónde la sacamos.';
+  }
+
+  const institutionId = optInt(formData, 'institutionId', errors, 'La institución');
+  const providerName = optStr(formData, 'providerName');
+  if (institutionId == null && !providerName) {
+    errors.providerName = 'Decí quién da la beca: elegí una institución o escribí el nombre.';
+  }
+
+  const amountPyg = optionalMoney(formData, 'amountPyg', errors, 'El monto');
+  const percentageRaw = str(formData, 'percentage');
+  const percentage = percentageRaw === '' ? null : Number(percentageRaw);
+  if (percentage != null && (!Number.isInteger(percentage) || percentage < 1 || percentage > 99)) {
+    errors.percentage = 'El porcentaje tiene que ser un entero entre 1 y 99.';
+  }
+
+  if (coverage === 'monto_fijo' && amountPyg == null) {
+    errors.amountPyg = 'Elegiste “monto fijo”: poné el monto en guaraníes.';
+  }
+  if (coverage === 'parcial' && percentage == null) {
+    errors.percentage = 'Elegiste “parcial”: poné qué porcentaje cubre.';
+  }
+  if (coverage !== 'monto_fijo' && amountPyg != null) {
+    errors.amountPyg =
+      'Solo una beca de “monto fijo” lleva un monto. Sacalo o cambiá la cobertura.';
+  }
+  if (coverage !== 'parcial' && percentage != null) {
+    errors.percentage =
+      'Solo una beca “parcial” lleva un porcentaje. Sacalo o cambiá la cobertura.';
+  }
+
+  return finish(
+    {
+      slug,
+      title,
+      institutionId,
+      providerName,
+      areaId: optInt(formData, 'areaId', errors, 'El área'),
+      type,
+      coverage,
+      amountPyg,
+      percentage,
+      summary,
+      detailsMd: optStr(formData, 'detailsMd'),
+      requirementsMd: optStr(formData, 'requirementsMd'),
+      applyUrl,
+      sourceUrl: sourceUrl ?? '',
+      deadline,
+      status: requireEnum(formData, 'status', PUBLICATION_STATUS, errors, 'el estado'),
+    },
+    errors,
+  );
 }

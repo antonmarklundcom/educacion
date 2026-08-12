@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 
+import { listBecaSlugs } from '@/db/queries/becas';
 import { listPublishedPostSlugs } from '@/db/queries/posts';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
@@ -37,12 +38,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   try {
-    const posts = await listPublishedPostSlugs();
+    const [posts, becas] = await Promise.all([listPublishedPostSlugs(), listBecaSlugs()]);
     return [
       ...base,
       ...posts.map((post) => ({
         url: `${siteUrl}/blog/${post.slug}`,
         lastModified: post.updatedAt,
+      })),
+      // Open becas only: `listBecaSlugs` applies the same deadline predicate the
+      // listing does, so a closed convocatoria leaves the sitemap the day it
+      // closes rather than inviting a crawl to a page that says "ya cerró".
+      ...becas.map((beca) => ({
+        url: `${siteUrl}/becas/${beca.slug}`,
+        lastModified: beca.updatedAt,
       })),
     ];
   } catch {

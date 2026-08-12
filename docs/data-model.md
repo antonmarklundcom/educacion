@@ -283,6 +283,21 @@ activity_log
   // user_id is NULL for an automated write (PR-29's past-due sweep). No
   // "system user" row: it would be indistinguishable from staff in a report.
 
+becas              // PR-31 — real, sourced scholarships only
+  id, slug, title, institution_id?, provider_name?, area_id?,
+  type enum('institucional','estatal','privada','internacional'),
+  coverage enum('total','parcial','monto_fijo','sin_datos'),
+  amount_pyg?, percentage?, summary, details_md?, requirements_md?,
+  apply_url?, source_url, deadline?, verified_at?, verified_by_user_id?,
+  status, created_at, updated_at
+  UNIQUE (slug), INDEX (status, deadline), INDEX (institution_id), INDEX (area_id)
+  // source_url is NOT NULL: a beca is money somebody is promising a student,
+  // and an unsourced one is the most damaging thing this site could publish.
+  // CHECK ties the amount to the coverage — a "cubre el 100%" row cannot also
+  // carry a guaraní figure, and a "parcial" row cannot omit its percentage.
+  // Expiry is a query predicate, not a job: a beca past its deadline stops
+  // being listed the same day, with no cron in the loop.
+
 posts              // editorial, DB-backed so the operator publishes without a deploy (PR-30)
   id, slug, title, excerpt, body_md, author_name, author_bio?,
   status enum('draft','published','archived'), published_at?, created_at, updated_at
