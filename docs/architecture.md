@@ -844,3 +844,59 @@ them; they need a placement table (which institution is destacado in which
 line item would be a second, parallel way to sell placement alongside the
 subscription. Destacado today is exactly what §17 defines: a labelled
 tiebreaker wherever results appear.
+
+---
+
+## 18. The institution analytics dashboard (settled in PR-28)
+
+`/panel/estadisticas`, and the monthly report a renewal conversation is built
+on.
+
+**Every number is reconcilable, and where they can disagree the page says
+which one wins.** Vistas, clics a WhatsApp and apariciones en el comparador
+come from `events`; **solicitudes come from `leads`**, not from the
+`lead_submit` event. Those two can differ — a lead is a row that exists and can
+be answered, the event is a count of a page action — and when they do, the row
+is the truth, because it is also the number the institution can check against
+its own inbox. Views stay browser-reported (§12), so the number survives being
+questioned; an undercount is honest, an overcount is not.
+
+**`compare_add` needs a join, and that is a consequence of §12.** The event
+carries only an offering id, because `CompareLabel` (persisted to
+`localStorage` by PR-09) has no institution on it. `countCompareAppearances`
+resolves the institution by joining `program_search` — the same table the
+comparador reads, so a row that could be compared is a row that can be counted.
+
+**Month-over-month means two different things and both are implemented.** A
+rolling window (7/30/90 days) compares against the equally long window
+immediately before it. The **monthly report compares against the previous
+calendar month**, not the previous 31 days: July back-shifted by its own length
+lands on 31 May and counts a day of May as June. `analyticsForRange` therefore
+takes the comparison range explicitly rather than deriving it, and
+`analytics.access.test.ts` pins both.
+
+**A percentage change from zero is not reported.** `deltaPct` returns null when
+the previous period was zero and the UI says "sin base de comparación" — "up
+100%" from nothing is arithmetic dressed as a result, and the first month of
+every institution's data would be full of them.
+
+**PDF is the browser's print dialog, deliberately.** The alternatives were
+`puppeteer` (a second Chromium on a shared Hostinger slot) or a PDF layout
+library (a second layout engine to keep in sync with the page forever). The
+report page is designed to print instead: `print:hidden` on the shell,
+single-column layout, selectable text, working links. One layout, one set of
+numbers, no dependency.
+
+**The free tier sees the four totals and the comparison; the per-carrera
+breakdown, the daily series and the export need a plan.** The gate is
+`getEntitlements` inside `db/queries/panel/analytics.ts`, and
+`panelMonthlyReport` asserts `monthly_report` itself — the CSV route and the
+printable page both read that one function, so a check in either would leave
+the other open.
+
+**No function in this module takes an institution id.** The scope comes from
+`panelInstitutionId(user)` and nowhere else, which is what
+`analytics.access.test.ts` asserts: it records every parameter that reaches the
+database and fails if another institution's id ever appears in one, or if the
+session's own id is missing — the PR-21/PR-23 shape, aimed at the query
+parameters rather than at an error message.

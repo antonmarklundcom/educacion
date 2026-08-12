@@ -19,13 +19,21 @@ describe('disputes admin surface requires editor', () => {
 
   it('listOpenDisputes refuses an institution session', async () => {
     await expect(
-      listOpenDisputes({ id: 1, role: 'institution_admin', institutionId: 1, mustChangePassword: false }),
+      listOpenDisputes({
+        id: 1,
+        role: 'institution_admin',
+        institutionId: 1,
+        mustChangePassword: false,
+      }),
     ).rejects.toThrow(AuthError);
   });
 
   it('getDispute refuses without a staff role', async () => {
     await expect(
-      getDispute({ id: 1, role: 'institution_editor', institutionId: 1, mustChangePassword: false }, 1),
+      getDispute(
+        { id: 1, role: 'institution_editor', institutionId: 1, mustChangePassword: false },
+        1,
+      ),
     ).rejects.toThrow(AuthError);
   });
 

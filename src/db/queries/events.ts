@@ -17,7 +17,7 @@
 import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
-import { events } from '@/db/schema';
+import { events, programSearch } from '@/db/schema';
 import type { EVENT_TYPE } from '@/db/schema';
 
 export type EventType = (typeof EVENT_TYPE)[number];
@@ -151,4 +151,98 @@ export async function countEventsByInstitution(
   return rows
     .filter((row) => row.institutionId != null)
     .map((row) => ({ institutionId: Number(row.institutionId), events: Number(row.events) }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Institution-scoped aggregates (PR-28)                                      */
+/* -------------------------------------------------------------------------- */
+
+export interface EventOfferingCount {
+  offeringId: number;
+  events: number;
+}
+
+/**
+ * Events of one type, per offering, **for one institution**.
+ *
+ * `institutionId` is a required parameter and there is no overload without it,
+ * which is the same shape `listLeadsForInstitution` uses (`architecture.md`
+ * §6.3): an unscoped per-programme breakdown cannot be written by accident
+ * because the function to write it does not exist.
+ */
+export async function countEventsByOffering(
+  range: EventRange,
+  institutionId: number,
+  type: EventType,
+  database: Db = defaultDb,
+): Promise<EventOfferingCount[]> {
+  const rows = await database
+    .select({ offeringId: events.offeringId, events: sql<number>`count(*)` })
+    .from(events)
+    .where(
+      and(rangeWhere(range, institutionId), eq(events.type, type), isNotNull(events.offeringId)),
+    )
+    .groupBy(events.offeringId)
+    .orderBy(desc(sql`count(*)`));
+
+  return rows
+    .filter((row) => row.offeringId != null)
+    .map((row) => ({ offeringId: Number(row.offeringId), events: Number(row.events) }));
+}
+
+/**
+ * `compare_add` for one institution — the "apareció en el comparador" number.
+ *
+ * It needs a join, and the reason is `architecture.md` §12: a `compare_add`
+ * event carries **only** an offering id, because the client structure it is
+ * written from (`CompareLabel`, persisted to `localStorage` by PR-09) has no
+ * institution on it, and widening a persisted client structure for an
+ * analytics need was the wrong trade. So the institution is resolved here, by
+ * joining the offering to `program_search` — the same table the comparador
+ * itself reads, so a row that could be compared is a row that can be counted.
+ */
+export async function countCompareAppearances(
+  range: EventRange,
+  institutionId: number,
+  database: Db = defaultDb,
+): Promise<number> {
+  const [row] = await database
+    .select({ events: sql<number>`count(*)` })
+    .from(events)
+    .innerJoin(programSearch, eq(programSearch.offeringId, events.offeringId))
+    .where(
+      and(
+        gte(events.createdAt, range.since),
+        lt(events.createdAt, range.until),
+        eq(events.type, 'compare_add'),
+        eq(programSearch.institutionId, institutionId),
+      ),
+    );
+  return Number(row?.events ?? 0);
+}
+
+/** `compare_add` per offering, for one institution. Same join, same reason. */
+export async function countCompareAppearancesByOffering(
+  range: EventRange,
+  institutionId: number,
+  database: Db = defaultDb,
+): Promise<EventOfferingCount[]> {
+  const rows = await database
+    .select({ offeringId: events.offeringId, events: sql<number>`count(*)` })
+    .from(events)
+    .innerJoin(programSearch, eq(programSearch.offeringId, events.offeringId))
+    .where(
+      and(
+        gte(events.createdAt, range.since),
+        lt(events.createdAt, range.until),
+        eq(events.type, 'compare_add'),
+        eq(programSearch.institutionId, institutionId),
+      ),
+    )
+    .groupBy(events.offeringId)
+    .orderBy(desc(sql`count(*)`));
+
+  return rows
+    .filter((row) => row.offeringId != null)
+    .map((row) => ({ offeringId: Number(row.offeringId), events: Number(row.events) }));
 }

@@ -15,11 +15,7 @@ import { currentUser } from '@/lib/auth/session';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-export default async function PanelLeadDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PanelLeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const leadId = Number(id);
   if (!Number.isInteger(leadId) || leadId <= 0) notFound();
@@ -77,8 +73,8 @@ export default async function PanelLeadDetailPage({
             </dl>
           ) : (
             <p className="border-warn/40 bg-warn-bg text-body rounded-md border px-4 py-3 text-sm">
-              Tu plan actual no incluye el contacto de esta persona. Escribinos si querés pasar a
-              un plan que lo incluya.
+              Tu plan actual no incluye el contacto de esta persona. Escribinos si querés pasar a un
+              plan que lo incluya.
             </p>
           )}
 

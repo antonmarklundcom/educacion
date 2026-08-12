@@ -176,7 +176,9 @@ export async function fileAccreditationDispute(
     )
     .limit(1);
   if (existingOpen) {
-    throw new Error('Ya hay una disputa abierta para este registro. Te avisamos cuando la resolvamos.');
+    throw new Error(
+      'Ya hay una disputa abierta para este registro. Te avisamos cuando la resolvamos.',
+    );
   }
 
   await database.transaction(async (tx) => {
@@ -298,7 +300,8 @@ export async function getDispute(
     .limit(1);
   if (!row || row.entityType !== 'accreditation' || row.importRunId != null) return null;
 
-  const institutionId = row.entityId != null ? await accreditationInstitutionId(row.entityId, database) : null;
+  const institutionId =
+    row.entityId != null ? await accreditationInstitutionId(row.entityId, database) : null;
 
   return {
     id: Number(row.id),
@@ -364,7 +367,10 @@ export async function resolveAccreditationDispute(
       })
       .where(eq(curationConflicts.id, disputeId));
 
-    await tx.update(accreditations).set({ isDisputed: false }).where(eq(accreditations.id, entityId));
+    await tx
+      .update(accreditations)
+      .set({ isDisputed: false })
+      .where(eq(accreditations.id, entityId));
 
     await logActivity(tx, {
       userId: user.id,
