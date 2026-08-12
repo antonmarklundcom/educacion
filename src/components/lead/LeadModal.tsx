@@ -164,17 +164,24 @@ export function LeadModal({
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+          {/* The backdrop closes the modal on click, which makes it
+              interactive — so it is a real button with a label rather than a
+              div with a mouse handler. Keyboard users get the same affordance
+              for free, and Escape is already handled by the document listener
+              above (PR-34). */}
+          <button
+            type="button"
+            aria-label="Cerrar"
+            tabIndex={-1}
+            className="absolute inset-0 h-full w-full cursor-default"
+            onClick={() => setOpen(false)}
+          />
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="bg-surface max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg p-6 sm:rounded-lg"
+            className="bg-surface relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg p-6 sm:rounded-lg"
           >
             <div className="flex items-start justify-between gap-4">
               <h2 id={titleId} className="text-ink text-lg font-semibold">

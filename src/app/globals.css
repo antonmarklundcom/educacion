@@ -62,3 +62,40 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Focus, once, for everything (PR-34).
+ *
+ * Components that care set their own `focus-visible:ring-*`; this is the floor
+ * under everything else, so a control nobody thought about is still visible
+ * when a keyboard reaches it. `:focus-visible` rather than `:focus` keeps the
+ * ring off mouse clicks, which is what made people delete focus styles in the
+ * first place.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The skip link's target must not draw a ring when focus lands on it. */
+#contenido:focus,
+#contenido:focus-visible {
+  outline: none;
+}
+
+/*
+ * `prefers-reduced-motion` — design-system.md §6 says the whole motion list is
+ * disabled under it, and this is where that is true for anything that ships a
+ * transition without asking.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -39,7 +39,9 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         <SignOutButton />
       </header>
       <AdminNav />
-      <div className="flex-1">{children}</div>
+      <div id="contenido" tabIndex={-1} className="flex-1">
+        {children}
+      </div>
       <Footer />
     </div>
   );

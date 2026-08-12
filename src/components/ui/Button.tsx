@@ -27,8 +27,15 @@ export function Button({ variant = 'primary', className, ...props }: ButtonProps
   const classes = cn(base, variants[variant], className);
 
   if ('href' in props && props.href !== undefined) {
-    const { href, ...rest } = props;
-    return <a href={href} className={classes} {...rest} />;
+    // `children` is destructured explicitly rather than spread: the anchor
+    // form is a link and a link with no text is invisible to a screen reader,
+    // so the a11y lint has to be able to see the content (PR-34).
+    const { href, children, ...rest } = props;
+    return (
+      <a href={href} className={classes} {...rest}>
+        {children}
+      </a>
+    );
   }
 
   const { type = 'button', ...rest } = props as ButtonAsButton;

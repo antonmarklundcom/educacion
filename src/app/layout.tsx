@@ -33,6 +33,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es-PY">
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} antialiased`}>
+        {/* The first tab stop on every page (PR-34). `/carreras` puts a filter
+            rail of ~40 links before the results; without this, reaching them
+            with a keyboard means tabbing through the whole rail on every
+            navigation. `main` carries the id — every route renders one. */}
+        <a
+          href="#contenido"
+          className="text-ink focus:border-border-strong focus:bg-surface sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:border focus:px-4 focus:py-2 focus:text-sm focus:font-medium"
+        >
+          Saltar al contenido
+        </a>
         {children}
         <Analytics />
         {/* Beside `Analytics`, not inside the public layout: the script it

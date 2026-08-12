@@ -1,0 +1,46 @@
+name: Lighthouse
+
+# Manual, and against a URL that is actually serving.
+#
+# It is deliberately NOT part of the PR check. Lighthouse needs a running app,
+# and every SEO surface on this site is `force-dynamic` against MySQL
+# (architecture.md §3) — CI has no DATABASE_URL, so a run there would measure
+# error pages and report a number that means nothing. A green build that
+# measured 500s is worse than no measurement.
+#
+# Run it against production, or against a Hostinger deploy of the branch:
+#   gh workflow run lighthouse.yml -f url=https://educacion.com.py
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Base URL to audit (must be serving real pages)'
+        required: true
+        default: 'https://educacion.com.py'
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Point the budgets at the requested origin
+        run: |
+          node -e "
+            const fs = require('fs');
+            const config = JSON.parse(fs.readFileSync('lighthouserc.json', 'utf8'));
+            const base = '${{ inputs.url }}'.replace(/\/$/, '');
+            config.ci.collect.url = config.ci.collect.url.map((u) =>
+              base + new URL(u).pathname
+            );
+            fs.writeFileSync('lighthouserc.json', JSON.stringify(config, null, 2));
+          "
+
+      - run: npx --yes @lhci/cli@0.14.x autorun

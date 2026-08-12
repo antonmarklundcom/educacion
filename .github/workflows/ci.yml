@@ -25,3 +25,8 @@ jobs:
       - run: npm test
 
       - run: npm run build
+
+      # architecture.md §9's 150 kB gzipped budget, enforced rather than
+      # remembered (PR-34). It reads the manifest `next build` just wrote, so
+      # it needs no database and no running server.
+      - run: npm run perf:budget
