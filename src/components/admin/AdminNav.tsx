@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/admin/moderacion', label: 'Moderación' },
   { href: '/admin/disputas', label: 'Disputas' },
   { href: '/admin/reclamos', label: 'Reclamos' },
+  { href: '/admin/suscripciones', label: 'Suscripciones' },
   { href: '/admin/frescura', label: 'Frescura' },
 ] as const;
 

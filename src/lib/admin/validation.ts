@@ -23,6 +23,7 @@ import {
   PUBLICATION_STATUS,
   SHIFT,
   INSTITUTION_TYPE,
+  SUBSCRIPTION_STATUS,
 } from '@/db/schema';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
 
@@ -742,6 +743,70 @@ export function parseAdmissionInput(formData: FormData): ParseResult<AdmissionIn
     processMd: optStr(formData, 'processMd'),
     url: optionalUrl(formData, 'url', errors, 'La URL de la convocatoria'),
     isActive: checkbox(formData, 'isActive'),
+  };
+
+  return finish(data, errors);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Subscriptions (PR-25)                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type SubscriptionStatusValue = (typeof SUBSCRIPTION_STATUS)[number];
+
+export interface SubscriptionInputData {
+  institutionId: number;
+  planId: number;
+  status: SubscriptionStatusValue;
+  startsOn: string;
+  endsOn: string | null;
+  invoiceRef: string | null;
+  invoicedAmountPyg: number | null;
+  notes: string | null;
+}
+
+/**
+ * An annual contract needs a start date; everything else about it can be
+ * filled in later.
+ *
+ * `endsOn` is deliberately optional rather than defaulted to a year out. A
+ * subscription with no end date is open-ended and keeps its features forever,
+ * which is the right shape for a comped or trial account and the wrong thing
+ * to hand somebody by accident — so the operator states it, and the form says
+ * what leaving it blank means.
+ *
+ * `invoiceRef` is not required either: `monetization.md` §5 sells Aug–Oct with
+ * the factura issued from FacturaPY, and the plan often goes live before the
+ * transferencia clears. Refusing to record that would push the operator into
+ * typing a fake reference, which is worse than an empty column.
+ */
+export function parseSubscriptionInput(formData: FormData): ParseResult<SubscriptionInputData> {
+  const errors: Record<string, string> = {};
+
+  const institutionId = requireInt(formData, 'institutionId', errors, 'La institución');
+  const planId = requireInt(formData, 'planId', errors, 'El plan');
+  const status = requireEnum(formData, 'status', SUBSCRIPTION_STATUS, errors, 'el estado');
+
+  const startsOnRaw = str(formData, 'startsOn');
+  const startsOn = optionalDate(formData, 'startsOn', errors, 'La fecha de inicio');
+  if (!startsOnRaw) errors.startsOn = 'La fecha de inicio es obligatoria.';
+
+  const endsOn = optionalDate(formData, 'endsOn', errors, 'La fecha de fin');
+  if (startsOn && endsOn && endsOn < startsOn) {
+    // The `subscriptions_date_order` CHECK, said in Spanish before MySQL says
+    // it in English.
+    errors.endsOn = 'La fecha de fin no puede ser anterior a la de inicio.';
+  }
+
+  const data: SubscriptionInputData = {
+    institutionId,
+    planId,
+    status,
+    startsOn: startsOn ?? '',
+    endsOn,
+    invoiceRef: optStr(formData, 'invoiceRef'),
+    invoicedAmountPyg: optionalMoney(formData, 'invoicedAmountPyg', errors, 'El monto facturado'),
+    notes: optStr(formData, 'notes'),
   };
 
   return finish(data, errors);
