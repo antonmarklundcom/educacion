@@ -424,7 +424,9 @@ export function summarizeConesRecords(records: readonly RawRecord<ConesPayload>[
     ).length;
 
     lines.push(`  with an Estado      ${inactive}   (INACTIVO and the like — not offered today)`);
-    lines.push(`  without resolution  ${noResolution}${noResolution > 0 ? '   ← check the "Documento respaldatorio" column' : ''}`);
+    lines.push(
+      `  without resolution  ${noResolution}${noResolution > 0 ? '   ← check the "Documento respaldatorio" column' : ''}`,
+    );
     if (attributedByTable > 0) {
       lines.push(`  attributed by table ${attributedByTable}   (rows the register truncated)`);
     }

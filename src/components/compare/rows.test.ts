@@ -45,7 +45,8 @@ function offering(index: number, over: Partial<OfferingSummary> = {}): OfferingS
     institutionType: 'universidad',
     durationMonths: 60,
     price: {
-      isDisplayable: false,
+      freshness: 'fresh',
+      hasAmount: false,
       isFree: false,
       currency: null,
       matricula: null,
@@ -92,10 +93,10 @@ describe('buildCompareRows', () => {
     expect(row(rows, 'duration').cells[0]).toEqual({ text: NO_DATA, isGap: true });
   });
 
-  it('never renders an amount for a price the 12-month rule stripped', () => {
+  it('renders the honest gap when there is no arancel at all', () => {
     const rows = buildCompareRows([
       offering(1, {
-        price: { ...offering(1).price, isDisplayable: false, verifiedAt: new Date('2021-05-01') },
+        price: { ...offering(1).price, hasAmount: false, verifiedAt: new Date('2021-05-01') },
       }),
     ]);
     const cell = row(rows, 'price').cells[0]!;
@@ -104,18 +105,41 @@ describe('buildCompareRows', () => {
     expect(cell.text).not.toMatch(/\d/);
   });
 
-  it('renders a displayable arancel with its unit', () => {
+  it('renders an arancel with its unit', () => {
     const rows = buildCompareRows([
       offering(1, {
         price: {
           ...offering(1).price,
-          isDisplayable: true,
+          hasAmount: true,
           currency: 'PYG',
           monthlyFee: 1_200_000,
         },
       }),
     ]);
     expect(row(rows, 'price').cells[0]!.text).toBe('Gs. 1.200.000/mes');
+  });
+
+  /**
+   * PR-33: comparing a stale number against a fresh one is the case the
+   * comparador exists for, so the cell carries the date — a column quoting a
+   * 2024 price next to one quoting this year's must not look equally current.
+   */
+  it('dates a stale arancel inside the cell it is compared in', () => {
+    const rows = buildCompareRows([
+      offering(1, {
+        price: {
+          ...offering(1).price,
+          freshness: 'stale',
+          hasAmount: true,
+          currency: 'PYG',
+          monthlyFee: 1_200_000,
+          verifiedAt: new Date('2024-03-01T00:00:00Z'),
+        },
+      }),
+    ]);
+    const text = row(rows, 'price').cells[0]!.text;
+    expect(text).toContain('Gs. 1.200.000/mes');
+    expect(text).toMatch(/2024/);
   });
 
   it('says "Sin datos de acreditación" for an unknown status', () => {

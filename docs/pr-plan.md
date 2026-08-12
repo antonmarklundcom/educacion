@@ -332,7 +332,15 @@ Expiry reuses PR-31's predicate-not-cron rule (`expires_on`, or `posted_on + 45 
 
 Staleness scoring per record, the weekly admin digest, public "última actualización" surfaces, automatic hiding of stale aranceles, re-verification queue, all crons from `architecture.md` §10.
 **Deps:** PR-20.
-**Accept:** an arancel older than 12 months is not displayed anywhere, including the comparador and OG images; crons idempotent and secret-guarded.
+**Accept (rewritten in PR-33 — the policy reversed):** an arancel older than 12 months **is** displayed everywhere it used to be hidden — programme page, comparador, OG image — and **never without** a visible "dato desactualizado" and the month it was last verified; `Offer` JSON-LD still requires a price verified within 12 months; every public page that shows maintained data carries an "última actualización"; staleness is scored and ranked, not just counted; crons idempotent and secret-guarded; the 24-month lead purge really deletes.
+
+**Shipped as:** the policy change plus the whole scheduled half of `architecture.md` §10. `architecture.md` §23, and the reasoning in `risks.md` §R-03.
+
+The reversal in one line: hiding a stale number left the same number on the university's own site, unlabelled, while our page said nothing — so we now show it and date it. `priceFreshness()` replaced `isPriceDisplayable()`, `PriceSummary` carries `freshness` + `hasAmount` instead of `isDisplayable`, and `priceDisplay()` returns the amount **and** its warning in one call so a component cannot render one without the other. Stale prices also became filterable and sortable, because a visible number that vanishes from "hasta Gs. X" reads as a bug and hides the cheap options a family is hunting for.
+
+Five crons landed: `rebuild-search`, `admissions` (a pure re-derivation through the admin's own `applyEnrollmentStatus`, so the precedence rule has one implementation), `staleness` (a weekly digest that reports and never acts — and stays silent when there is nothing to do), `purge-leads` (the one destructive job, keeping the promise `/legal/privacidad` makes), and `sitemap`, which answers `not_needed` because the sitemap is generated per request.
+
+`scoreFreshness()` ranks the re-verification queue instead of counting it: overdue days × a stated weight, with a never-verified record scored as exactly one interval overdue rather than infinite — otherwise unverified rows bury the ones we published a number for and then let rot, which are the ones that actually mislead somebody.
 
 ### PR-34 — Performance, accessibility & CI budgets · **Sonnet → Opus review**
 

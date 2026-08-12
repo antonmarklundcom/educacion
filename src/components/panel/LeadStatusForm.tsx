@@ -40,7 +40,10 @@ export function LeadStatusForm({
   const [state, formAction] = useActionState<PanelFormState, FormData>(action, {});
 
   return (
-    <form action={formAction} className="border-border bg-surface flex flex-wrap items-end gap-3 rounded-md border p-4">
+    <form
+      action={formAction}
+      className="border-border bg-surface flex flex-wrap items-end gap-3 rounded-md border p-4"
+    >
       <Select
         id="status"
         name="status"

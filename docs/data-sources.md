@@ -4,14 +4,14 @@
 
 ## 1. Source inventory
 
-| Source | What it gives | Format | Reliability | Refresh |
-|---|---|---|---|---|
-| **CONES** — `cones.gov.py` | The legal register: habilitated universities (59) and their habilitated carreras/programas, with resolution numbers | Card grid + server-rendered HTML tables, links to resolution documents | Authoritative for *legality*. Naming inconsistent, no stable IDs, no API | Monthly |
-| **ANEAES** — `aneaes.gov.py` | Accredited programs — 122 nacional, 6 ARCU-SUR, 18 postgrado, 1 institution ("Año 2024") | **A 12-page PDF.** No resolution numbers, no resolution dates | Authoritative for *accreditation*, but not machine-readable — see §1.1 | Annual, in practice |
-| **datos.gov.py** (CKAN) | "Carreras de grado acreditadas – Modelo Nacional" dataset | Was CSV; the resource now points at an ANEAES endpoint | **Dead.** Published 2019-08-12, modified 2019-10-15; the old CSV URL returns 0 rows | — |
-| **MEC** | Institutos de Formación Docente, institutos técnicos superiores | Mixed | Patchy | Semiannual |
-| **Institution websites** | Aranceles, convocatorias, planes de estudio, contacts | Unstructured HTML, PDFs, sometimes only WhatsApp | Poor structure, but this is where the *unique* value lives | Per admission cycle |
-| **The institutions themselves** (Phase 2) | Verified data via `/panel` | Our own forms | Highest — this is the goal state | Continuous |
+| Source                                    | What it gives                                                                                                       | Format                                                                 | Reliability                                                                         | Refresh             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------- |
+| **CONES** — `cones.gov.py`                | The legal register: habilitated universities (59) and their habilitated carreras/programas, with resolution numbers | Card grid + server-rendered HTML tables, links to resolution documents | Authoritative for _legality_. Naming inconsistent, no stable IDs, no API            | Monthly             |
+| **ANEAES** — `aneaes.gov.py`              | Accredited programs — 122 nacional, 6 ARCU-SUR, 18 postgrado, 1 institution ("Año 2024")                            | **A 12-page PDF.** No resolution numbers, no resolution dates          | Authoritative for _accreditation_, but not machine-readable — see §1.1              | Annual, in practice |
+| **datos.gov.py** (CKAN)                   | "Carreras de grado acreditadas – Modelo Nacional" dataset                                                           | Was CSV; the resource now points at an ANEAES endpoint                 | **Dead.** Published 2019-08-12, modified 2019-10-15; the old CSV URL returns 0 rows | —                   |
+| **MEC**                                   | Institutos de Formación Docente, institutos técnicos superiores                                                     | Mixed                                                                  | Patchy                                                                              | Semiannual          |
+| **Institution websites**                  | Aranceles, convocatorias, planes de estudio, contacts                                                               | Unstructured HTML, PDFs, sometimes only WhatsApp                       | Poor structure, but this is where the _unique_ value lives                          | Per admission cycle |
+| **The institutions themselves** (Phase 2) | Verified data via `/panel`                                                                                          | Our own forms                                                          | Highest — this is the goal state                                                    | Continuous          |
 
 **Note on access:** these government sites block automated fetches from some networks (403s observed from this environment). Ingestion runs from a local machine or the Hostinger box, with a normal browser UA, at low rate. Do not hammer them — one polite pass per month is enough and keeps us welcome. `IMPORT_RATE_LIMIT_MS` is the brake and `politeFetchText` now reads it: it is a floor, so a caller can slow a run down but not speed it past what the operator set.
 
@@ -23,10 +23,10 @@ the parsers were reading a shape that no longer existed.**
 
 ### CONES
 
-| Was | Is |
-|---|---|
-| `/universidades-habilitadas/` | 404 → **`/universidades/`** |
-| `/carreras-habilitadas/` | 404 → **`/category/ofertas-academicas/`**, and each institution's own page |
+| Was                           | Is                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `/universidades-habilitadas/` | 404 → **`/universidades/`**                                                |
+| `/carreras-habilitadas/`      | 404 → **`/category/ofertas-academicas/`**, and each institution's own page |
 
 - **`/universidades/`** is a **card grid**, not a table: one `div.dc-card` per
   institution, 12 per page, 5 pages, "Se encontraron 59 registros". Each card
@@ -47,7 +47,7 @@ the parsers were reading a shape that no longer existed.**
   without a stated modality" gate holds, and that is the correct outcome. An
   honest gap; do not default it to `presencial`.
 - **`Estado`** is empty or `INACTIVO` (31 of 845 on the UNA page). It is carried
-  as `offeringStatusRaw` — deliberately *not* `statusRaw` — because it is the
+  as `offeringStatusRaw` — deliberately _not_ `statusRaw` — because it is the
   standing of the offering and must never reach `mapAccreditationStatus`. CONES
   cannot say anything about accreditation.
 - Rows are occasionally **truncated mid-row** and lose their trailing cells,
@@ -70,10 +70,10 @@ the parsers were reading a shape that no longer existed.**
   1 institution. **It carries no accrediting resolution numbers and no
   resolution dates.**
 
-**What we may honestly display from it.** Rule 2 requires `source_url` *or*
+**What we may honestly display from it.** Rule 2 requires `source_url` _or_
 `resolution_number` for a positive status. The PDF's own URL is a legitimate
 `source_url`, so an accreditation sourced to it **can** be shown, cited as
-*"Fuente: ANEAES, Listado de acreditaciones 2024"* and linked to the PDF, with
+_"Fuente: ANEAES, Listado de acreditaciones 2024"_ and linked to the PDF, with
 `resolution_number` left **null**. What we must not do is synthesize a number to
 fill the column, or print a validity window the PDF does not state — no
 `valid_from`, no `valid_to`, therefore no "vigente hasta" copy from this source.
@@ -92,10 +92,10 @@ hand a PDF to the HTML reader.
 
 ## 1.2 The ANEAES PDF: parse it or transcribe it (open)
 
-| Option | Cost | Risk |
-|---|---|---|
-| **Parse the PDF** | A permanent dependency: `unpdf` 1.8.0 ≈ 2.1 MB, `pdf2json` 4.0.3 ≈ 8.2 MB, `pdf-parse` 2.4.5 ≈ 21.3 MB, `pdfjs-dist` 6.2.108 ≈ 34.5 MB unpacked | PDF text extraction loses column boundaries on tabular layouts. The failure mode is a row whose institution and programme come from different lines — a wrong accreditation on a real university's page. **Extraction quality against this specific document is unverified: `*.gov.py` is unreachable from here, so nobody has run the 12 pages through any of these libraries yet.** |
-| **Transcribe once into a checked-in CSV** | ~147 rows by hand, once a year | None at parse time. The CSV is reviewable in a diff, ingests through the existing `--file` path with no new code, and carries the PDF URL per row as `source_url` |
+| Option                                    | Cost                                                                                                                                            | Risk                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Parse the PDF**                         | A permanent dependency: `unpdf` 1.8.0 ≈ 2.1 MB, `pdf2json` 4.0.3 ≈ 8.2 MB, `pdf-parse` 2.4.5 ≈ 21.3 MB, `pdfjs-dist` 6.2.108 ≈ 34.5 MB unpacked | PDF text extraction loses column boundaries on tabular layouts. The failure mode is a row whose institution and programme come from different lines — a wrong accreditation on a real university's page. **Extraction quality against this specific document is unverified: `*.gov.py` is unreachable from here, so nobody has run the 12 pages through any of these libraries yet.** |
+| **Transcribe once into a checked-in CSV** | ~147 rows by hand, once a year                                                                                                                  | None at parse time. The CSV is reviewable in a diff, ingests through the existing `--file` path with no new code, and carries the PDF URL per row as `source_url`                                                                                                                                                                                                                     |
 
 **Recommendation: transcribe.** ANEAES publishes this listing roughly once a
 year — a permanent runtime dependency is a poor trade for one annual document,
@@ -120,7 +120,7 @@ out entirely rather than filling them.
 
 - CONES/ANEAES/MEC registers are **public administrative acts**. Reproducing factual content (institution names, program names, resolution numbers, accreditation status) is fine and is exactly what a public-interest directory does.
 - **Attribute every fact.** `/legal/fuentes` lists the sources; every accreditation badge links to its resolution. This is both ethical and the best possible defence.
-- **Never imply endorsement.** No official crests, no ".gov" styling, no "portal oficial". A persistent footer line: *"educacion.com.py es un sitio privado e independiente. No es un portal oficial del MEC, CONES ni ANEAES."*
+- **Never imply endorsement.** No official crests, no ".gov" styling, no "portal oficial". A persistent footer line: _"educacion.com.py es un sitio privado e independiente. No es un portal oficial del MEC, CONES ni ANEAES."_
 - **Institution logos:** nominative use for identification is defensible; keep a documented takedown path (`/legal/fuentes` → contact) and honour requests within 72 h without arguing.
 - Do not republish PDFs; link to them at the source.
 
@@ -142,14 +142,14 @@ scripts/import-<source>.ts
 
 Steps 3–5 shipped in PR-06 — see §4.6. The raw layer writes to `source_records` and `import_runs` and to nothing else — `src/lib/ingest/repository.test.ts` asserts that against a fake db, so a later PR cannot quietly reach into a curated table from here.
 
-| Module | Role |
-|---|---|
-| `src/lib/ingest/checksum.ts` | Canonicalize (sorted keys, collapsed whitespace) then SHA-256. Idempotency depends on this being stable across parses. |
-| `src/lib/ingest/http.ts` | Polite fetch: identifying UA, per-host serialized delay, retries on transient status only. **A 403 is never retried** — §1 and §7. |
-| `src/lib/ingest/html.ts` · `csv.ts` | Dependency-free table and CSV readers. Columns are addressed by header text, so a reordered column does not silently shift the data. |
-| `src/lib/ingest/parsers/cones.ts` | Habilitación rows, in both shapes the register now uses: `parseConesInstitutions` (the card grid), `parseConesPrograms` (the carreras table), and `parseConesRegister`, which runs both so an operator pointing `--file` at a saved page does not have to know which they saved. Emits no accreditation field of any kind. |
-| `src/lib/ingest/parsers/aneaes.ts` | Accredited-program rows. Carries the source's own wording in `statusRaw` and flags `citable: false` when a row has neither resolution number nor an `http(s)` source URL. |
-| `src/lib/ingest/sources.ts` | The URLs, and the CONES crawl: start URLs → their `page/N/` views → each institution's own page, followed from its directory card. All of it through the one rate-limited per-host queue. |
+| Module                              | Role                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/ingest/checksum.ts`        | Canonicalize (sorted keys, collapsed whitespace) then SHA-256. Idempotency depends on this being stable across parses.                                                                                                                                                                                                     |
+| `src/lib/ingest/http.ts`            | Polite fetch: identifying UA, per-host serialized delay, retries on transient status only. **A 403 is never retried** — §1 and §7.                                                                                                                                                                                         |
+| `src/lib/ingest/html.ts` · `csv.ts` | Dependency-free table and CSV readers. Columns are addressed by header text, so a reordered column does not silently shift the data.                                                                                                                                                                                       |
+| `src/lib/ingest/parsers/cones.ts`   | Habilitación rows, in both shapes the register now uses: `parseConesInstitutions` (the card grid), `parseConesPrograms` (the carreras table), and `parseConesRegister`, which runs both so an operator pointing `--file` at a saved page does not have to know which they saved. Emits no accreditation field of any kind. |
+| `src/lib/ingest/parsers/aneaes.ts`  | Accredited-program rows. Carries the source's own wording in `statusRaw` and flags `citable: false` when a row has neither resolution number nor an `http(s)` source URL.                                                                                                                                                  |
+| `src/lib/ingest/sources.ts`         | The URLs, and the CONES crawl: start URLs → their `page/N/` views → each institution's own page, followed from its directory card. All of it through the one rate-limited per-host queue.                                                                                                                                  |
 
 Two rules are enforced at the raw layer rather than deferred to PR-06:
 
@@ -190,6 +190,7 @@ The CONES digest is the second check, and every line is verifiable against the p
 ## 4. Entity matching (R-05 — plan for this to be annoying)
 
 The same institution appears as:
+
 - `Universidad Católica "Nuestra Señora de la Asunción"`
 - `UNIVERSIDAD CATOLICA NTRA. SRA. DE LA ASUNCION`
 - `U.C.A.` / `UC`
@@ -210,15 +211,15 @@ Same approach for careers, using `careers.synonyms_json` as the alias store ("Me
 
 `npm run curate` reads `source_records`, matches every row, applies what is safe and queues the rest into `curation_conflicts`. CONES runs before ANEAES and the snapshot is reloaded between them, so an accreditation can attach to a program created earlier in the same command.
 
-| Module | Role |
-|---|---|
-| `src/lib/curate/match-key.ts` | §4.1 normalization, abbreviation expansion, acronym candidates, slugs |
-| `src/lib/curate/similarity.ts` | Levenshtein + trigram; the score is the higher of the two |
-| `src/lib/curate/match.ts` | The §4 resolution order for institutions, careers (via `synonyms_json`) and programs |
-| `src/lib/curate/staging.ts` | The source's own words → our enums. One file, auditable |
-| `src/lib/curate/classify.ts` | NEW / UNCHANGED / CHANGED / CONFLICT / AMBIGUOUS |
-| `src/lib/curate/apply-rules.ts` | The gates. Pure, so PR-20's "approve" action can reuse them |
-| `src/db/queries/curation.ts` | The only module that writes. Rule 5 keeps SQL out of `src/lib` |
+| Module                          | Role                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| `src/lib/curate/match-key.ts`   | §4.1 normalization, abbreviation expansion, acronym candidates, slugs                |
+| `src/lib/curate/similarity.ts`  | Levenshtein + trigram; the score is the higher of the two                            |
+| `src/lib/curate/match.ts`       | The §4 resolution order for institutions, careers (via `synonyms_json`) and programs |
+| `src/lib/curate/staging.ts`     | The source's own words → our enums. One file, auditable                              |
+| `src/lib/curate/classify.ts`    | NEW / UNCHANGED / CHANGED / CONFLICT / AMBIGUOUS                                     |
+| `src/lib/curate/apply-rules.ts` | The gates. Pure, so PR-20's "approve" action can reuse them                          |
+| `src/db/queries/curation.ts`    | The only module that writes. Rule 5 keeps SQL out of `src/lib`                       |
 
 **Refusals, each one tested:**
 
@@ -226,7 +227,7 @@ Same approach for careers, using `careers.synonyms_json` as the alias store ("Me
 - **A program with an unmapped level queues**, rather than defaulting to `grado`.
 - **An offering is not created without a stated modality**, and a campus is not created for a locality that is not in the seeded `cities`.
 - **No accreditation without a citation.** A positive status requires `resolution_number` or an `http(s)` `source_url`, and a row the ANEAES parser flagged `citable: false` can never produce one — including via the document URL, which is only used as a citation when the row was citable and the URL is not a local file path from a `--file` run.
-- **A negative never auto-applies.** `no_acreditada` is only ever written by a human, and absence of a row is `sin_datos` — represented by proposing *no accreditation row at all*.
+- **A negative never auto-applies.** `no_acreditada` is only ever written by a human, and absence of a row is `sin_datos` — represented by proposing _no accreditation row at all_.
 - **CONES never becomes an accreditation.** A CONES habilitación resolution lands in `programs.cones_resolution`; the staging layer for CONES has no accreditation field, and the apply gate rejects `agency = CONES` with `kind = acreditacion` regardless.
 - **Nothing in `PROTECTED_FIELDS` auto-updates**, even on a `cones_code` match. The classifier calls it a conflict and the writer strips those fields a second time.
 - **Fuzzy proposes, never applies.** Every fuzzy hit is classified `ambiguous_match` and queued with its candidates. So is a `match_key` that resolves to two institutions — which is the accepted cost of §4.1 dropping `NACIONAL`.
@@ -248,8 +249,9 @@ A rate measured against the synthetic fixtures is a measurement of the fixtures.
 There is no dataset. This is fieldwork, and it is the moat.
 
 Priority order (do not try to do all ~10k offerings):
+
 1. **Top 60 careers × top 25 private institutions** ≈ 600–900 offerings. This covers the overwhelming majority of searches.
-2. Public universities: mark `is_free = true` where genuinely free; capture the *derecho de examen* / CPI cost, which is what families actually ask about.
+2. Public universities: mark `is_free = true` where genuinely free; capture the _derecho de examen_ / CPI cost, which is what families actually ask about.
 3. Everything else: `sin_datos` + a "¿Conocés el arancel? Avisanos" prompt, and a "Solicitar info" CTA. An honest gap converts better than a wrong number.
 
 Per record capture: matrícula, cuota, number of cuotas per year, admission fee, source (URL or "consulta telefónica DD/MM/YYYY"), and who verified it.
@@ -258,12 +260,12 @@ Per record capture: matrícula, cuota, number of cuotas per year, admission fee,
 
 ## 6. Freshness contract (shown publicly)
 
-| Data | Target freshness | Displayed |
-|---|---|---|
-| Institution / program existence | 30 days | — |
-| Accreditation status | 30 days | "Fuente: ANEAES, Res. N° ... (fecha)" |
-| Arancel | 12 months, else hidden | "Arancel actualizado: {mes año}" |
-| Convocatoria / inscripciones | 7 days in season | "Verificado: {fecha}" |
+| Data                            | Target freshness       | Displayed                             |
+| ------------------------------- | ---------------------- | ------------------------------------- |
+| Institution / program existence | 30 days                | —                                     |
+| Accreditation status            | 30 days                | "Fuente: ANEAES, Res. N° ... (fecha)" |
+| Arancel                         | 12 months, else hidden | "Arancel actualizado: {mes año}"      |
+| Convocatoria / inscripciones    | 7 days in season       | "Verificado: {fecha}"                 |
 
 Publishing the freshness date is a feature, not an admission of weakness — it is precisely what the incumbent does not do.
 

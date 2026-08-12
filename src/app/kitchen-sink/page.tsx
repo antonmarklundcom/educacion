@@ -20,7 +20,7 @@ export const metadata = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-ink">{title}</h2>
+      <h2 className="text-ink text-lg font-semibold">{title}</h2>
       <div className="flex flex-wrap items-center gap-4">{children}</div>
     </section>
   );
@@ -32,7 +32,7 @@ export default function KitchenSinkPage() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-12 p-8">
-      <h1 className="text-3xl font-bold text-ink">Kitchen sink</h1>
+      <h1 className="text-ink text-3xl font-bold">Kitchen sink</h1>
 
       <Section title="Button">
         <Button variant="primary">Solicitar info</Button>
@@ -76,7 +76,7 @@ export default function KitchenSinkPage() {
 
       <Section title="Card">
         <Card className="w-64">
-          <p className="text-sm text-body">Contenido de tarjeta.</p>
+          <p className="text-body text-sm">Contenido de tarjeta.</p>
         </Card>
       </Section>
 

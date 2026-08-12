@@ -17,7 +17,8 @@ function accreditation(over: Partial<AccreditationSummary> = {}): AccreditationS
 
 function price(over: Partial<PriceSummary> = {}): PriceSummary {
   return {
-    isDisplayable: false,
+    freshness: 'fresh',
+    hasAmount: false,
     isFree: false,
     currency: null,
     matricula: null,
@@ -59,27 +60,56 @@ describe('accreditationLabel', () => {
 });
 
 describe('priceDisplay', () => {
-  it('shows the honest gap when the 12-month rule has stripped the amounts', () => {
-    // What `toPriceSummary` hands the UI for a price verified too long ago:
-    // the verification date survives, every amount is null.
-    const stale = price({ isDisplayable: false, verifiedAt: new Date('2022-01-01') });
-    const display = priceDisplay(stale);
+  it('shows the honest gap when there is no number at all', () => {
+    const empty = price({ hasAmount: false, verifiedAt: new Date('2022-01-01') });
+    const display = priceDisplay(empty);
     expect(display.isGap).toBe(true);
     expect(display.label).toBe(NO_PRICE_LABEL);
+    // A gap is not "stale": there is nothing to warn about.
+    expect(display.isStale).toBe(false);
   });
 
-  it('never claims "Gratuita" from a non-displayable price', () => {
-    // `isFree` cannot be true here — `row.ts` clears it — but the component
-    // must not resurrect it even if a caller constructs the object by hand.
-    const display = priceDisplay(price({ isDisplayable: false, isFree: true }));
-    expect(display.isFree).toBe(false);
-    expect(display.label).toBe(NO_PRICE_LABEL);
+  /**
+   * PR-33: a stale arancel is shown, so what this asserts is that it never
+   * arrives *unlabelled*. The number and the warning are produced by the same
+   * call, which is what makes it impossible to render one without the other.
+   */
+  it('shows a stale amount together with its date', () => {
+    const display = priceDisplay(
+      price({
+        freshness: 'stale',
+        hasAmount: true,
+        currency: 'PYG',
+        monthlyFee: 900_000,
+        verifiedAt: new Date('2024-03-15T00:00:00Z'),
+      }),
+    );
+    expect(display.label).toBe('Gs. 900.000');
+    expect(display.isStale).toBe(true);
+    expect(display.verifiedLabel).toMatch(/2024/);
+  });
+
+  it('warns about an amount we could never date', () => {
+    const display = priceDisplay(
+      price({ freshness: 'unknown', hasAmount: true, currency: 'PYG', monthlyFee: 900_000 }),
+    );
+    expect(display.isStale).toBe(true);
+    expect(display.verifiedLabel).toBeNull();
+  });
+
+  it('labels a stale "Gratuita" rather than suppressing it', () => {
+    const display = priceDisplay(
+      price({ freshness: 'stale', hasAmount: true, currency: 'PYG', isFree: true }),
+    );
+    expect(display.isFree).toBe(true);
+    expect(display.isStale).toBe(true);
   });
 
   it('prefers the monthly fee, which is how aranceles are quoted here', () => {
     const display = priceDisplay(
       price({
-        isDisplayable: true,
+        freshness: 'fresh',
+        hasAmount: true,
         currency: 'PYG',
         monthlyFee: 1_450_000,
         annualCost: 17_400_000,
@@ -90,12 +120,16 @@ describe('priceDisplay', () => {
   });
 
   it('renders a USD arancel as USD rather than converting it', () => {
-    const display = priceDisplay(price({ isDisplayable: true, currency: 'USD', monthlyFee: 250 }));
+    const display = priceDisplay(
+      price({ freshness: 'fresh', hasAmount: true, currency: 'USD', monthlyFee: 250 }),
+    );
     expect(display.label).toBe('USD 250');
   });
 
   it('marks a free program as free', () => {
-    const display = priceDisplay(price({ isDisplayable: true, currency: 'PYG', isFree: true }));
+    const display = priceDisplay(
+      price({ freshness: 'fresh', hasAmount: true, currency: 'PYG', isFree: true }),
+    );
     expect(display).toMatchObject({ isFree: true, isGap: false, label: 'Gratuita' });
   });
 });

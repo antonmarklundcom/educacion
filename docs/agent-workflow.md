@@ -4,17 +4,17 @@
 
 Not "hard code vs easy code" — **"expensive to reverse vs cheap to reverse"**.
 
-| Opus 5 writes | Sonnet 5 writes |
-|---|---|
-| DB schema & migrations | Pages, layouts, components |
-| Source matching / ingestion logic | Admin CRUD screens |
-| Search & facet layer | Content and editorial surfaces |
-| Comparador state & URL design | Metadata / JSON-LD wiring |
-| Auth, roles, scoping | Tests |
-| Entitlements & billing logic | Refactors within a decided interface |
-| Anything touching PII | Copy and formatting |
+| Opus 5 writes                     | Sonnet 5 writes                      |
+| --------------------------------- | ------------------------------------ |
+| DB schema & migrations            | Pages, layouts, components           |
+| Source matching / ingestion logic | Admin CRUD screens                   |
+| Search & facet layer              | Content and editorial surfaces       |
+| Comparador state & URL design     | Metadata / JSON-LD wiring            |
+| Auth, roles, scoping              | Tests                                |
+| Entitlements & billing logic      | Refactors within a decided interface |
+| Anything touching PII             | Copy and formatting                  |
 
-**Opus also reviews** (does not write) every PR marked *Sonnet → Opus review* in `pr-plan.md`: the ones touching data integrity, PII, access control, or money.
+**Opus also reviews** (does not write) every PR marked _Sonnet → Opus review_ in `pr-plan.md`: the ones touching data integrity, PII, access control, or money.
 
 Per-PR ownership is assigned in [`pr-plan.md`](pr-plan.md). Result: Sonnet writes 23 of 34 PRs, ~80% of the lines.
 
@@ -74,7 +74,7 @@ Then implement.
 
 ## 5. Review checklist (Opus reviewing Sonnet)
 
-For any *Sonnet → Opus review* PR, check in this order:
+For any _Sonnet → Opus review_ PR, check in this order:
 
 1. **Access control** — does every mutation call `requireRole()`? Is every institution-scoped read filtered by session institution? Try to construct a request that reads another institution's data.
 2. **PII** — is consent stored with a version? Is only the minimum collected? Is anything logged that shouldn't be?

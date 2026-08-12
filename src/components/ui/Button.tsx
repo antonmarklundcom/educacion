@@ -6,8 +6,7 @@ const base =
 
 const variants = {
   primary: 'bg-accent text-white hover:bg-accent-hover',
-  secondary:
-    'border border-border-strong bg-surface text-ink hover:bg-card-alt',
+  secondary: 'border border-border-strong bg-surface text-ink hover:bg-card-alt',
   ghost: 'text-ink hover:bg-card-alt',
 } as const;
 
@@ -18,11 +17,9 @@ type CommonProps = {
   className?: string;
 };
 
-type ButtonAsButton = CommonProps &
-  ButtonHTMLAttributes<HTMLButtonElement> & { href?: undefined };
+type ButtonAsButton = CommonProps & ButtonHTMLAttributes<HTMLButtonElement> & { href?: undefined };
 
-type ButtonAsAnchor = CommonProps &
-  AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
+type ButtonAsAnchor = CommonProps & AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
 
 export type ButtonProps = ButtonAsButton | ButtonAsAnchor;
 

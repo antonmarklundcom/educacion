@@ -10,9 +10,9 @@ export function Header() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-surface">
+    <header className="border-border bg-surface sticky top-0 z-40 border-b">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <Link href="/" className="text-lg font-bold text-ink" onClick={() => setOpen(false)}>
+        <Link href="/" className="text-ink text-lg font-bold" onClick={() => setOpen(false)}>
           educacion<span className="text-accent">.com.py</span>
         </Link>
 
@@ -21,7 +21,7 @@ export function Header() {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-body hover:text-ink"
+              className="text-body hover:text-ink text-sm font-medium"
             >
               {link.label}
             </Link>
@@ -40,7 +40,7 @@ export function Header() {
           aria-controls="mobile-nav"
           aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
           onClick={() => setOpen((value) => !value)}
-          className="inline-flex size-11 items-center justify-center rounded-md text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 md:hidden"
+          className="text-ink focus-visible:ring-ink inline-flex size-11 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none md:hidden"
         >
           <svg aria-hidden viewBox="0 0 24 24" className="size-6 fill-none stroke-current">
             {open ? (
@@ -66,19 +66,24 @@ export function Header() {
         <nav
           id="mobile-nav"
           aria-label="Principal, móvil"
-          className="flex flex-col gap-1 border-t border-border px-4 py-3 md:hidden"
+          className="border-border flex flex-col gap-1 border-t px-4 py-3 md:hidden"
         >
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="min-h-12 rounded-md px-3 py-3 text-sm font-medium text-body hover:bg-card-alt"
+              className="text-body hover:bg-card-alt min-h-12 rounded-md px-3 py-3 text-sm font-medium"
             >
               {link.label}
             </Link>
           ))}
-          <Button variant="primary" href="/carreras" onClick={() => setOpen(false)} className="mt-2">
+          <Button
+            variant="primary"
+            href="/carreras"
+            onClick={() => setOpen(false)}
+            className="mt-2"
+          >
             Buscar carreras
           </Button>
         </nav>

@@ -11,7 +11,7 @@ export function Select({ label, id, className, children, ...props }: SelectProps
       <select
         id={id}
         className={cn(
-          'min-h-12 w-full appearance-none rounded-md border border-border-strong bg-surface px-4 pr-9 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2',
+          'border-border-strong bg-surface text-ink focus-visible:ring-ink min-h-12 w-full appearance-none rounded-md border px-4 pr-9 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
           className,
         )}
         {...props}
@@ -21,7 +21,7 @@ export function Select({ label, id, className, children, ...props }: SelectProps
       <svg
         aria-hidden
         viewBox="0 0 20 20"
-        className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 stroke-muted"
+        className="stroke-muted pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
       >
         <path
           d="M5.5 7.5l4.5 4.5 4.5-4.5"
@@ -37,7 +37,7 @@ export function Select({ label, id, className, children, ...props }: SelectProps
   if (!label) return select;
 
   return (
-    <label htmlFor={id} className="flex flex-col gap-1.5 text-sm text-body">
+    <label htmlFor={id} className="text-body flex flex-col gap-1.5 text-sm">
       {label}
       {select}
     </label>

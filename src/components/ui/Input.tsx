@@ -10,7 +10,7 @@ export function Input({ label, id, className, ...props }: InputProps) {
     <input
       id={id}
       className={cn(
-        'min-h-12 w-full rounded-md border border-border-strong bg-surface px-4 text-sm text-ink placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2',
+        'border-border-strong bg-surface text-ink placeholder:text-faint focus-visible:ring-ink min-h-12 w-full rounded-md border px-4 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
         className,
       )}
       {...props}
@@ -20,7 +20,7 @@ export function Input({ label, id, className, ...props }: InputProps) {
   if (!label) return input;
 
   return (
-    <label htmlFor={id} className="flex flex-col gap-1.5 text-sm text-body">
+    <label htmlFor={id} className="text-body flex flex-col gap-1.5 text-sm">
       {label}
       {input}
     </label>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPriceDisplayable, priceExpiresOn } from '@/db/invariants';
+import { priceExpiresOn } from '@/db/invariants';
 
 import { makeSyntheticRows } from './__fixtures__/synthetic';
 import { toDateOnly } from './accreditation';
@@ -29,64 +29,92 @@ function rowWithPriceVerifiedAt(verifiedAt: Date | null): ProgramSearchRow {
 describe('toPriceSummary', () => {
   it('shows a fresh arancel in full', () => {
     const price = toPriceSummary(rowWithPriceVerifiedAt(new Date('2026-05-01T00:00:00Z')), NOW);
-    expect(price.isDisplayable).toBe(true);
+    expect(price.freshness).toBe('fresh');
+    expect(price.hasAmount).toBe(true);
     expect(price.annualCost).toBe(4_500_000);
     expect(price.monthlyFee).toBe(400_000);
     expect(price.currency).toBe('PYG');
   });
 
-  it('strips every amount once the arancel is over 12 months old', () => {
+  /**
+   * PR-33 reversed the rule this test used to assert. The old version checked
+   * that every amount was `null` past twelve months; the new one checks the
+   * opposite, plus the thing that makes it honest — the row is *marked* stale
+   * and keeps the date the UI needs to say so.
+   */
+  it('keeps the amounts past 12 months and marks them stale', () => {
     const price = toPriceSummary(rowWithPriceVerifiedAt(new Date('2025-01-01T00:00:00Z')), NOW);
-    expect(price.isDisplayable).toBe(false);
-    expect(price.annualCost).toBeNull();
-    expect(price.monthlyFee).toBeNull();
-    expect(price.matricula).toBeNull();
-    expect(price.installmentsPerYear).toBeNull();
-    expect(price.admissionFee).toBeNull();
-    expect(price.currency).toBeNull();
-    // Provenance survives, so the UI can explain the gap instead of hiding it.
+    expect(price.freshness).toBe('stale');
+    expect(price.annualCost).toBe(4_500_000);
+    expect(price.monthlyFee).toBe(400_000);
+    expect(price.currency).toBe('PYG');
     expect(price.verifiedAt).toEqual(new Date('2025-01-01T00:00:00Z'));
   });
 
-  it('does not assert "gratuita" from a stale capture either', () => {
+  it('marks a stale "gratuita" too — it is a claim like any other', () => {
     const stale = rowWithPriceVerifiedAt(new Date('2024-06-01T00:00:00Z'));
     const price = toPriceSummary({ ...stale, isFree: true }, NOW);
-    expect(price.isDisplayable).toBe(false);
-    expect(price.isFree).toBe(false);
+    expect(price.freshness).toBe('stale');
+    expect(price.isFree).toBe(true);
+    expect(price.hasAmount).toBe(true);
   });
 
-  it('treats an unverified price as not displayable', () => {
+  it('separates "never verified" from "verified long ago"', () => {
     const price = toPriceSummary(rowWithPriceVerifiedAt(null), NOW);
-    expect(price.isDisplayable).toBe(false);
+    expect(price.freshness).toBe('unknown');
+    expect(price.verifiedAt).toBeNull();
+    // The amounts are still there: what is missing is the date, not the number.
+    expect(price.annualCost).toBe(4_500_000);
+  });
+
+  it('is the honest gap when there is no number at all', () => {
+    const empty = rowWithPriceVerifiedAt(new Date('2026-05-01T00:00:00Z'));
+    const price = toPriceSummary(
+      { ...empty, annualCostGs: null, monthlyFeeGs: null, matriculaGs: null, isFree: false },
+      NOW,
+    );
+    expect(price.hasAmount).toBe(false);
     expect(price.annualCost).toBeNull();
   });
 });
 
 describe('isPriceFilterable', () => {
   /**
-   * The SQL engine filters on `price_expires_on > :today`; the renderer decides
-   * with `isPriceDisplayable()` at timestamp precision. They may disagree by at
-   * most one day, and only ever in the safe direction: a row can drop out of an
-   * arancel range while still showing its price, never the reverse.
+   * **The property this file used to assert is gone, and its replacement is
+   * the point of PR-33.**
+   *
+   * The old rule: filtering was never more permissive than rendering, so a row
+   * could drop out of an arancel range on its last day while still showing its
+   * price. That mattered only because a stale price was *hidden* — you cannot
+   * filter on a number the reader is not allowed to see.
+   *
+   * Now the number is shown with a warning, so the honest rule is the
+   * consistent one: **anything a reader can see, they can filter and sort on**,
+   * whatever its age. A carrera visibly quoting Gs. 1.200.000 that vanished
+   * from "hasta Gs. 1.500.000" would read as a bug and would hide exactly the
+   * cheap options a family is looking for.
    */
-  it('is never more permissive than isPriceDisplayable', () => {
-    for (let days = 300; days <= 400; days += 1) {
-      for (const hour of [0, 11, 23]) {
-        const verifiedAt = new Date(NOW.getTime() - days * 86_400_000);
-        verifiedAt.setUTCHours(hour, 30, 0, 0);
-        const row = rowWithPriceVerifiedAt(verifiedAt);
-        if (isPriceFilterable(row, NOW)) {
-          expect(isPriceDisplayable(row.priceVerifiedAt, NOW)).toBe(true);
-        }
-      }
-    }
-  });
-
-  it('agrees with isPriceDisplayable away from the boundary', () => {
+  it('filters a stale arancel exactly like a fresh one', () => {
     const fresh = rowWithPriceVerifiedAt(new Date('2026-07-01T00:00:00Z'));
     const stale = rowWithPriceVerifiedAt(new Date('2024-07-01T00:00:00Z'));
-    expect(isPriceFilterable(fresh, NOW)).toBe(true);
-    expect(isPriceFilterable(stale, NOW)).toBe(false);
+    const never = rowWithPriceVerifiedAt(null);
+    expect(isPriceFilterable(fresh)).toBe(true);
+    expect(isPriceFilterable(stale)).toBe(true);
+    expect(isPriceFilterable(never)).toBe(true);
+  });
+
+  it('never filters on a row with no number, at any age', () => {
+    const fresh = rowWithPriceVerifiedAt(new Date('2026-07-01T00:00:00Z'));
+    const empty = { ...fresh, priceCurrency: null, annualCostGs: null, isFree: false } as const;
+    expect(isPriceFilterable(empty)).toBe(false);
+  });
+
+  it('is stable across the 12-month boundary, in both directions', () => {
+    for (let days = 300; days <= 400; days += 1) {
+      const verifiedAt = new Date(NOW.getTime() - days * 86_400_000);
+      const row = rowWithPriceVerifiedAt(verifiedAt);
+      expect(isPriceFilterable(row)).toBe(true);
+    }
   });
 });
 

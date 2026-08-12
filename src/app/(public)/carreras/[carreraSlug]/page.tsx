@@ -22,6 +22,7 @@ import {
   ActiveFilters,
   EmptyState,
   FilterRail,
+  FreshnessNote,
   PlacementDisclosure,
   ResultCard,
   SortControl,
@@ -39,7 +40,6 @@ import {
   listRelatedCareers,
   passesCityGate,
 } from '@/lib/careers';
-import { formatMonthYear } from '@/lib/format';
 import { getWhatsappNumbers } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
 import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';
@@ -144,11 +144,10 @@ export default async function CareraHubPage({
           ))}
         </div>
 
-        {latestVerifiedAt && (
-          <p className="text-faint text-xs">
-            Aranceles actualizados a {formatMonthYear(latestVerifiedAt)}.
-          </p>
-        )}
+        <FreshnessNote
+          verifiedAt={latestVerifiedAt ?? null}
+          subject={`los aranceles de ${career.nameEs}`}
+        />
       </header>
 
       {linkableCities.length > 0 && (

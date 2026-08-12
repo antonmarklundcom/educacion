@@ -25,15 +25,10 @@ import { hashPassword, needsRehash, verifyPassword } from './password';
 import type { SessionUser } from './session';
 
 export type LoginFailure =
-  | 'unknown_email'
-  | 'wrong_password'
-  | 'no_password_set'
-  | 'suspended'
-  | 'invalid_input';
+  'unknown_email' | 'wrong_password' | 'no_password_set' | 'suspended' | 'invalid_input';
 
 export type LoginResult =
-  | { ok: true; user: SessionUser; rehashTo?: string }
-  | { ok: false; reason: LoginFailure };
+  { ok: true; user: SessionUser; rehashTo?: string } | { ok: false; reason: LoginFailure };
 
 /** Shown for every failure, whatever the reason. Voseo, per CLAUDE.md §8. */
 export const LOGIN_ERROR = 'Correo o contraseña incorrectos.';

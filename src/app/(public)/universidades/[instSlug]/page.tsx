@@ -25,6 +25,7 @@ import {
   ResultCard,
   SortControl,
   countActiveFilters,
+  FreshnessNote,
   VerifiedBadge,
 } from '@/components/browse';
 import { EventBeacon } from '@/components/analytics';
@@ -180,6 +181,15 @@ export default async function InstitutionPage({
                   whatsappE164={institution.whatsappE164}
                 />
               ))}
+              <FreshnessNote
+                verifiedAt={
+                  results
+                    .map((offering) => offering.price.verifiedAt)
+                    .filter((date): date is Date => date != null)
+                    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+                }
+                subject={`los aranceles de ${institution.nameShort}`}
+              />
               <Pagination
                 className="mt-2 justify-center"
                 currentPage={page}

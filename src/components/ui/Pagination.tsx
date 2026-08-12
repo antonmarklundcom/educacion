@@ -25,7 +25,7 @@ export function Pagination({ currentPage, totalPages, buildHref, className }: Pa
 
       {pages.map((page, index) =>
         page === 'ellipsis' ? (
-          <span key={`ellipsis-${index}`} className="px-2 text-sm text-faint" aria-hidden>
+          <span key={`ellipsis-${index}`} className="text-faint px-2 text-sm" aria-hidden>
             …
           </span>
         ) : (

@@ -191,7 +191,15 @@ export function assertPriceIsCoherent(price: PriceInput): void {
   }
 }
 
-/** The date after which a price verified at `verifiedAt` may no longer be shown. */
+/**
+ * The date a price stops being *fresh* — `verified_at + 12 months`.
+ *
+ * **This used to be the date it stopped being shown** (CLAUDE.md rule 3, in its
+ * original form). PR-33 changed the policy: a stale arancel is now displayed
+ * everywhere it used to be hidden, carrying a visible "dato desactualizado" and
+ * the date we last verified it. The column and this function keep their names
+ * because what they compute did not change — only what the site does with it.
+ */
 export function priceExpiresOn(verifiedAt: Date | null | undefined): Date | null {
   if (!verifiedAt) return null;
   const expiry = new Date(verifiedAt.getTime());
@@ -200,13 +208,43 @@ export function priceExpiresOn(verifiedAt: Date | null | undefined): Date | null
 }
 
 /**
- * The single place that decides whether an arancel may be rendered — in the
- * comparador, in JSON-LD and in OG images alike.
+ * How old an arancel is, in the only three states the UI distinguishes.
+ *
+ * ### The policy this replaced, and why it changed (PR-33)
+ *
+ * Until now an arancel older than 12 months was **hidden**: the amounts were
+ * nulled before they reached a component, and the page said "Consultá el
+ * arancel". The reasoning was that a wrong number is worse than no number.
+ *
+ * What that produced in practice is a directory that shows nothing for most
+ * carreras — arancel data decays annually and re-verification is manual
+ * (`plan.md` §6) — and a student who then finds the same old number on the
+ * university's own site, uncontradicted and unlabelled. Hiding did not protect
+ * anybody; it removed our chance to say "this is from 2024".
+ *
+ * So the number is shown **with its date and a visible warning**. The rule that
+ * did not change: we never present a stale number as current, and we never
+ * invent one.
+ *
+ * `unknown` is its own state rather than being folded into `stale`: a price
+ * with no `verified_at` at all cannot be dated on the page, and "no sabemos
+ * cuándo se actualizó" is a different sentence from "es de marzo de 2024".
  */
-export function isPriceDisplayable(
+export type PriceFreshness = 'fresh' | 'stale' | 'unknown';
+
+export function priceFreshness(
+  verifiedAt: Date | null | undefined,
+  now: Date = new Date(),
+): PriceFreshness {
+  if (!verifiedAt) return 'unknown';
+  const expiry = priceExpiresOn(verifiedAt);
+  return expiry != null && expiry.getTime() > now.getTime() ? 'fresh' : 'stale';
+}
+
+/** True when the UI must warn about the age of this number. */
+export function needsFreshnessWarning(
   verifiedAt: Date | null | undefined,
   now: Date = new Date(),
 ): boolean {
-  const expiry = priceExpiresOn(verifiedAt);
-  return expiry != null && expiry.getTime() > now.getTime();
+  return priceFreshness(verifiedAt, now) !== 'fresh';
 }

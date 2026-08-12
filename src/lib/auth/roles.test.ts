@@ -28,7 +28,12 @@ const admin: SessionUser = {
   mustChangePassword: false,
 };
 const editor: SessionUser = { ...admin, id: 2, role: 'editor' };
-const instAdmin: SessionUser = { id: 3, role: 'institution_admin', institutionId: 10, mustChangePassword: false };
+const instAdmin: SessionUser = {
+  id: 3,
+  role: 'institution_admin',
+  institutionId: 10,
+  mustChangePassword: false,
+};
 const instEditor: SessionUser = { ...instAdmin, id: 4, role: 'institution_editor' };
 const unassigned: SessionUser = { ...instAdmin, id: 5, institutionId: null };
 
@@ -120,7 +125,7 @@ describe('canAccessInstitution', () => {
     expect(canAccessInstitution(instAdmin, 11)).toBe(false);
   });
 
-  it('is true for staff and for the session\'s own institution', () => {
+  it("is true for staff and for the session's own institution", () => {
     expect(canAccessInstitution(admin, 11)).toBe(true);
     expect(canAccessInstitution(instAdmin, 10)).toBe(true);
   });

@@ -31,6 +31,8 @@ const INK = '#0f172a';
 const BODY = '#334155';
 const MUTED = '#64748b';
 const BORDER = '#e4e8ec';
+/** design-system.md §2 `--color-warn`, for the staleness note (PR-33). */
+const WARN = '#b45309';
 const ACCENT = '#0d6e86';
 
 export async function GET(request: Request): Promise<Response> {
@@ -98,6 +100,15 @@ export async function GET(request: Request): Promise<Response> {
                 <div style={{ display: 'flex', fontSize: 23, color: INK, marginTop: 8 }}>
                   {`${price.label}${price.unit ?? ''}`}
                 </div>
+                {/* A shared image is read without any of the page around it, so
+                    the staleness note travels with the number (PR-33). */}
+                {price.isStale && (
+                  <div style={{ display: 'flex', fontSize: 17, color: WARN, marginTop: 4 }}>
+                    {price.verifiedLabel
+                      ? `Dato de ${price.verifiedLabel}`
+                      : 'Sin fecha de verificación'}
+                  </div>
+                )}
                 <div style={{ display: 'flex', fontSize: 19, color: MUTED, marginTop: 14 }}>
                   {truncate(accreditationLabel(offering.accreditation), 30)}
                 </div>

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { PanelNav } from '@/components/panel/PanelNav';
 import { Badge } from '@/components/ui';
 import { listOwnOfferings } from '@/db/queries/panel/catalog';
-import { isPriceDisplayable } from '@/db/invariants';
+import { priceFreshness } from '@/db/invariants';
 import { formatGs } from '@/lib/format';
 import { MODALITY_LABELS, SHIFT_LABELS } from '@/lib/search/labels';
 import { AuthError } from '@/lib/auth/roles';
@@ -26,8 +26,13 @@ export default async function PanelOfferingsPage() {
     throw error;
   }
 
-  const missing = offerings.filter((o) => !o.priceId || !isPriceDisplayable(o.priceVerifiedAt));
-  const ok = offerings.filter((o) => o.priceId && isPriceDisplayable(o.priceVerifiedAt));
+  // "Necesita atención" is now "no price at all, or a price the site is
+  // showing with a staleness warning" — PR-33 reversed the hide rule, so the
+  // consequence to fix changed from invisibility to a visible warning.
+  const missing = offerings.filter(
+    (o) => !o.priceId || priceFreshness(o.priceVerifiedAt) !== 'fresh',
+  );
+  const ok = offerings.filter((o) => o.priceId && priceFreshness(o.priceVerifiedAt) === 'fresh');
 
   return (
     <>

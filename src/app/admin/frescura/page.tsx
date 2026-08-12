@@ -72,9 +72,10 @@ export default async function StalenessPage() {
       <div>
         <h1 className="text-ink text-2xl font-bold">Frescura de los datos</h1>
         <p className="text-muted max-w-prose text-sm">
-          Un arancel con más de {PRICE_MAX_AGE_MONTHS} meses no se muestra en ninguna parte — ni en
-          el comparador, ni en el JSON-LD, ni en las imágenes que se comparten por WhatsApp. Estos
-          números son lo que hoy dejamos de mostrar.
+          Un arancel con más de {PRICE_MAX_AGE_MONTHS} meses se sigue mostrando —en la carrera, en
+          el comparador y en las imágenes que se comparten por WhatsApp— pero con un aviso visible
+          de que está desactualizado y la fecha de la última verificación. Estos son los números que
+          hoy llevan ese aviso: reverificarlos es lo que se lo saca.
         </p>
       </div>
 
@@ -82,13 +83,13 @@ export default async function StalenessPage() {
         <Stat
           value={counts.pricesExpired}
           label="Aranceles vencidos"
-          detail="Ya ocultos en el sitio. Se ve “Consultá el arancel”."
+          detail="Se muestran con el aviso “dato desactualizado”."
           tone="danger"
         />
         <Stat
           value={counts.pricesExpiringSoon}
           label="Vencen pronto"
-          detail={`Se ocultan dentro de ${PRICE_WARNING_DAYS} días.`}
+          detail={`Empiezan a mostrar el aviso dentro de ${PRICE_WARNING_DAYS} días.`}
           tone="warn"
         />
         <Stat

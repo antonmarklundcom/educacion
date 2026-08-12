@@ -105,7 +105,7 @@ describe('parseConesPrograms', () => {
     expect(records[1].payload.antecedentsRaw).toBe('RES-TEST-0');
   });
 
-  it('recovers a truncated row from the table\'s own single institution', () => {
+  it("recovers a truncated row from the table's own single institution", () => {
     expect(records[2].payload.institutionName).toBe('INSTITUCION DE PRUEBA A');
     expect(records[2].payload.institutionNameSource).toBe('table');
   });
@@ -159,9 +159,9 @@ describe('parseConesRegister', () => {
   it('reads whichever shape the page turns out to be', () => {
     expect(parseConesRegister(CONES_CARD_GRID_HTML, CONTEXT)).toHaveLength(2);
     expect(parseConesRegister(CONES_OFERTAS_TABLE_HTML, CONTEXT)).toHaveLength(3);
-    expect(parseConesRegister(CONES_CARD_GRID_HTML + CONES_OFERTAS_TABLE_HTML, CONTEXT)).toHaveLength(
-      5,
-    );
+    expect(
+      parseConesRegister(CONES_CARD_GRID_HTML + CONES_OFERTAS_TABLE_HTML, CONTEXT),
+    ).toHaveLength(5);
   });
 
   it('is deterministic: the same document yields the same checksums', () => {
