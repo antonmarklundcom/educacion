@@ -74,18 +74,33 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const price = priceDisplay(primary.price);
   const arancel = price.isGap ? 'consultá el arancel' : `${price.label}${price.unit ?? ''}`;
 
+  const title = `${primary.programName} – ${primary.institutionShort} | Arancel, duración y acreditación`;
+  const description = [
+    `${primary.programName} en ${primary.institutionName}:`,
+    duration ? `${duration},` : '',
+    `modalidad ${MODALITY_LABELS[primary.modality].toLowerCase()},`,
+    `${arancel} y estado de acreditación.`,
+    'Compará con otras universidades del Paraguay.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const ogImage = `/og/programa?instSlug=${encodeURIComponent(instSlug)}&programSlug=${encodeURIComponent(programSlug)}`;
+
   return {
-    title: `${primary.programName} – ${primary.institutionShort} | Arancel, duración y acreditación`,
-    description: [
-      `${primary.programName} en ${primary.institutionName}:`,
-      duration ? `${duration},` : '',
-      `modalidad ${MODALITY_LABELS[primary.modality].toLowerCase()},`,
-      `${arancel} y estado de acreditación.`,
-      'Compará con otras universidades del Paraguay.',
-    ]
-      .filter(Boolean)
-      .join(' '),
+    title,
+    description,
     alternates: { canonical: `/universidades/${instSlug}/${programSlug}` },
+    openGraph: {
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
+    },
   };
 }
 
