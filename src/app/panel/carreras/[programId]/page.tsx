@@ -2,12 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { AccreditationDisputeForm } from '@/components/panel/AccreditationDisputeForm';
+import { Badge } from '@/components/ui';
 import { PanelForm } from '@/components/panel/PanelForm';
 import { PanelNav } from '@/components/panel/PanelNav';
 import { getOwnProgram, listOwnOfferings } from '@/db/queries/panel/catalog';
+import { listDisputableAccreditations } from '@/db/queries/panel/disputes';
 import { PROGRAM_LEVEL } from '@/db/schema';
 import { REVIEW_FIELDS } from '@/lib/panel/review';
-import { LEVEL_LABELS, MODALITY_LABELS, SHIFT_LABELS } from '@/lib/search/labels';
+import {
+  ACCREDITATION_STATUS_LABELS,
+  LEVEL_LABELS,
+  MODALITY_LABELS,
+  SHIFT_LABELS,
+} from '@/lib/search/labels';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
@@ -43,6 +51,12 @@ export default async function PanelProgramPage({
   // Scoped by institution in the query, so another institution's programme is
   // indistinguishable from one that does not exist — deliberately.
   if (!program) notFound();
+
+  // Fetched only once ownership is confirmed above, so a cross-institution id
+  // still 404s instead of surfacing `listDisputableAccreditations`'s
+  // `AuthError` as a redirect — the same "looks like it doesn't exist"
+  // behaviour the rest of this page already has.
+  const accreditations = await listDisputableAccreditations(user, programId);
 
   return (
     <>
@@ -139,6 +153,44 @@ export default async function PanelProgramPage({
                       {offering.priceId ? 'Arancel cargado' : 'Sin arancel'}
                     </span>
                   </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="border-border flex flex-col gap-3 border-t pt-6">
+          <h2 className="text-ink text-lg font-semibold">Acreditación</h2>
+          <p className="text-muted max-w-prose text-sm">
+            Esto es lo que publicamos con fuente citada. Si algo está mal, disputalo: mientras lo
+            revisamos, no lo mostramos en el sitio. No podés editarlo directamente — es lo que dice
+            el registro público.
+          </p>
+          {accreditations.length === 0 ? (
+            <p className="text-muted text-sm">
+              No tenemos ningún dato de acreditación cargado para esta carrera o tu institución.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {accreditations.map((row) => (
+                <li
+                  key={row.id}
+                  className="border-border bg-surface flex flex-col gap-2 rounded-md border px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-body text-sm">
+                      {row.agency} · {ACCREDITATION_STATUS_LABELS[row.status]}
+                      {row.resolutionNumber ? ` · Res. ${row.resolutionNumber}` : ''}
+                    </span>
+                    {row.isDisputed && <Badge tone="warn">En revisión</Badge>}
+                  </div>
+                  {row.openDisputeId ? (
+                    <p className="text-muted text-sm">
+                      Ya enviaste una disputa para este registro. Te avisamos cuando la revisemos.
+                    </p>
+                  ) : (
+                    <AccreditationDisputeForm accreditationId={row.id} programId={programId} />
+                  )}
                 </li>
               ))}
             </ul>

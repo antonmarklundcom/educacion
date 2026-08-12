@@ -36,6 +36,7 @@ import {
   removeMember,
   type MemberRole,
 } from '@/db/queries/panel/members';
+import { fileAccreditationDispute } from '@/db/queries/panel/disputes';
 import { setPanelLeadStatus } from '@/db/queries/panel/leads';
 import { assertOwnsOffering } from '@/db/queries/panel/scope';
 import { AuthError } from '@/lib/auth/roles';
@@ -255,6 +256,30 @@ export async function setPanelLeadStatusAction(
     revalidatePath('/panel/leads');
     revalidatePath(`/panel/leads/${leadId}`);
     return { message: 'Actualizamos el estado.' };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Disputes (PR-24)                                                           */
+/* -------------------------------------------------------------------------- */
+
+export async function fileAccreditationDisputeAction(
+  accreditationId: number,
+  programId: number,
+  _prevState: PanelFormState,
+  formData: FormData,
+): Promise<PanelFormState> {
+  try {
+    const user = await currentUser();
+    const reason = String(formData.get('reason') ?? '');
+    await fileAccreditationDispute(user, accreditationId, reason);
+    revalidatePath(`/panel/carreras/${programId}`);
+    return {
+      message:
+        'Enviamos tu disputa. Mientras la revisamos, no mostramos esta acreditación en el sitio.',
+    };
   } catch (error) {
     return failure(error);
   }

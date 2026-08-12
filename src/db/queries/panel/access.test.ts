@@ -143,6 +143,7 @@ const {
   changeMemberRoleAction,
   removeMemberAction,
   setPanelLeadStatusAction,
+  fileAccreditationDisputeAction,
 } = await import('@/app/panel/actions');
 
 const { assertSameInstitution, panelInstitutionId, requirePanelAdmin } = await import('./scope');
@@ -223,6 +224,17 @@ describe('cross-institution writes, against the route handlers', () => {
       await setPanelLeadStatusAction(OWNED_BY_A, {}, form({ status: 'contacted' })),
     );
   });
+
+  it('refuses to file a dispute on another institution’s accreditation', async () => {
+    expectRefused(
+      await fileAccreditationDisputeAction(
+        OWNED_BY_A,
+        7,
+        {},
+        form({ reason: 'Esta acreditación ya no está vigente, tenemos una nueva resolución.' }),
+      ),
+    );
+  });
 });
 
 describe('a signed-out request reaches nothing', () => {
@@ -239,6 +251,9 @@ describe('a signed-out request reaches nothing', () => {
     expectRefused(await changeMemberRoleAction(1, {}, form()));
     expectRefused(await removeMemberAction(1, {}));
     expectRefused(await setPanelLeadStatusAction(1, {}, form({ status: 'contacted' })));
+    expectRefused(
+      await fileAccreditationDisputeAction(1, 7, {}, form({ reason: 'Motivo suficientemente largo.' })),
+    );
   });
 });
 
