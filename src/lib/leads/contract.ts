@@ -17,6 +17,17 @@ import type { AGE_BRACKET, LEAD_STATUS } from '@/db/schema';
 export type LeadStatus = (typeof LEAD_STATUS)[number];
 export type AgeBracket = (typeof AGE_BRACKET)[number];
 
+/**
+ * The three transitions an institution makes from `/panel/leads`. `new` and
+ * `sent` are system states (`db/queries/leads.ts`'s `createLead` /
+ * `markLeadDelivered`), never set from the panel. Declared here rather than in
+ * `db/queries/panel/leads.ts` so `LeadStatusForm` — a client component — can
+ * import the list without pulling that query module, and therefore `mysql2`,
+ * into the browser bundle (same client-safety rule as the top of this file).
+ */
+export const PANEL_LEAD_STATUSES = ['contacted', 'qualified', 'discarded'] as const;
+export type PanelLeadStatus = (typeof PANEL_LEAD_STATUSES)[number];
+
 /* -------------------------------------------------------------------------- */
 /* Consent                                                                    */
 /* -------------------------------------------------------------------------- */

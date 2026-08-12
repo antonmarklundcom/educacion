@@ -304,9 +304,18 @@ Hostinger managed Node has no built-in scheduler you should rely on. Use hPanel 
 | Data-staleness scan → admin digest                          | weekly Mon        | `/api/cron/staleness`      |
 | Convocatoria status transitions (abiertas/cerradas by date) | daily 05:00       | `/api/cron/admissions`     |
 | Lead-delivery retry for failed notifications                | hourly            | `/api/cron/lead-retry`     |
+| Lead email digest, per institution with `status='new'` leads | daily 08:00 -04   | `/api/cron/lead-digest`    |
 | Sitemap regeneration                                        | nightly           | `/api/cron/sitemap`        |
 
-All guarded by `CRON_SECRET` in a header. All idempotent.
+All guarded by `CRON_SECRET`, sent as the `x-cron-secret` header (`src/lib/cron/auth.ts`, PR-23). All idempotent.
+
+### 10.1 What PR-23 settled — `lead-retry` and `lead-digest`
+
+`/api/cron/[job]` was a routing stub until this PR (`docs/deployment.md` §6 said so explicitly); it now handles these two jobs and still answers `not_implemented` for the rest, which ship with their owning PRs.
+
+`lead-retry` re-runs `notifyInstitution` for every `status='new'`, `delivered_at is null` row (`src/lib/leads/retry.ts`) — the same call `submitLead` already makes once, inline. It is idempotent by construction: a lead marked `sent` no longer matches the query that finds it, so firing the cron twice in the same hour is a wasted read, not a duplicate email.
+
+`lead-digest` (`src/lib/leads/digest.ts`) is deliberately **not** "leads since the last digest" — there is no persisted "last sent" clock, and PR-23 was told to stop and ask before adding a schema change rather than add one for this. It reports a live count instead ("tenés N solicitudes sin responder"), which is both true and safe to re-send: a double-fire repeats the same honest sentence rather than duplicating or dropping a lead. Read "all jobs are idempotent" above that way for this job specifically — no double-counted data, not "never sent twice".
 
 ---
 

@@ -159,6 +159,7 @@ export default async function PanelPage() {
             value={stats.newLeads}
             label="Solicitudes sin responder"
             detail={`${stats.leadsLast30} llegaron en los últimos 30 días.`}
+            href="/panel/leads"
           />
         </section>
 

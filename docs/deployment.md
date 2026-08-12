@@ -60,13 +60,20 @@ Beyond `DATABASE_URL` and `CRON_SECRET`, the lead pipeline and the event log rea
 | ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PRIVACY_SALT`                 | **Yes** (≥ 16 chars, secret, never in the repo) | Hashes fall back to a random per-process salt: IP-based rate limits reset on every restart. The app warns once and keeps working. Rotating it invalidates every existing `ip_hash`, which resets IP quotas — that is the intended way to rotate.                                                                      |
 | `NEXT_PUBLIC_SITE_URL`         | Yes in production                               | The origin check falls back to comparing `Origin` against the `Host` header instead of the known domain.                                                                                                                                                                                                              |
-| `RESEND_API_KEY`               | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`. Nothing is lost, but **nothing retries either until PR-23 ships the hourly `lead-retry` cron** — `/api/cron/[job]` is a routing stub today. Until then an undelivered lead is only visible in the DB, so set these before taking real traffic. |
+| `RESEND_API_KEY`               | Yes to deliver leads                            | Leads are still stored, with `status='new'` and a null `delivered_at`. Nothing is lost, and the hourly `lead-retry` cron (`/api/cron/lead-retry`, PR-23) keeps retrying `notifyInstitution` for every undelivered row — but with this unset it never succeeds, so a lead only becomes visible in the DB, not in an inbox. Set it before taking real traffic. |
 | `LEAD_FROM_EMAIL`              | Same as above                                   | Same as above. Sending domain must be verified in Resend first.                                                                                                                                                                                                                                                       |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | No                                              | Unset means the Plausible script never loads. That is the correct state until someone subscribes — nothing is half-configured.                                                                                                                                                                                        |
 
 ## 7. Cron
 
-hPanel cron → `curl` the authenticated route handlers listed in `architecture.md` §10, passing `CRON_SECRET` as a header. All jobs are idempotent, so a double-fire is harmless.
+hPanel cron → `curl` the authenticated route handlers listed in `architecture.md` §10, passing `CRON_SECRET` in the `x-cron-secret` header:
+
+```
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-retry
+curl -H "x-cron-secret: $CRON_SECRET" https://educacion.com.py/api/cron/lead-digest
+```
+
+All jobs are idempotent, so a double-fire is harmless.
 
 ## 8. Post-deploy checklist
 
