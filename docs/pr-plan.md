@@ -520,8 +520,9 @@ lockout: the key is a string the attacker types, `checkRate` charges rejected at
 so ~21 requests an hour from one ordinary IP — no header spoofing — holds any named account
 blocked indefinitely, with the victim's own retries topping the window up. Online guessing is
 already bounded by the KDF's cost; locking a paying institution out of its panel during
-admissions is not. Keying on the pair keeps the realistic protection and lets an attacker
-block only a pair they already control. Full reasoning in `architecture.md` §6.1.1.
+admissions is not. Keying on the pair keeps the realistic protection and raises a
+lockout's price from "know the address" to "know the address *and* the IP it will be used
+from" — a higher bar, not an impossibility, since `x-forwarded-for` is forgeable. Full reasoning in `architecture.md` §6.1.1.
 
 Second deviation, same kind: **a success costs nothing.** `checkRate` records every attempt
 including successes, which would let a school lab or cyber café behind one NAT lock itself
@@ -530,7 +531,11 @@ this peeked and charged the failure afterwards, which the review measured as a t
 three `await`s sit between peek and charge, so 50 concurrent requests against a cap of 5 all
 reached `authenticate()`. The attempt is now charged at decision time (atomic, both calls
 synchronous and adjacent) and *refunded* on success — the pair key cleared, the single IP
-timestamp given back. This needed `peekRate`/`recordRate`/`clearRate`/`refundRate` alongside
+timestamp given back — and refunded again if the lookup or the hash comparison throws, so a
+database blip does not spend a waiting user's quota. The cost of charging first is that the
+per-minute rules become concurrency caps as well; `LOGIN_IP_RULES`' burst limit is 30 rather
+than 10 for exactly that reason, measured against 20 simultaneous correct sign-ins from one
+NAT. This needed `peekRate`/`recordRate`/`clearRate`/`refundRate` alongside
 `checkRate` in `src/lib/leads/rate-limit.ts`; the existing four callers are untouched, and
 the new primitives have their own tests.
 
@@ -539,8 +544,10 @@ outlives the request and a plaintext address in it is PII we never agreed to hol
 normalises case and whitespace, so capitalising a letter cannot buy a fresh quota. The same
 argument applied to the pre-existing `console.warn` on a failed sign-in, which logged the
 address in plaintext to a far more durable place than the map — it now logs the hash. (2)
-`clientIpHash()`/`hashClientIp()` consolidated into `src/lib/privacy/request.ts`, which is
-where `clientIp()` already lived; the login, reset **and claim** actions now share one
+the IP-hashing helpers consolidated into the privacy module, where `clientIp()`
+already lived — `hashClientIp(Headers)` in `request.ts` and the server-only `clientIpHash()`
+in `server-request.ts`, split so `request.ts` does not drag `next/headers` into the import
+graph of `lib/leads` and `lib/events`. The login, reset **and claim** actions now share one
 implementation, where there had been three that already differed. (3) The four boundaries
 share one `ShellError` client component so the rule that matters is written once: **nothing
 derived from the error reaches the page** — not `error.message`, which on a `force-dynamic`
@@ -549,7 +556,7 @@ route against MySQL is routinely a connection string or a failing SQL fragment, 
 no shell layout above it, and is the only one that sets `id="contenido"` — the three shell
 layouts already render that id and the boundary renders inside it.
 
-28 tests: 11 on the limiter, 11 on `loginAction` itself and 6 on the new shared primitives.
+30 tests: 11 on the limiter, 13 on `loginAction` itself and 6 on the new shared primitives.
 The action-level suite exists because a test that calls a helper twice and compares answers
 is a tautology over its own fixture — it would pass unchanged if the limiter moved *below*
 `findAccountByEmail`, which is what the "no enumeration oracle" claim actually rests on. Two

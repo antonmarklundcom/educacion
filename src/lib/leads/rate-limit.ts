@@ -107,11 +107,17 @@ export function checkRate(
  *
  * `checkRate` records first and asks afterwards, which is right when every
  * attempt is equally a cost (a lead, an email, a claim). It is wrong when the
- * attempt is a *credential check*, because then the caller wants to charge
- * only the failures: counting a success means a busy office NAT locks itself
- * out by signing in, and counting a rejected attempt means an attacker can
- * hold a key blocked forever by continuing to hit it (PR-42, `architecture.md`
- * §6.1.1). Pair with `recordRate` and `clearRate`.
+ * attempt is a *credential check*: counting a success means a busy office NAT
+ * locks itself out by signing in, and counting a rejected attempt means an
+ * attacker can hold a key blocked forever by continuing to hit it (PR-42,
+ * `architecture.md` §6.1.1).
+ *
+ * **Do not use this to peek now and charge the outcome later.** Whatever
+ * decides the outcome will be `await`ed, and every concurrent request then
+ * peeks before any of them records — the limit stops binding entirely. Pair it
+ * with `recordRate` *immediately*, with no `await` between, and use
+ * `refundRate` or `clearRate` to give an attempt back once its outcome is
+ * known.
  */
 export function peekRate(
   key: string,

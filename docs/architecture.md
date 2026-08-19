@@ -194,7 +194,7 @@ it, with two departures from the obvious design that are the whole point of the 
 
 | Key | Limits | Stops |
 | --- | --- | --- |
-| hashed IP | 10/min, 60/hour | one machine grinding a dictionary |
+| hashed IP | 30/min, 60/hour | one machine grinding a dictionary |
 | hashed (address, IP) **pair** | 5/min, 20/hour | one machine grinding one account |
 
 **There is no global per-address counter, deliberately.** "Per IP plus per email" is the
@@ -230,9 +230,19 @@ all 50 reached `authenticate()`.
 So the attempt is charged at decision time — `loginAllowed` and `chargeLoginAttempt` are
 synchronous and adjacent, which is atomic on one event loop — and a success is *refunded*:
 `settleLoginSuccess` clears the pair key outright and gives back the single IP timestamp the
-attempt cost (`refundRate`). Failures stay charged, a success costs nothing, and a
-concurrent burst is counted as it arrives. The IP key is refunded by one rather than cleared:
-clearing it would let an attacker owning one valid account reset their whole budget at will.
+attempt cost (`refundRate`). An attempt that throws before it was verified — the database
+unreachable, the comparison failing — is refunded too, because nothing was checked and a blip
+of ours must not spend a waiting user's quota. Failures stay charged, and a concurrent burst
+is counted as it arrives. The IP key is refunded by one rather than cleared: clearing it
+would let an attacker owning one valid account reset their whole budget at will.
+
+**A success costs nothing once settled — but it holds its charge while it is in flight**, so
+the per-minute rules are concurrency caps as well as rate caps. That is why the IP burst limit
+is 30 and not 10: sign-in is the slowest request on the site by design, the population behind
+one hashed IP is a NAT, and at 10 an eleventh person pressing "Ingresar" in the same moment
+was refused with a correct password — the school-lab case §6.1 promises to tolerate. 60/hour
+is the rule that actually bounds a sustained attack. The pair tier's 5 caps simultaneous
+attempts on one account, which no legitimate person reaches: two tabs and a phone is three.
 
 Two properties beyond those, both covered by tests that fail without them:
 

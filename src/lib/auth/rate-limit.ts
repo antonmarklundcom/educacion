@@ -48,9 +48,12 @@
  * `chargeLoginAttempt` are both synchronous and adjacent, which is atomic on
  * one event loop — and a success is *refunded*: the pair key is cleared
  * outright, and the one IP timestamp is given back. Failures stay charged,
- * successes cost nothing, and a concurrent burst is counted as it arrives.
+ * successes cost nothing once settled, and a concurrent burst is counted as it
+ * arrives. The cost of charging first is that a charge is held for the length
+ * of the attempt, so the per-minute rules are concurrency caps too — which is
+ * why `LOGIN_IP_RULES`' burst limit is as high as it is.
  *
- * The IP itself is hashed by `clientIpHash()` in `@/lib/privacy/request`,
+ * The IP itself is hashed by `clientIpHash()` in `@/lib/privacy/server-request`,
  * which every abuse-limited action shares. `x-forwarded-for` is
  * client-forgeable, so this tier is defeated by rotating it — the same caveat
  * §6.1 states for the lead form. It raises the cost of a flood; the password
@@ -76,18 +79,26 @@ import {
 import { hashEmail } from '@/lib/privacy/hash';
 
 /**
- * Deliberately looser than the reset form's 3/minute: a reset costs somebody
- * else an email, a failed sign-in costs a hash, and only failures are charged
- * here. Loose enough for a shared address, per §6.1.
+ * The hourly rule is the one that binds. The burst rule is deliberately high
+ * because charging on entry makes it a **concurrency** cap as well as a rate
+ * cap: an attempt holds its charge until `authenticate()` returns, and that is
+ * the slowest request on the site by design. At 10/minute, an eleventh person
+ * pressing "Ingresar" within the same moment — ordinary at the start of a day
+ * behind one school, café or office NAT, which is the case §6.1 promises to
+ * tolerate — was refused with a correct password. 30 leaves that headroom
+ * while 60/hour still bounds a sustained attack.
  */
 export const LOGIN_IP_RULES: RateLimitRule[] = [
-  { limit: 10, windowMs: 60_000 },
+  { limit: 30, windowMs: 60_000 },
   { limit: 60, windowMs: 3_600_000 },
 ];
 
 /**
- * Per (address, IP). Tighter, because ten failures against one account from
- * one machine in a minute is not a person who forgot their password.
+ * Per (address, IP). Tighter, because five failures against one account from
+ * one machine in a minute is not a person who forgot their password. It caps
+ * simultaneous in-flight attempts on one account at five too (see
+ * `LOGIN_IP_RULES`), which no legitimate person reaches — two tabs and a
+ * phone is three.
  */
 export const LOGIN_ACCOUNT_RULES: RateLimitRule[] = [
   { limit: 5, windowMs: 60_000 },
@@ -132,6 +143,22 @@ export function chargeLoginAttempt(ipHash: string, email: string, now: number): 
   const keys = keysFor(ipHash, email);
   recordRate(keys.ip, now, LOGIN_IP_RULES);
   recordRate(keys.account, now, LOGIN_ACCOUNT_RULES);
+}
+
+/**
+ * Give back an attempt that was never actually verified — the database was
+ * unreachable, or the hash comparison threw. Refunds both keys rather than
+ * clearing them, so the failures around it survive.
+ *
+ * Safe against abuse because a throw here is not caller-inducible: the
+ * failure is ours, not something an attacker can provoke to sign-in for free.
+ * Without it, one database blip spends every waiting user's quota and then
+ * tells them they tried too often.
+ */
+export function refundLoginAttempt(ipHash: string, email: string, now: number): void {
+  const keys = keysFor(ipHash, email);
+  refundRate(keys.ip, now);
+  refundRate(keys.account, now);
 }
 
 /**

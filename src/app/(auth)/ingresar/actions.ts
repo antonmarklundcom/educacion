@@ -23,6 +23,7 @@ import {
   LOGIN_RATE_LIMITED,
   chargeLoginAttempt,
   loginAllowed,
+  refundLoginAttempt,
   settleLoginSuccess,
 } from '@/lib/auth/rate-limit';
 import { clientIpHash } from '@/lib/privacy/server-request';
@@ -43,29 +44,43 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   const password = String(formData.get('password') ?? '');
 
   // The audit's one security inconsistency: every other public write was rate
-  // limited and this one, where a guess actually succeeds, was not. Peeked
+  // limited and this one, where a guess actually succeeds, was not. Decided
   // before the lookup, so a flood never reaches the database, and keyed on the
   // *submitted* address, so the answer cannot tell an attacker which addresses
-  // exist. Only failures are charged, below — `rate-limit.ts` has the
-  // reasoning for that and for why there is no global per-address counter.
+  // exist. `rate-limit.ts` has the reasoning for the charge/refund order and
+  // for why there is no global per-address counter.
   const ipHash = await clientIpHash();
   const at = Date.now();
   if (!loginAllowed(ipHash, email, at)) {
+    // Logged so an operator answering "why can nobody at this university sign
+    // in?" can see whether one address is tripping it (risks.md §R-16). The
+    // IP is already a hash; the address is hashed here too.
+    console.warn(`Login rate limited: ip=${ipHash} account=${hashEmail(email)}`);
     return { error: LOGIN_RATE_LIMITED };
   }
-  // Charged here, before the outcome is known. `loginAllowed` and this call are
+  // Charged before the outcome is known. `loginAllowed` and this call are
   // synchronous and adjacent, so no other request can interleave between them;
   // peeking now and charging after `authenticate()` would leave three `await`s
-  // in the window, and a concurrent burst would pass the limit wholesale.
-  // A success refunds it below.
+  // in the window, and a concurrent burst would pass the limit wholesale. A
+  // success refunds it below; so does a failure of ours.
   chargeLoginAttempt(ipHash, email, at);
 
-  const account = await findAccountByEmail(email);
-  const institutionId = account
-    ? await resolveInstitutionScope(account.id, account.institutionId)
-    : null;
+  let account: Awaited<ReturnType<typeof findAccountByEmail>>;
+  let result: Awaited<ReturnType<typeof authenticate>>;
+  try {
+    account = await findAccountByEmail(email);
+    const institutionId = account
+      ? await resolveInstitutionScope(account.id, account.institutionId)
+      : null;
 
-  const result = await authenticate(account, password, institutionId);
+    result = await authenticate(account, password, institutionId);
+  } catch (error) {
+    // Nothing was verified, so nothing should be charged. Without this, one
+    // database blip spends the quota of every user waiting on it and then
+    // tells them they tried too often.
+    refundLoginAttempt(ipHash, email, at);
+    throw error;
+  }
 
   if (!result.ok) {
     // Already charged above; a failure simply keeps it.
@@ -77,8 +92,8 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   }
 
   // Somebody who mistyped twice and then got it right starts clean, and the
-  // sign-in itself costs nothing — a busy shared address must not lock itself
-  // out by succeeding (architecture.md §6.1.1).
+  // sign-in itself costs nothing once settled — a busy shared address must not
+  // lock itself out by succeeding (architecture.md §6.1.1).
   settleLoginSuccess(ipHash, email, at);
 
   if (result.rehashTo && account) {

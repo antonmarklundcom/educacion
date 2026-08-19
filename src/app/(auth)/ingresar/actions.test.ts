@@ -166,9 +166,55 @@ describe('loginAction — a concurrent burst is counted as it arrives', () => {
   });
 });
 
-describe('loginAction — a success', () => {
-  const user = { id: 7, role: 'institution', institutionId: 3, mustChangePassword: false };
+const user = { id: 7, role: 'institution', institutionId: 3, mustChangePassword: false };
 
+describe('loginAction — our own failures cost the user nothing', () => {
+  it('refunds the attempt when the database is unreachable', async () => {
+    // Otherwise one blip spends the quota of every user waiting on it, and
+    // then tells them they tried too often.
+    findAccountByEmail.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit + 2; attempt += 1) {
+      await expect(loginAction({}, form('persona@ejemplo.test', 'correcta'))).rejects.toThrow(
+        'ECONNREFUSED',
+      );
+    }
+
+    // The outage clears; the user has spent nothing.
+    findAccountByEmail.mockResolvedValue(null);
+    authenticate.mockResolvedValue({ ok: false, reason: 'wrong_password' });
+    const state = await loginAction({}, form('persona@ejemplo.test', 'incorrecta'));
+
+    expect(state.error).toBe(LOGIN_ERROR);
+  });
+});
+
+describe('loginAction — a burst of correct passwords from one address', () => {
+  it('does not refuse legitimate simultaneous sign-ins behind one NAT', async () => {
+    // Charging on entry makes the per-minute rule a concurrency cap too: an
+    // attempt holds its charge until `authenticate()` returns, and that is the
+    // slowest request on the site. A school lab or an institution's office all
+    // signing in at the start of the day is the case §6.1 must tolerate.
+    authenticate.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, user }), 5)),
+    );
+
+    const burst = await Promise.allSettled(
+      Array.from({ length: 20 }, (_, index) =>
+        loginAction({}, form(`persona-${index}@ejemplo.test`, 'correcta')),
+      ),
+    );
+
+    // Every one redirects; none is turned away.
+    const refused = burst.filter(
+      (outcome) => outcome.status === 'fulfilled' && outcome.value?.error === LOGIN_RATE_LIMITED,
+    );
+    expect(refused).toHaveLength(0);
+    expect(startSession).toHaveBeenCalledTimes(20);
+  });
+});
+
+describe('loginAction — a success', () => {
   it('starts a session and clears the account quota', async () => {
     // Spend most of the account tier, then succeed.
     authenticate.mockResolvedValue({ ok: false, reason: 'wrong_password' });
