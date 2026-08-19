@@ -190,33 +190,52 @@ The reason to derive rather than to count: the limit that actually matters is pe
 The 2026-08 audit's one security inconsistency: `checkRate` guarded the lead form, the event
 beacon, the claim request and the password-reset form, while `/ingresar` — the one endpoint
 where a guess *succeeds* — called `authenticate()` bare. `src/lib/auth/rate-limit.ts` closes
-it with the same in-process sliding window, two keys deep:
+it, with two departures from the obvious design that are the whole point of the section.
 
 | Key | Limits | Stops |
 | --- | --- | --- |
 | hashed IP | 10/min, 60/hour | one machine grinding a dictionary |
-| hashed submitted email | 5/min, 20/hour | a botnet spreading one dictionary across many machines |
+| hashed (address, IP) **pair** | 5/min, 20/hour | one machine grinding one account |
 
-Three properties are load-bearing, and each has a test that fails without it:
+**There is no global per-address counter, deliberately.** "Per IP plus per email" is the
+obvious second tier and the one PR-42's brief names. A global per-email counter with a hard
+refusal is a remote account lockout, and a cheap one: the key is a string the attacker types,
+`checkRate` charges rejected attempts too, so ~21 requests an hour — a fifth of the IP budget,
+from one ordinary address, with no header spoofing at all — holds any account the attacker can
+name locked out indefinitely, and the victim's own retries top the window back up. That is a
+denial-of-service tool wearing a rate limiter's clothes, and it is the worse trade: online
+guessing is already bounded by the KDF's cost, while locking a paying institution out of its
+panel during admissions is not. Keying the second tier on the **pair** keeps the realistic
+protection and means an attacker can only ever block a pair they already control. What is
+given up — one dictionary spread thin across a botnet, which the IP tier cannot see — is not
+bought at the price of handing every visitor a lockout button.
 
-1. **The email key is the submitted string, hashed before any lookup.** Keying it on accounts
-   that were found would make the rejection appear only for real addresses — the limiter
-   itself becomes the enumeration oracle that `login.ts`'s decoy hash exists to prevent.
-2. **The email tier records nothing once the IP tier has already blocked.** Otherwise a
-   blocked attacker still burns the quota of every address they name, and a rate limiter
-   becomes a tool for locking real users out of their own panels.
-3. **The limiter never touches the failure path.** A request that reaches `authenticate()`
-   still gets `LOGIN_ERROR` and the decoy-hash timing, unchanged. The rate-limit message is
-   separate, describes the request rather than the credentials, and names nothing about an
-   account. Rejection is allowed to be *fast* — both keys are chosen by the caller, so its
-   speed leaks nothing.
+**Only failures are charged.** `checkRate` records every attempt, success included, which is
+right for a lead or an email and backwards for a credential check: a school lab or a cyber
+café — the exact case §6.1 says the limits must tolerate — would lock itself out by *signing
+in successfully*. So the login path peeks (`peekRate`), charges only a failure
+(`recordRate`), and clears the pair key on success (`clearRate`), so somebody who mistyped
+twice and then got it right starts clean. The IP key is **not** cleared on success: an
+attacker owning one valid account could otherwise reset their own budget at will.
 
-Limits are looser than the reset form's 3/min because a reset costs somebody else an email
-while a failed sign-in costs a hash, and a person who has forgotten which password they used
-must not lose their own panel for the morning. Same caveat as §6.1: this tier is per-process
-and per-boot, and `x-forwarded-for` is client-forgeable, so it raises the cost of a flood
-rather than making one impossible. The durable backstop for credentials is the password
-hash's own cost.
+Two properties beyond those, both covered by tests that fail without them:
+
+1. **The pair key is built from the submitted address, before any lookup.** Keying it on
+   accounts that were found would make the rejection appear only for real addresses — the
+   limiter itself becomes the enumeration oracle that `login.ts`'s decoy hash exists to
+   prevent. `src/app/(auth)/ingresar/actions.test.ts` asserts the call order in the action,
+   not just the helper: a rate-limited request must never reach `findAccountByEmail`.
+2. **The failure path is untouched.** A request that reaches `authenticate()` still returns
+   `LOGIN_ERROR` after the decoy hash, with the same timing for every reason. The rate-limit
+   message is separate, describes the request rather than the credentials, and names nothing
+   about an account. Rejection is allowed to be *fast* — both keys are chosen by the caller,
+   so its speed leaks nothing.
+
+Same caveat as §6.1, stated rather than assumed: `x-forwarded-for` is client-forgeable and
+Hostinger's proxy appends rather than replaces, so the IP tier is defeated by rotating it, and
+this tier is per-process and per-boot. It raises the cost of a flood. What actually bounds
+credential guessing is the password hash's own cost — there is no durable backstop here, and
+the pair keying is what makes that acceptable rather than alarming.
 
 ### 6.2 What PR-14 settled — `whatsapp_e164` is not on the search contract
 

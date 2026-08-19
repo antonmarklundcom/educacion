@@ -19,8 +19,15 @@ import {
   setPassword,
 } from '@/db/queries/auth';
 import { LOGIN_ERROR, authenticate } from '@/lib/auth/login';
-import { LOGIN_RATE_LIMITED, checkLoginRate, clientIpHash } from '@/lib/auth/rate-limit';
+import {
+  LOGIN_RATE_LIMITED,
+  clearLoginRate,
+  loginAllowed,
+  recordLoginFailure,
+} from '@/lib/auth/rate-limit';
+import { clientIpHash } from '@/lib/privacy/request';
 import { startSession } from '@/lib/auth/session';
+import { hashEmail } from '@/lib/privacy/hash';
 
 export interface LoginState {
   error?: string;
@@ -36,11 +43,13 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   const password = String(formData.get('password') ?? '');
 
   // The audit's one security inconsistency: every other public write was rate
-  // limited and this one, where a guess actually succeeds, was not. Checked
-  // before the lookup, so a flood never reaches the database — and keyed on
-  // the *submitted* address, so the rejection cannot tell an attacker which
-  // addresses exist. `rate-limit.ts` has the reasoning.
-  if (!checkLoginRate(await clientIpHash(), email).allowed) {
+  // limited and this one, where a guess actually succeeds, was not. Peeked
+  // before the lookup, so a flood never reaches the database, and keyed on the
+  // *submitted* address, so the answer cannot tell an attacker which addresses
+  // exist. Only failures are charged, below — `rate-limit.ts` has the
+  // reasoning for that and for why there is no global per-address counter.
+  const ipHash = await clientIpHash();
+  if (!loginAllowed(ipHash, email)) {
     return { error: LOGIN_RATE_LIMITED };
   }
 
@@ -52,10 +61,16 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   const result = await authenticate(account, password, institutionId);
 
   if (!result.ok) {
-    // One message for every failure — see `login.ts`. The reason stays server-side.
-    console.warn(`Login failed (${result.reason}) for "${email.slice(0, 64)}"`);
+    recordLoginFailure(ipHash, email);
+    // One message for every failure — see `login.ts`. The reason stays
+    // server-side, and the address is hashed: a log line outlives the
+    // in-process limiter that `hashEmail` exists to keep addresses out of.
+    console.warn(`Login failed (${result.reason}) for ${hashEmail(email)}`);
     return { error: LOGIN_ERROR };
   }
+
+  // Somebody who mistyped twice and then got it right starts clean.
+  clearLoginRate(ipHash, email);
 
   if (result.rehashTo && account) {
     await setPassword(account.id, result.rehashTo, {

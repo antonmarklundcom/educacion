@@ -102,6 +102,62 @@ export function checkRate(
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
+/**
+ * Would one more attempt on this key be allowed — **without** recording it.
+ *
+ * `checkRate` records first and asks afterwards, which is right when every
+ * attempt is equally a cost (a lead, an email, a claim). It is wrong when the
+ * attempt is a *credential check*, because then the caller wants to charge
+ * only the failures: counting a success means a busy office NAT locks itself
+ * out by signing in, and counting a rejected attempt means an attacker can
+ * hold a key blocked forever by continuing to hit it (PR-42, `architecture.md`
+ * §6.1.1). Pair with `recordRate` and `clearRate`.
+ */
+export function peekRate(
+  key: string,
+  now: number = Date.now(),
+  rules: RateLimitRule[] = [IP_BURST, IP_HOURLY],
+): RateLimitDecision {
+  const timestamps = hits.get(key) ?? [];
+
+  for (const rule of rules) {
+    const inWindow = timestamps.filter((at) => at > now - rule.windowMs);
+    // `>=`: the question is whether there is room for the attempt about to be
+    // made, which is what `checkRate`'s post-push `>` amounts to.
+    if (inWindow.length >= rule.limit) {
+      const oldest = inWindow[0] ?? now;
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((oldest + rule.windowMs - now) / 1000)),
+      };
+    }
+  }
+
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+/** Charge one attempt against a key. See `peekRate`. */
+export function recordRate(
+  key: string,
+  now: number = Date.now(),
+  rules: RateLimitRule[] = [IP_BURST, IP_HOURLY],
+): void {
+  const longest = Math.max(...rules.map((rule) => rule.windowMs));
+  const timestamps = prune(hits.get(key) ?? [], now, longest);
+  timestamps.push(now);
+  hits.set(key, timestamps);
+
+  if (hits.size > MAX_KEYS) sweep(now);
+}
+
+/**
+ * Forget a key entirely — used when an attempt *succeeded*, so a person who
+ * mistyped their password twice and then got it right starts clean.
+ */
+export function clearRate(key: string): void {
+  hits.delete(key);
+}
+
 /** Test seam. Never called by application code. */
 export function __resetRateLimitForTests(): void {
   hits.clear();

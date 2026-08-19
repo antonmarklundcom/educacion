@@ -513,31 +513,52 @@ behaviour (`src/lib/auth/login.ts`'s decoy-hash design stays intact); limits uni
 including the negative case; a thrown error in a panel page renders the panel boundary with
 the disclaimer footer still present; no boundary leaks stack traces in production.
 
-**Shipped as:** as specified. Two tiers in `src/lib/auth/rate-limit.ts` — 10/min + 60/hour
-per hashed IP, 5/min + 20/hour per hashed submitted email — checked before the account
-lookup, so a flood never reaches the database. Documented in `architecture.md` §6.1.1 with
-the three properties that make it safe rather than merely present: the email key is the
-**submitted** string (keying it on accounts that were found would make the limiter itself the
-enumeration oracle the decoy hash exists to prevent); the email tier records nothing once the
-IP tier has blocked (otherwise a blocked attacker burns the quota of every address they name,
-and the limiter becomes a lockout tool); and the failure path is untouched — `LOGIN_ERROR`
-and the decoy timing are unchanged, the rate-limit message describes the request rather than
-the credentials. 10 tests, including the negative case for each tier and a test that the two
-messages differ.
+**Shipped as:** specified as "per hashed IP, plus per-email"; shipped as **per hashed IP,
+plus per hashed (address, IP) pair**, which is the one deliberate deviation and the reason
+this entry is long. A global per-address counter with a hard refusal is a remote account
+lockout: the key is a string the attacker types, `checkRate` charges rejected attempts too,
+so ~21 requests an hour from one ordinary IP — no header spoofing — holds any named account
+blocked indefinitely, with the victim's own retries topping the window up. Online guessing is
+already bounded by the KDF's cost; locking a paying institution out of its panel during
+admissions is not. Keying on the pair keeps the realistic protection and lets an attacker
+block only a pair they already control. Full reasoning in `architecture.md` §6.1.1.
 
-Three additions the brief implies but does not name. (1) `hashEmail()` in
-`src/lib/privacy/hash.ts`, because the limiter's key map outlives the request and a plaintext
-address sitting in it is PII we never agreed to hold; it normalises case and whitespace, so
-capitalising a letter cannot buy a fresh quota. (2) `clientIpHash()` moved out of
-`recuperar-contrasena/actions.ts`, where it was a private copy — a second copy is how two
-endpoints quietly stop hashing the same thing. (3) The four boundaries share one
-`ShellError` client component so the rule that matters is written once: **nothing derived
-from the error reaches the page** — not `error.message`, which on a `force-dynamic` route
-against MySQL is routinely a connection string or a failing SQL fragment, and not
-`error.stack`. Only Next's opaque `digest`, so an operator can match a screenshot to a log
-line. The root boundary was refactored onto it and keeps its own `Footer`, having no shell
-layout above it; the three new ones render inside their layouts, which is what keeps the
-header, the navigation and the R-07 disclaimer present while one screen fails.
+Second deviation, same kind: **only failures are charged.** `checkRate` records every
+attempt including successes, which would let a school lab or cyber café behind one NAT lock
+itself out by signing in — the exact case §6.1 says the limits must tolerate. The login path
+peeks, charges a failure, and clears the pair key on success; the IP key is deliberately not
+cleared, or an attacker owning one valid account could reset their own budget at will. This
+needed `peekRate`/`recordRate`/`clearRate` alongside `checkRate` in
+`src/lib/leads/rate-limit.ts`; the existing four callers are untouched.
+
+Three supporting changes. (1) `hashEmail()` in `src/lib/privacy/hash.ts`, because the key map
+outlives the request and a plaintext address in it is PII we never agreed to hold; it
+normalises case and whitespace, so capitalising a letter cannot buy a fresh quota. The same
+argument applied to the pre-existing `console.warn` on a failed sign-in, which logged the
+address in plaintext to a far more durable place than the map — it now logs the hash. (2)
+`clientIpHash()`/`hashClientIp()` consolidated into `src/lib/privacy/request.ts`, which is
+where `clientIp()` already lived; the login, reset **and claim** actions now share one
+implementation, where there had been three that already differed. (3) The four boundaries
+share one `ShellError` client component so the rule that matters is written once: **nothing
+derived from the error reaches the page** — not `error.message`, which on a `force-dynamic`
+route against MySQL is routinely a connection string or a failing SQL fragment, and not
+`error.stack`. Only Next's opaque `digest`. The root boundary keeps its own `Footer`, having
+no shell layout above it, and is the only one that sets `id="contenido"` — the three shell
+layouts already render that id and the boundary renders inside it.
+
+20 tests: 11 on the limiter and 9 on `loginAction` itself, the latter added because a test
+that calls the helper twice and compares answers is a tautology over its own fixture — it
+would pass unchanged if the limiter moved *below* `findAccountByEmail`, which is what the "no
+enumeration oracle" and "a flood never reaches the database" claims actually rest on.
+
+**Independent review** (`agent-workflow.md` §5) found the global-per-address lockout above as
+a blocker, along with successes consuming quota, the duplicate `id="contenido"`, the surviving
+third copy of the IP helper, and prose claiming two properties the tests did not hold — all
+fixed here. It also found that `src/lib/privacy/hash.ts` contained a literal NUL byte in its
+`join()` separator, which made git classify the file as **binary**: the entire `hashEmail`
+addition, a new function on the PII path, showed only "Binary files differ" and was invisible
+to review. The byte is now the `\u0000` escape; digests were verified unchanged against an
+independent reimplementation, since `leads.ip_hash` values are stored.
 
 ### PR-43 — Caching layer for the public surfaces · **Opus**
 

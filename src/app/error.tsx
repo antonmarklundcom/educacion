@@ -17,6 +17,7 @@ export default function Error(props: { error: Error & { digest?: string }; reset
     <div className="flex min-h-screen flex-col">
       <ShellError
         {...props}
+        id="contenido"
         title="Algo salió mal"
         description="Ocurrió un error inesperado. Podés intentar de nuevo."
       />

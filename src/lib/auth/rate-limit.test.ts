@@ -5,120 +5,140 @@ import { __resetSaltForTests } from '@/lib/privacy/hash';
 
 import { LOGIN_ERROR } from './login';
 import {
-  LOGIN_EMAIL_RULES,
+  LOGIN_ACCOUNT_RULES,
   LOGIN_IP_RULES,
   LOGIN_RATE_LIMITED,
-  checkLoginRate,
+  clearLoginRate,
+  loginAllowed,
+  recordLoginFailure,
 } from './rate-limit';
 
 const NOW = 1_800_000_000_000;
 const IP_PER_MINUTE = LOGIN_IP_RULES[0].limit;
-const EMAIL_PER_MINUTE = LOGIN_EMAIL_RULES[0].limit;
+const IP_PER_HOUR = LOGIN_IP_RULES[1].limit;
+const ACCOUNT_PER_HOUR = LOGIN_ACCOUNT_RULES[1].limit;
 
 beforeEach(() => {
   __resetRateLimitForTests();
   __resetSaltForTests();
 });
 
-/** Distinct hashed IPs, so a test can isolate the email tier. */
 const ip = (n: number) => `ip-hash-${n}`;
 
-describe('checkLoginRate — the IP tier', () => {
-  it('allows a run of attempts and then blocks', () => {
+/** One failed attempt, as `loginAction` performs it. */
+function fail(ipHash: string, email: string, now = NOW): boolean {
+  const allowed = loginAllowed(ipHash, email, now);
+  if (allowed) recordLoginFailure(ipHash, email, now);
+  return allowed;
+}
+
+describe('only failures are charged', () => {
+  it('never blocks an address that keeps signing in successfully', () => {
+    // A school lab or cyber café behind one NAT — the case architecture.md
+    // §6.1 says the limits must tolerate. Successes are not recorded at all.
+    for (let attempt = 0; attempt < IP_PER_HOUR * 3; attempt += 1) {
+      expect(loginAllowed(ip(1), `persona-${attempt}@ejemplo.test`, NOW), `#${attempt}`).toBe(true);
+      clearLoginRate(ip(1), `persona-${attempt}@ejemplo.test`);
+    }
+  });
+
+  it('forgets the account key once the person gets it right', () => {
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit; attempt += 1) {
+      fail(ip(1), 'persona@ejemplo.test');
+    }
+    expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW)).toBe(false);
+
+    clearLoginRate(ip(1), 'persona@ejemplo.test');
+    expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW)).toBe(true);
+  });
+
+  it('does not clear the IP key on success', () => {
+    // Otherwise an attacker owning one valid account resets their own IP
+    // budget at will and grinds the rest of the catalog for free.
+    for (let attempt = 0; attempt < IP_PER_MINUTE; attempt += 1) {
+      fail(ip(1), `persona-${attempt}@ejemplo.test`);
+    }
+    clearLoginRate(ip(1), 'persona-0@ejemplo.test');
+
+    expect(loginAllowed(ip(1), 'otra@ejemplo.test', NOW)).toBe(false);
+  });
+});
+
+describe('the IP tier', () => {
+  it('allows a run of failures and then blocks', () => {
     for (let attempt = 1; attempt <= IP_PER_MINUTE; attempt += 1) {
-      expect(
-        checkLoginRate(ip(1), `persona-${attempt}@ejemplo.test`, NOW).allowed,
-        `#${attempt}`,
-      ).toBe(true);
+      expect(fail(ip(1), `persona-${attempt}@ejemplo.test`), `#${attempt}`).toBe(true);
     }
 
-    expect(checkLoginRate(ip(1), 'persona-extra@ejemplo.test', NOW).allowed).toBe(false);
+    expect(loginAllowed(ip(1), 'persona-extra@ejemplo.test', NOW)).toBe(false);
   });
 
   it('is per IP — one blocked machine does not block another', () => {
     for (let attempt = 0; attempt <= IP_PER_MINUTE; attempt += 1) {
-      checkLoginRate(ip(1), `persona-${attempt}@ejemplo.test`, NOW);
+      fail(ip(1), `persona-${attempt}@ejemplo.test`);
     }
 
-    expect(checkLoginRate(ip(1), 'otra@ejemplo.test', NOW).allowed).toBe(false);
-    expect(checkLoginRate(ip(2), 'otra@ejemplo.test', NOW).allowed).toBe(true);
+    expect(loginAllowed(ip(1), 'otra@ejemplo.test', NOW)).toBe(false);
+    expect(loginAllowed(ip(2), 'otra@ejemplo.test', NOW)).toBe(true);
   });
 
   it('lets the window slide', () => {
     for (let attempt = 0; attempt <= IP_PER_MINUTE; attempt += 1) {
-      checkLoginRate(ip(1), 'persona@ejemplo.test', NOW);
+      fail(ip(1), 'persona@ejemplo.test');
     }
-    expect(checkLoginRate(ip(1), 'persona@ejemplo.test', NOW).allowed).toBe(false);
+    expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW)).toBe(false);
 
-    const later = NOW + LOGIN_IP_RULES[0].windowMs + 1;
-    expect(checkLoginRate(ip(1), 'persona@ejemplo.test', later).allowed).toBe(true);
+    expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW + LOGIN_IP_RULES[0].windowMs + 1)).toBe(
+      true,
+    );
   });
 });
 
-describe('checkLoginRate — the email tier', () => {
-  it('blocks one address ground from many machines, which the IP tier cannot see', () => {
-    for (let attempt = 1; attempt <= EMAIL_PER_MINUTE; attempt += 1) {
-      // A different IP every time: the IP tier never fires.
-      expect(checkLoginRate(ip(attempt), 'victima@ejemplo.test', NOW).allowed, `#${attempt}`).toBe(
-        true,
-      );
+describe('the account tier is not a remote lockout', () => {
+  it('cannot lock a victim out from an attacker-controlled address', () => {
+    // The defect this design exists to avoid: with a *global* per-email
+    // counter, ~21 paced requests an hour from one ordinary IP — a fifth of
+    // the IP budget, no header spoofing — would hold any named account locked
+    // out indefinitely, and the victim's own retries would top the window up.
+    // Keyed per (address, IP), the attacker can only ever block themselves.
+    for (let attempt = 0; attempt < ACCOUNT_PER_HOUR * 3; attempt += 1) {
+      fail(ip(666), 'victima@ejemplo.test', NOW + attempt * 60_000);
     }
 
-    expect(checkLoginRate(ip(99), 'victima@ejemplo.test', NOW).allowed).toBe(false);
+    // Attacker: blocked, as intended.
+    expect(loginAllowed(ip(666), 'victima@ejemplo.test', NOW)).toBe(false);
+    // Victim, at their own desk: entirely unaffected.
+    expect(loginAllowed(ip(1), 'victima@ejemplo.test', NOW)).toBe(true);
+  });
+
+  it('still stops one machine grinding one account', () => {
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit; attempt += 1) {
+      expect(fail(ip(1), 'victima@ejemplo.test'), `#${attempt}`).toBe(true);
+    }
+
+    expect(loginAllowed(ip(1), 'victima@ejemplo.test', NOW)).toBe(false);
+    // ...while the same machine may still try a different account, up to the
+    // IP tier — the account key is the pair, not the address alone.
+    expect(loginAllowed(ip(1), 'otra@ejemplo.test', NOW)).toBe(true);
   });
 
   it('treats one address as one bucket however it is capitalised or spaced', () => {
-    for (let attempt = 1; attempt <= EMAIL_PER_MINUTE; attempt += 1) {
-      checkLoginRate(ip(attempt), 'Victima@Ejemplo.Test', NOW);
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit; attempt += 1) {
+      fail(ip(1), 'Victima@Ejemplo.Test');
     }
 
-    // Changing the case must not buy a fresh quota.
-    expect(checkLoginRate(ip(99), '  victima@ejemplo.test  ', NOW).allowed).toBe(false);
-  });
-
-  it('leaves other addresses alone', () => {
-    for (let attempt = 1; attempt <= EMAIL_PER_MINUTE; attempt += 1) {
-      checkLoginRate(ip(attempt), 'victima@ejemplo.test', NOW);
-    }
-
-    expect(checkLoginRate(ip(99), 'victima@ejemplo.test', NOW).allowed).toBe(false);
-    expect(checkLoginRate(ip(99), 'otra-persona@ejemplo.test', NOW).allowed).toBe(true);
+    expect(loginAllowed(ip(1), '  victima@ejemplo.test  ', NOW)).toBe(false);
   });
 });
 
-describe('checkLoginRate — the properties that make it safe', () => {
-  it('does not consume an address quota once the IP is already blocked', () => {
-    // Otherwise a blocked attacker could still name any address they liked and
-    // lock its real owner out — a rate limiter turned into a denial-of-service
-    // tool. Exhaust the IP on unrelated addresses first.
-    for (let attempt = 0; attempt <= IP_PER_MINUTE; attempt += 1) {
-      checkLoginRate(ip(1), `ruido-${attempt}@ejemplo.test`, NOW);
-    }
-    expect(checkLoginRate(ip(1), 'victima@ejemplo.test', NOW).allowed).toBe(false);
-
-    // Name the victim from the blocked IP many more times...
-    for (let attempt = 0; attempt < EMAIL_PER_MINUTE * 3; attempt += 1) {
-      checkLoginRate(ip(1), 'victima@ejemplo.test', NOW);
-    }
-
-    // ...and the victim can still sign in from their own machine.
-    expect(checkLoginRate(ip(2), 'victima@ejemplo.test', NOW).allowed).toBe(true);
-  });
-
+describe('what the limiter says', () => {
   it('cannot be used to tell an existing address from an unknown one', () => {
-    // The key is the submitted string, so the limiter never consults the
-    // database and behaves identically either way. Two addresses, treated the
-    // same purely by construction.
-    const existing = Array.from(
-      { length: EMAIL_PER_MINUTE + 1 },
-      (_, attempt) => checkLoginRate(ip(attempt), 'existe@ejemplo.test', NOW).allowed,
-    );
-    const unknown = Array.from(
-      { length: EMAIL_PER_MINUTE + 1 },
-      (_, attempt) => checkLoginRate(ip(attempt), 'no-existe@ejemplo.test', NOW).allowed,
-    );
+    // The key is the submitted string and no lookup happens, so the two are
+    // identical by construction.
+    const seen = (email: string) =>
+      Array.from({ length: LOGIN_ACCOUNT_RULES[0].limit + 1 }, () => fail(ip(1), email));
 
-    expect(existing).toEqual(unknown);
+    expect(seen('existe@ejemplo.test')).toEqual(seen('no-existe@ejemplo.test'));
   });
 
   it('says something different from a failed sign-in, and nothing about the account', () => {
@@ -126,10 +146,5 @@ describe('checkLoginRate — the properties that make it safe', () => {
     for (const word of ['cuenta', 'correo', 'usuario', 'existe', 'contraseña']) {
       expect(LOGIN_RATE_LIMITED.toLowerCase()).not.toContain(word);
     }
-  });
-
-  it('is looser than the reset form, which costs somebody else an email', () => {
-    expect(LOGIN_IP_RULES[0].limit).toBeGreaterThan(3);
-    expect(LOGIN_EMAIL_RULES[0].limit).toBeLessThan(LOGIN_IP_RULES[0].limit);
   });
 });

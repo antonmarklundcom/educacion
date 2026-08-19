@@ -25,9 +25,16 @@ export interface ShellErrorProps {
   /** What failed, in the reader's terms. Voseo, per CLAUDE.md rule 8. */
   title: string;
   description: string;
+  /**
+   * Only the root boundary sets this. The three shell layouts already render
+   * their own `#contenido` wrapper, and the boundary renders *inside* it — a
+   * second element with that id would be a duplicate DOM id, and the skip link
+   * would still resolve to the outer one.
+   */
+  id?: string;
 }
 
-export function ShellError({ error, reset, title, description }: ShellErrorProps) {
+export function ShellError({ error, reset, title, description, id }: ShellErrorProps) {
   useEffect(() => {
     // Server-side this is already logged by Next.js; this is the browser half.
     console.error(error);
@@ -35,7 +42,7 @@ export function ShellError({ error, reset, title, description }: ShellErrorProps
 
   return (
     <main
-      id="contenido"
+      id={id}
       className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center"
     >
       <h1 className="text-ink text-2xl font-bold lg:text-3xl">{title}</h1>
