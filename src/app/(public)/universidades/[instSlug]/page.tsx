@@ -35,6 +35,8 @@ import { ContactBlock } from '@/components/institution/ContactBlock';
 import { Badge, Pagination } from '@/components/ui';
 import { getInstitutionBySlug } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
+import { institutionSchema } from '@/lib/seo/catalog-schema';
+import { JsonLd } from '@/lib/seo/jsonld';
 import {
   INSTITUTION_TYPE_LABELS,
   MANAGEMENT_LABELS,
@@ -94,6 +96,7 @@ export default async function InstitutionPage({
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      <JsonLd data={institutionSchema(institution)} />
       {/* Browser-reported, for the same reason as the program page's. */}
       <EventBeacon key={institution.id} type="profile_view" institutionId={institution.id} />
       <header className="flex flex-col gap-4">

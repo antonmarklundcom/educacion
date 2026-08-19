@@ -27,6 +27,7 @@ import {
   ResultCard,
   SortControl,
   areaHref,
+  offeringHref,
   careerHref,
   countActiveFilters,
 } from '@/components/browse';
@@ -44,7 +45,9 @@ import { getWhatsappNumbers } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
 import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';
 import type { PlacementFlags } from '@/components/browse';
-import { parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
+import { DEFAULT_SORT, parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
+import { itemListSchema } from '@/lib/seo/catalog-schema';
+import { breadcrumbSchema, JsonLd } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,8 +126,56 @@ export default async function CareraHubPage({
     (offering) => placements.get(offering.institutionId)?.destacado,
   );
 
+  // Schema follows the page's own `robots`: a hub below the editorial gate
+  // renders `noindex`, and structured data on a page we are asking not to
+  // index is at best ignored and at worst a thin-content signal (seo.md §5).
+  const isIndexable = hasEditorialCopy(career.descriptionMd);
+  // An `ItemList` describes *the* list at this URL. On a narrowed, reordered or
+  // paginated view it would describe a slice — positions restarting at 1,
+  // `numberOfItems` counting one page — while `alternates.canonical` points at
+  // the bare hub, i.e. a different list. So the list ships only from the
+  // canonical view, and never empty.
+  //
+  // `q` and `sort` are checked explicitly because `countActiveFilters` does not
+  // count them: it feeds the "Filtrar (N)" badge, and `clearFilters` preserves
+  // `q` deliberately. But a text search narrows this list and a re-sort
+  // renumbers it, so either makes these positions describe something other than
+  // the canonical page.
+  const listsWholeHub =
+    isIndexable &&
+    page === 1 &&
+    activeCount === 0 &&
+    !railFilters.q &&
+    sort === DEFAULT_SORT &&
+    results.length > 0;
+  const crumbs = [
+    { name: 'Carreras', path: '/carreras' },
+    ...(career.areaName && career.areaSlug
+      ? [{ name: career.areaName, path: areaHref(career.areaSlug) }]
+      : []),
+    { name: career.nameEs, path: basePath },
+  ];
+
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      {isIndexable && <JsonLd data={breadcrumbSchema(crumbs)} />}
+      {listsWholeHub && (
+        /* The programmes this page actually lists, in the order it lists them.
+           Results are offerings, so one programme taught at two sedes appears
+           twice with the same href — deduplicated here, because two ListItems
+           with one URL at different positions is a contradiction. */
+        <JsonLd
+          data={itemListSchema(
+            `${career.nameEs} en Paraguay`,
+            [
+              ...new Map(results.map((offering) => [offeringHref(offering), offering])).values(),
+            ].map((offering) => ({
+              name: `${offering.programName} – ${offering.institutionShort}`,
+              path: offeringHref(offering),
+            })),
+          )}
+        />
+      )}
       <header className="flex flex-col gap-3">
         {career.areaName && career.areaSlug && (
           <Link

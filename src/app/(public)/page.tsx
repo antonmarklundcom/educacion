@@ -35,6 +35,8 @@ import { TopCareers } from '@/components/home/TopCareers';
 import { loadTopCareers } from '@/lib/home/top-careers';
 import { listInstitutions } from '@/lib/institutions';
 import { searchPrograms } from '@/lib/search';
+import { organizationSchema, websiteSchema } from '@/lib/seo/catalog-schema';
+import { JsonLd } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +80,12 @@ export default async function HomePage() {
 
   return (
     <main>
+      {/* `WebSite` + `SearchAction` and `Organization` live on the homepage
+          rather than in the layout: Google reads the sitelinks searchbox only
+          from a site's homepage, and the layout also wraps `/comparar`, which
+          is `noindex` and must therefore emit no schema at all (seo.md §5). */}
+      <JsonLd data={websiteSchema()} />
+      <JsonLd data={organizationSchema()} />
       <HomeHero />
 
       <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-12 px-4 py-10 sm:px-6 lg:gap-16 lg:py-14">

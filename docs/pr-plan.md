@@ -439,7 +439,7 @@ have admitted an orphaned doorway under a `noindex` parent. The gates are import
 `@/lib/careers`, never re-implemented, so `src/lib/seo/sitemap.ts` cannot drift from the
 pages; it is pure and unit-tested (14 tests) with no database.
 
-### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review**
+### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review** _(built by Opus 5)_
 
 The `JsonLd` helper (`src/lib/seo/jsonld.tsx`) exists and is used on blog, becas and
 acreditación — but not on the three page types `seo.md` §5 calls the money pages. Wire:
@@ -450,6 +450,54 @@ rule) on programme pages; `CollegeOrUniversity` on institution pages; `ItemList`
 **Accept:** every block mirrors visible content only; no `aggregateRating`, no `review`,
 anywhere, ever; `Offer` is emitted **only** with a `verified_at` inside 12 months — the
 JSON-LD half of the PR-33 rule, unit-tested; pages with `noindex` emit no schema.
+
+**Shipped as:** as specified, with two decisions the brief left open. (1) **The sitewide
+blocks live on `/`, not in the layout.** Google reads `SearchAction` only from a site's
+homepage, and the public layout also wraps `/comparar`, which is `noindex` — emitting schema
+there would have broken this PR's own last acceptance criterion. (2) **`Offer` is withheld
+from more than a stale price.** It ships only where the row composes an honest annual figure
+— a recurring fee and an installment count — because `computeAnnualCost` returns the **bare
+matrícula** for a matrícula-only row (the `annual_cost` generated column carries the same
+CASE), and publishing that as an annual arancel would label an enrolment fee as a year of
+tuition. It is also withheld where the row has amounts but no currency, since `priceDisplay()`
+treats that as the honest gap and the page shows no number at all; and from a stale
+"gratuita", an old free claim being as wrong as an old number.
+
+`hasEditorialCopy()` and `priceFreshness()` are **imported** by the schema builders rather
+than re-implemented, so the JSON-LD cannot drift from the page's own `robots` or from the
+comparador and OG images. `siteUrl()` moved from `jsonld.tsx` to a JSX-free `site-url.ts`
+(re-exported, so no import path changed) purely so the pure builders can be unit-tested —
+vitest parses `.ts`, and nothing else needed a `.tsx` in that graph. 29 tests, database-free.
+
+**Independent review** (a session that did not write the code, `agent-workflow.md` §5) found
+three blockers, all fixed here and each now covered by a test that fails without the fix:
+(a) the partial-price guard **did not exist** — its premise, that `computeAnnualCost` returns
+`null` for a matrícula-only row, is false, and the original test passed only because its
+fixture hand-set `annualCost: null`, a row the schema cannot produce; (b) `logo` prefixed the
+site origin onto an already-absolute S3 URL, emitting
+`https://educacion.com.pyhttps://cdn…`; (c) every institution was typed
+`CollegeOrUniversity`, telling a search engine an instituto técnico is a university — a
+status claim the page itself contradicts. It also flagged, and this PR fixes: a misused
+`Schedule`/`repeatCount` as a duration (dropped — `timeRequired` already carries it),
+Course-level `timeRequired`/`educationalCredentialAwarded` read off an arbitrary
+`offerings[0]` (now emitted only where every offering agrees), `ItemList` emitted on
+filtered/paginated/empty hub views against a canonical pointing elsewhere, duplicate
+`ListItem`s for one programme taught at two sedes (deduplicated), and a re-typed href where
+`offeringHref()` exists. A second review pass then caught that the `ItemList` gate was still
+incomplete — `countActiveFilters()` counts neither `q` nor `sort`, so a text search or a
+re-sort slipped through the "canonical view only" claim the first fix had already written
+into this file; both are now checked explicitly, and the currency rule was made uniform for
+`isFree` rows. Not taken: adding `Course.description`, which
+Google wants for the rich result — there is no programme description on the page to mirror,
+and inventing one is rule 1. The hub `ItemList` order follows `searchPrograms`, which sorts
+`planRank` first, so paid placement influences the emitted positions; it mirrors the visible
+order and the page carries `PlacementDisclosure`, and is recorded here as a conscious choice.
+
+**Not done, deliberately:** the brief's §5 table also lists `BreadcrumbList` on programme
+and institution pages, and `ItemList` on `/areas/[area]` and `/universidades`. This PR's own
+scope line names only the four blocks above, so those are left for a follow-up rather than
+widened into here — both pages already render visible breadcrumbs, so it is wiring, not
+design.
 
 ### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review**
 
