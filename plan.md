@@ -5,7 +5,7 @@
 **Stack:** Next.js 15 (App Router, TS) + Drizzle + MySQL on Hostinger managed Node.js
 **Language of the product:** Paraguayan Spanish (voseo). Language of the repo/docs: English.
 
-> Companion docs: [`docs/architecture.md`](docs/architecture.md) · [`docs/data-model.md`](docs/data-model.md) · [`docs/data-sources.md`](docs/data-sources.md) · [`docs/monetization.md`](docs/monetization.md) · [`docs/seo.md`](docs/seo.md) · [`docs/design-system.md`](docs/design-system.md) · [`docs/risks.md`](docs/risks.md) · [`docs/pr-plan.md`](docs/pr-plan.md) · [`docs/agent-workflow.md`](docs/agent-workflow.md) · [`docs/deployment.md`](docs/deployment.md)
+> Companion docs: [`docs/architecture.md`](docs/architecture.md) · [`docs/data-model.md`](docs/data-model.md) · [`docs/data-sources.md`](docs/data-sources.md) · [`docs/monetization.md`](docs/monetization.md) · [`docs/seo.md`](docs/seo.md) · [`docs/design-system.md`](docs/design-system.md) · [`docs/risks.md`](docs/risks.md) · [`docs/pr-plan.md`](docs/pr-plan.md) · [`docs/agent-workflow.md`](docs/agent-workflow.md) · [`docs/deployment.md`](docs/deployment.md) · [`docs/student-engagement.md`](docs/student-engagement.md)
 
 ---
 
@@ -85,6 +85,35 @@ Plans, entitlements, sales page, billing ops, verified/destacado presentation, i
 Editorial + accreditation hub, becas, salida laboral, data-freshness system, performance/a11y pass.
 **Exit:** organic traffic compounding, data provably fresh.
 
+### Phase 5 — Closing PR-18's deferral (PR 35–36) — shipped
+Password reset by email, and admin-issued accounts/onboarding that need no mailbox.
+**Exit:** an institution member can be onboarded and recovered without the operator touching the DB.
+
+> **Status 2026-08-19:** Phases 0–5 are shipped (PR-01–36, plus a backfilled PR-39 for OG
+> images — `docs/pr-plan.md` has the ledger, including the two unnumbered maintenance
+> commits and the skipped 37/38 numbering). The phases below came out of the 2026-08 repo
+> audit and are planned, not started.
+
+### Phase 6 — Hardening & SEO debt (PR 40–46)
+The debt that matters before the October peak: the catalog sitemap PR-16 never shipped,
+JSON-LD on the money pages, the caching layer for the `force-dynamic` public surfaces,
+login rate limiting, error boundaries, the activity-log viewer + R-06 deletion tooling,
+Sentry observability, and the independent review PR-23/27/29 were merged without.
+**Exit:** money pages submitted for indexing with structured data; public p95 measurably down; production errors visible; the review debt paid.
+
+### Phase 7 — Growth & polish (PR 47–51)
+The i18n copy seam (catalog, no toggle yet), the total-cost calculator, panel lead-SLA
+nudges + in-panel plan status, the admin import/cron console, Server-Action tests + zod on
+public inputs.
+**Exit:** the data-ops loop runs from the browser; conversion surfaces sharpened; the write paths users trigger are tested.
+
+### Designed, not scheduled — student engagement
+Student accounts, the "Mi lista" decision dashboard, inscription alerts, the vocational
+quiz and any second language are fully specified in
+[`docs/student-engagement.md`](docs/student-engagement.md) with an explicit activation
+trigger — and deliberately absent from every phase. No code preparation is needed or
+permitted ahead of activation; the spec is the preparation.
+
 **Realistic calendar** (part-time, agent-assisted): Phase 0 ≈ 1–2 weeks, Phase 1 ≈ 3–5 weeks, Phase 2 ≈ 3–4 weeks, Phase 3 ≈ 2–3 weeks, Phase 4 ongoing. The bottleneck is **not** the code — see §6.
 
 ---
@@ -163,6 +192,6 @@ Per-PR ownership is assigned in [`docs/pr-plan.md`](docs/pr-plan.md); prompt tem
 
 ## 10. Pull requests
 
-**34 PRs across 5 phases.** Complete enumerated list with scope, owner model, dependencies and acceptance criteria: [`docs/pr-plan.md`](docs/pr-plan.md).
+**37 PRs shipped across 6 phases; 12 more planned across Phases 6–7.** Complete enumerated list with scope, owner model, dependencies and acceptance criteria: [`docs/pr-plan.md`](docs/pr-plan.md).
 
 Sizing principle: one PR = one reviewable concern = deployable on its own. If a PR needs a paragraph to explain why it contains two things, split it.

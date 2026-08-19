@@ -1,4 +1,8 @@
-# Pull Request Plan — 34 PRs
+# Pull Request Plan
+
+**Status (2026-08-19):** PR-01–36 and PR-39 are merged; Phases 6–7 below are planned and
+not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
+left as-is rather than backfilled, so branch names in git history stay truthful.
 
 **Sizing principle:** one PR = one reviewable concern, deployable on its own. If explaining the scope takes a paragraph, split it.
 
@@ -377,18 +381,237 @@ The one deliberate leak: a **send failure** is reported to the user, which is on
 
 The link's TTL is **72 h, not the self-service hour**, because a member of staff verified who they are handing it to and the channel is not an inbox. Everything else about the token is identical, deliberately — one implementation of single-use, one redemption page.
 
+### PR-39 — OG images for blog, becas and programme pages · **Sonnet** _(backfilled entry)_
+
+Shipped before this entry was written — recorded here so `pr-plan.md` stays a complete map
+of `main`. New route handlers `/og/blog`, `/og/beca` and `/og/programa` mirror
+`/og/comparar`'s structure, dimensions and stale-price handling; `openGraph.images` and
+`twitter` (`summary_large_image`) wired into the three detail pages' `generateMetadata`,
+plus a `twitter` block in the root layout. Documented in `seo.md` §5.
+**Deps:** PR-30, PR-31, PR-33.
+**Accept (as shipped):** every OG image renders only real data; a stale arancel carries its
+"dato desactualizado" warning inside the image exactly as on the page (the PR-33 rule).
+
+Two unnumbered commits also live on `main` and are deliberately not retro-numbered: the
+admin sidebar rework (`design-system.md` §16) and the PowerShell migration runbook
+(`deployment.md` §3.1). They were maintenance, not plan items; this note is their ledger.
+
+---
+
+## Phase 6 — Hardening & SEO debt (PR 40–46) — planned
+
+The 2026-08-19 audit found the build complete but carrying exactly the debt that matters
+before the October–February traffic peak (`plan.md` §5): the money pages are not in the
+sitemap, the primary catalog pages carry no structured data, every public request hits
+MySQL uncached, login is the one endpoint without rate limiting, and production errors are
+invisible. Phase 6 pays that down. **PR-40 and PR-41 come first; everything except PR-43
+is independent and safe to run as a parallel batch.**
+
+### PR-40 — Sitemap index for the catalog · **Sonnet**
+
+The sitemap PR-16 owed and never shipped (the current `src/app/sitemap.ts` says so in its
+own comment): a sitemap index split at 5,000 URLs with children for careers, institutions,
+programmes and the gated city pages, per `seo.md` §6, replacing today's static+blog+becas-only
+file. The single highest-ROI change in the audit — the money pages exist and render but are
+not being submitted for indexing.
+**Deps:** none (all data queries exist).
+**Accept:** every indexable public 200 appears exactly once across the children; nothing
+`noindex` (comparador, closed becas, under-threshold hubs, gated-out city pages) appears at
+all; `lastmod` comes from real row timestamps, never `now()`; index + children validate
+against the sitemap schema; generation stays per-request (the PR-33 `sitemap` cron stays
+`not_needed`) unless PR-43's caching decides otherwise, in which case the two PRs say so in
+the same words.
+
+### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review**
+
+The `JsonLd` helper (`src/lib/seo/jsonld.tsx`) exists and is used on blog, becas and
+acreditación — but not on the three page types `seo.md` §5 calls the money pages. Wire:
+`Course` + `CourseInstance` (+ `Offer` only where the price passes the 12-month freshness
+rule) on programme pages; `CollegeOrUniversity` on institution pages; `ItemList` +
+`BreadcrumbList` on career hubs; `WebSite` + `SearchAction` + `Organization` sitewide.
+**Deps:** PR-40 (ship the sitemap first so indexing and rich results land together).
+**Accept:** every block mirrors visible content only; no `aggregateRating`, no `review`,
+anywhere, ever; `Offer` is emitted **only** with a `verified_at` inside 12 months — the
+JSON-LD half of the PR-33 rule, unit-tested; pages with `noindex` emit no schema.
+
+### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review**
+
+The audit's one security inconsistency: `checkRate` already guards password reset, leads
+and claims, but `/ingresar`'s `loginAction` calls `authenticate()` bare. Wire the same
+two-tier limiter (per hashed IP, plus per-email) into login. Same PR, second small concern
+of the same "harden the shell" kind: `error.tsx` boundaries for the `(public)`, `admin` and
+`panel` route groups, so a crash deep in one shell fails inside that shell instead of
+falling to the root boundary.
+**Deps:** none.
+**Accept:** the limiter never changes the uniform login error message or its timing
+behaviour (`src/lib/auth/login.ts`'s decoy-hash design stays intact); limits unit-tested
+including the negative case; a thrown error in a panel page renders the panel boundary with
+the disclaimer footer still present; no boundary leaks stack traces in production.
+
+### PR-43 — Caching layer for the public surfaces · **Opus**
+
+The deferral `architecture.md` §8 recorded and PR-16/PR-34 restated: every public route is
+`force-dynamic` against shared-host MySQL, which is the site's real performance risk at
+peak. Decide and build the caching interface — `unstable_cache` (or on-demand ISR) around
+the public read paths, **without** `generateStaticParams` (CI has no `DATABASE_URL`;
+first-hit population + revalidation instead), invalidated by the admin/panel writes that
+already call `revalidatePath` and by the nightly `rebuild-search` cron.
+**Deps:** none, but lands before Phase 7 features add more read paths.
+**Accept:** p95 on `/carreras`, a career hub and a programme page measurably drops on a
+deployed environment (numbers recorded in `architecture.md`); a price superseded from
+`/panel` and a dispute's "en revisión" badge are publicly visible within one revalidation,
+same as today; stale-price warnings can never outlive a cache entry's price (one object,
+per PR-33's `priceDisplay()` contract); cache keys include every searchParam that changes
+the result.
+
+### PR-44 — Activity-log viewer & deletion-request tooling · **Sonnet → Opus review**
+
+The audit's "built but orphaned" finding: `activity_log` records every write with
+before/after snapshots and nothing renders it. `/admin/actividad` — filterable by entity,
+actor and date, snapshots diffed, read-only. Plus the operator tooling for the R-06
+deletion path: the request channel stays the documented email (deliberately not
+self-service, `risks.md` §R-06), but executing one becomes a single admin action — look up
+by the submitted phone/email, see every matching `leads` row, delete, logged.
+**Deps:** none.
+**Accept:** the viewer is `editor`-gated and strictly read-only; the deletion action is
+`admin`-gated, removes the person's lead rows and any PII echoes, and writes its own
+`activity_log` entry (actor, count, hashed key — never the deleted values); the R-06 table
+in `risks.md` gains its row in this PR.
+
+### PR-45 — Observability: Sentry · **Sonnet**
+
+Production errors currently die in Hostinger's console retention. Add `@sentry/nextjs`:
+server + client capture, sourcemaps, env-gated DSN (absent DSN = fully inert, so CI and
+local runs send nothing). One shared free-tier Sentry organization covers this and the
+operator's other sites as separate projects; the SDK is in-process and adds zero processes
+on the Hostinger slot.
+**Deps:** none.
+**Accept:** an error thrown in a server component, a Server Action and a client component
+each arrive in Sentry with a readable stack; events carry **no PII** — no lead fields, no
+emails, no session cookie contents (`beforeSend` scrubber, unit-tested); per-project rate
+limit configured so a crash loop cannot eat the shared quota; bundle budget (`perf:budget`)
+still passes on public routes.
+
+### PR-46 — Review remediation: PR-23 / PR-27 / PR-29 · **Opus**
+
+Three money-path PRs were merged carrying their own written caveat that the independent
+review their _Sonnet → Opus review_ label promises never happened (PR-27 was even reviewed
+by its own author). This PR is that review, performed by a session that wrote none of them:
+the lead-redaction path (PR-23), the entitlement→label path and disclosure wording (PR-27),
+and the reminder/grace sweeps (PR-29) — plus whatever fixes the review finds, in the same
+PR if small, split out if not.
+**Deps:** none. **Do this before Phase 7 builds on billing or leads.**
+**Accept:** each of the three caveat paragraphs in this file is replaced by a dated
+"reviewed by" note stating what was checked and what changed; any finding either fixed here
+or filed as its own numbered PR; the going-forward rule lands in `agent-workflow.md`: a
+_Sonnet → Opus review_ PR does not merge until a session other than its author has reviewed
+it — CI green is not a reviewer.
+
+---
+
+## Phase 7 — Growth & polish (PR 47–51) — planned
+
+Independent quality-of-life and conversion work, deliberately after Phase 6's debt is paid.
+All five are parallel-safe; none blocks another.
+
+### PR-47 — i18n seam: the copy catalog · **Sonnet**
+
+Not a language toggle — the seam that keeps one possible. A central message-catalog module
+for UI copy, the highest-churn shared surfaces (header, footer, lead modal, browse
+labels) migrated as the worked example, and the rule added to `CLAUDE.md`: **new copy goes
+through the catalog, never inline in JSX.** The `src/lib/*/copy.ts` generator functions
+(career/city intros) are explicitly out of scope — they are data-provenance copy with
+Spanish grammar as logic, and rewriting them is a decision for a real second locale
+(guaraní before English — `student-engagement.md` §4).
+**Deps:** none.
+**Accept:** catalog keys are typed (a missing key is a type error, not a runtime fallback);
+migrated components render byte-identical Spanish; the CLAUDE.md rule is one sentence and
+present; no i18n library added yet — the seam must not cost a dependency before a second
+locale exists.
+
+### PR-48 — Total-cost calculator · **Sonnet**
+
+On programme pages and the comparador: matrícula + cuotas + derecho de examen composed over
+the programme's duration, per option — pure arithmetic over verified `prices` rows and
+`duration_months`, the question every family actually asks. No new data collected.
+**Deps:** none (PR-43 caching should be in first so the added reads are cheap).
+**Accept:** a total renders **only** when every component amount exists and is current
+enough to display; any gap renders the honest partial ("sin datos de matrícula — total
+incompleto"), never an extrapolation; stale inputs carry the PR-33 warning on the total
+itself; comparador totals sort correctly with incomplete rows last.
+
+### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
+
+Two willingness-to-pay gaps in `/panel`. First: a lead sitting in `new` beyond 48 h is
+visually flagged in the inbox, and the existing daily digest states the count — the status
+pipeline exists, this makes neglect visible. Second: the institution's own plan, its
+`ends_on` and the grace state rendered in `/panel` — today renewal state is visible only to
+the operator (`monetization.md` §5's reminder stays operator-only; this is a banner, not a
+dunning mail).
+**Deps:** PR-46 (it touches the paths that review covers).
+**Accept:** the nudge is derived at render from `created_at` + status, no new cron and no
+schema change; plan status reads through `resolveEntitlements`' dates, never a cached rank;
+free-tier institutions see their tier stated plainly with the `/para-instituciones` link —
+no dark-pattern countdown.
+
+### PR-50 — Admin import & cron console · **Sonnet → Opus review**
+
+`plan.md` §6 calls data operations the real bottleneck; today every import runs from a
+shell. `/admin/importaciones`: trigger `import:cones`, `import:aneaes` and `curate` from
+the browser, watch `import_runs` progress, and a read-only cron panel showing each
+`/api/cron/[job]`'s last run and outcome with a "run now" button.
+**Deps:** none.
+**Accept:** triggers are `editor`-gated and reuse the scripts' own entry functions — no
+second import code path (the PR-20 rule); a running import cannot be started twice
+(`import_runs` is the lock); "run now" calls the cron route with the server-held secret,
+never exposing `CRON_SECRET` to the browser; every trigger lands in `activity_log`.
+
+### PR-51 — Server-Action tests & input validation · **Sonnet**
+
+The audit's test gap: the query layer is thoroughly tested, but the Server Actions wiring
+forms to it (`src/app/admin/*/actions.ts`, `src/app/panel/actions.ts`) are not — a
+mis-wired argument passes CI today. Add action-level tests (auth refused, malformed input
+refused, arguments reach the query function intact), and introduce `zod` on the
+**public-facing** input surfaces (lead form, auth forms) where hand-rolled validation risk
+is highest. Admin/panel forms keep `src/lib/admin/validation.ts` until a real defect says
+otherwise — one PR does not rewrite working validation for symmetry.
+**Deps:** none.
+**Accept:** every public Server Action and API route has a test proving bad input is
+rejected before any query runs; zod schemas are the single definition their forms and
+handlers both use; `vitest.config` gains a coverage report (visibility, not a gate — a
+threshold arrives only when the number is known).
+
+---
+
+## Designed, not scheduled
+
+Student accounts, the "Mi lista" decision dashboard, inscription alerts, the vocational
+quiz and any second language are **specified in [`student-engagement.md`](student-engagement.md)
+and deliberately not in any phase**. The spec exists so activation is a decision, not a
+planning round; its activation trigger is written in that file. Media uploads for
+institution profiles (the `enhanced_profile` PR-27 removed) stay blocked on the R-08
+storage decision and return only with the migration that creates institution media.
+
 ---
 
 ## Summary
 
-| Phase                | PRs   | Count  | Opus   | Sonnet | Sonnet → Opus review |
-| -------------------- | ----- | ------ | ------ | ------ | -------------------- |
-| 0 — Foundation       | 01–07 | 7      | 4      | 3      | 0                    |
-| 1 — Public MVP       | 08–17 | 10     | 1      | 6      | 3                    |
-| 2 — Backend & portal | 18–24 | 7      | 3      | 1      | 3                    |
-| 3 — Monetization     | 25–29 | 5      | 1      | 2      | 2                    |
-| 4 — Depth & growth   | 30–34 | 5      | 2      | 3      | 0                    |
-| 5 — Closing PR-18    | 35–36 | 2      | 2      | 0      | 0                    |
-| **Total**            |       | **36** | **13** | **15** | **8**                |
+| Phase                            | PRs   | Count  | Opus   | Sonnet | Sonnet → Opus review |
+| -------------------------------- | ----- | ------ | ------ | ------ | -------------------- |
+| 0 — Foundation                   | 01–07 | 7      | 4      | 3      | 0                    |
+| 1 — Public MVP                   | 08–17 | 10     | 1      | 6      | 3                    |
+| 2 — Backend & portal             | 18–24 | 7      | 3      | 1      | 3                    |
+| 3 — Monetization                 | 25–29 | 5      | 1      | 2      | 2                    |
+| 4 — Depth & growth               | 30–34 | 5      | 2      | 3      | 0                    |
+| 5 — Closing PR-18                | 35–36 | 2      | 2      | 0      | 0                    |
+| — OG images (backfilled)         | 39    | 1      | 0      | 1      | 0                    |
+| **Shipped**                      |       | **37** | **13** | **16** | **8**                |
+| 6 — Hardening & SEO debt (plan)  | 40–46 | 7      | 2      | 2      | 3                    |
+| 7 — Growth & polish (plan)       | 47–51 | 5      | 0      | 3      | 2                    |
+| **Total incl. planned**          |       | **49** | **15** | **21** | **13**               |
 
-Sonnet writes **23 of 36 PRs (64%)** and, weighted by lines of code, closer to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's. Opus owns the 13 PRs where a wrong decision is expensive to unwind, and reviews the 8 that touch data integrity, PII, access control or money.
+Across the 37 shipped PRs Sonnet wrote **24 (65%)** and, weighted by lines of code, closer
+to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's.
+The planned Phases 6–7 keep the same shape: Opus owns the decisions that are expensive to
+unwind (caching interface, the money-path review), Sonnet writes everything downstream of a
+decided interface, and the review lane is enforced this time (PR-46's going-forward rule).
