@@ -90,8 +90,25 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 `<JsonLd>` primitive and PR-30's editorial types):
 
 - `Course` + one `CourseInstance` per offering on programme pages, with `courseMode` and an
-  ISO 8601 duration; `CollegeOrUniversity` on institution pages; `ItemList` +
-  `BreadcrumbList` on career hubs.
+  ISO 8601 `timeRequired`; `ItemList` + `BreadcrumbList` on career hubs.
+- **The organisation type follows the institution type**, on the profile block and on a
+  `Course`'s `provider` alike: `universidad` → `CollegeOrUniversity`, everything else
+  (`instituto_superior`, `instituto_tecnico`, `ifd`, `otro`) → `EducationalOrganization`.
+  The parenthetical in the table above is a rule, not a note — typing an instituto técnico
+  as a university is a status claim we invented, and the page contradicts it by printing the
+  real type.
+- **Course-level `timeRequired` and `educationalCredentialAwarded` ship only where every
+  offering agrees.** They are per-offering columns and genuinely differ — a distancia sede
+  is commonly longer — so a value read off the first row would contradict the instances
+  beside it.
+- **The career hub's `ItemList` ships only from the canonical view**: page 1, no active
+  filters, no `q`, default sort, non-empty. Anywhere else it would describe a slice —
+  positions restarting at 1, `numberOfItems` counting one page — while the canonical points
+  at a different list. Note `countActiveFilters()` counts neither `q` nor `sort`, so both
+  are checked separately. `BreadcrumbList` has no such restriction.
+- **No `Course.description`.** Google wants one for the Course rich result, and there is no
+  programme description rendered on the page to mirror. Writing one would be rule 1; the
+  block ships structural until real copy exists.
 - `WebSite` + `SearchAction` + `Organization` are emitted on **`/` only**, not from the
   layout. Google reads the sitelinks searchbox only from a site's homepage, and the public
   layout also wraps `/comparar`, which is `noindex` and must therefore carry no schema at
@@ -102,10 +119,15 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
   arancel *with* a visible "dato desactualizado" warning; `Offer` has no field for that
   warning, so a rich result would reprint the number stripped of the context that makes
   showing it honest. An `Offer` is therefore emitted only for a price `priceFreshness()`
-  calls `fresh` — and only when there is an honest annual figure, so a matrícula with no
-  cuota yields no `Offer` rather than a partial sum. A stale "gratuita" is withheld on the
-  same rule: an old free claim is as wrong as an old number. `priceFreshness()` is imported
-  from `src/db/invariants.ts`, never re-implemented.
+  calls `fresh`. Two further withholdings, both about mirroring the page rather than about
+  age: an `Offer` needs **a recurring fee and an installment count**, because
+  `computeAnnualCost()` returns the bare matrícula for a matrícula-only row (the
+  `annual_cost` generated column carries the same CASE) and publishing that as an annual
+  arancel would label an enrolment fee as a year of tuition; and it needs **a currency**,
+  because `priceDisplay()` treats a missing one as the honest gap and renders no number at
+  all. A stale "gratuita" is withheld on the freshness rule — an old free claim is as wrong
+  as an old number. `priceFreshness()` is imported from `src/db/invariants.ts`, never
+  re-implemented.
 
 **OG image routes (PR-39).** Every shared page needs a real card (§1), so each
 carries its own route handler rather than a static image — a card is per-record

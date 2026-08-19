@@ -481,9 +481,13 @@ status claim the page itself contradicts. It also flagged, and this PR fixes: a 
 `Schedule`/`repeatCount` as a duration (dropped — `timeRequired` already carries it),
 Course-level `timeRequired`/`educationalCredentialAwarded` read off an arbitrary
 `offerings[0]` (now emitted only where every offering agrees), `ItemList` emitted on
-filtered/paginated/empty hub views against a canonical pointing elsewhere (now the canonical
-view only), duplicate `ListItem`s for one programme taught at two sedes (deduplicated), and
-a re-typed href where `offeringHref()` exists. Not taken: adding `Course.description`, which
+filtered/paginated/empty hub views against a canonical pointing elsewhere, duplicate
+`ListItem`s for one programme taught at two sedes (deduplicated), and a re-typed href where
+`offeringHref()` exists. A second review pass then caught that the `ItemList` gate was still
+incomplete — `countActiveFilters()` counts neither `q` nor `sort`, so a text search or a
+re-sort slipped through the "canonical view only" claim the first fix had already written
+into this file; both are now checked explicitly, and the currency rule was made uniform for
+`isFree` rows. Not taken: adding `Course.description`, which
 Google wants for the rich result — there is no programme description on the page to mirror,
 and inventing one is rule 1. The hub `ItemList` order follows `searchPrograms`, which sorts
 `planRank` first, so paid placement influences the emitted positions; it mirrors the visible

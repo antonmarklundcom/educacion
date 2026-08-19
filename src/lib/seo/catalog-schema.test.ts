@@ -176,10 +176,29 @@ describe('courseSchema — the Offer freshness gate', () => {
 
   it('emits no Offer when the row carries amounts but no currency', () => {
     // `priceDisplay()` renders "Consultá el arancel" for this row, so the page
-    // shows no number — schema must not either.
-    const schema = courseSchema([offering({ price: priced(1, { currency: null }) })], NOW);
-
-    expect(offersIn(schema)).toHaveLength(0);
+    // shows no number — schema must not either. The rule is uniform: a free
+    // row with no currency renders the same gap, so it is withheld too.
+    expect(
+      offersIn(courseSchema([offering({ price: priced(1, { currency: null }) })], NOW)),
+    ).toHaveLength(0);
+    expect(
+      offersIn(
+        courseSchema(
+          [
+            offering({
+              price: priced(1, {
+                currency: null,
+                isFree: true,
+                annualCost: 0,
+                matricula: null,
+                monthlyFee: null,
+              }),
+            }),
+          ],
+          NOW,
+        ),
+      ),
+    ).toHaveLength(0);
   });
 
   it("labels the Offer with Google's category vocabulary", () => {

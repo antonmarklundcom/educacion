@@ -35,9 +35,6 @@ import type { OfferingSummary } from '@/lib/search';
 
 import { siteUrl } from './site-url';
 
-/** Guaraníes, as ISO 4217. The only currency the catalog stores. */
-const PYG = 'PYG';
-
 /** schema.org's controlled vocabulary for `courseMode`. */
 const COURSE_MODE: Record<OfferingSummary['modality'], string> = {
   presencial: 'onsite',
@@ -66,11 +63,13 @@ function offerFor(offering: OfferingSummary, now: Date): Record<string, unknown>
   if (!price.hasAmount) return undefined;
   if (priceFreshness(price.verifiedAt, now) !== 'fresh') return undefined;
 
-  // Mirror the page: `priceDisplay()` treats a missing currency as the honest
-  // gap and renders "Consultá el arancel", so a row with amounts but no
-  // currency shows no number at all. Defaulting to PYG would publish a figure
-  // the reader cannot see.
-  if (!price.isFree && !price.currency) return undefined;
+  // Mirror the page: `priceDisplay()` requires `hasAmount && currency` before
+  // it renders anything — including "Gratuita" — and otherwise shows the
+  // honest gap, "Consultá el arancel". So a row with amounts but no currency
+  // displays no number at all, and defaulting to a currency here would publish a
+  // figure the reader cannot see. The rule is uniform rather than exempting
+  // `isFree`, which is what makes the fallback below unreachable.
+  if (!price.currency) return undefined;
 
   // `annualCost` is NOT null for a matrícula-only price: `computeAnnualCost`
   // returns the bare matrícula, and the `annual_cost` generated column in
@@ -89,7 +88,7 @@ function offerFor(offering: OfferingSummary, now: Date): Record<string, unknown>
   return {
     '@type': 'Offer',
     price: amount,
-    priceCurrency: price.currency ?? PYG,
+    priceCurrency: price.currency,
     // Google's Course-info vocabulary, not free text.
     category: price.isFree ? 'Free' : 'Paid',
     availability: 'https://schema.org/InStock',
