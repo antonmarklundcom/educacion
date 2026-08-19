@@ -499,7 +499,7 @@ scope line names only the four blocks above, so those are left for a follow-up r
 widened into here — both pages already render visible breadcrumbs, so it is wiring, not
 design.
 
-### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review**
+### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review** _(built by Opus 5)_
 
 The audit's one security inconsistency: `checkRate` already guards password reset, leads
 and claims, but `/ingresar`'s `loginAction` calls `authenticate()` bare. Wire the same
@@ -512,6 +512,32 @@ falling to the root boundary.
 behaviour (`src/lib/auth/login.ts`'s decoy-hash design stays intact); limits unit-tested
 including the negative case; a thrown error in a panel page renders the panel boundary with
 the disclaimer footer still present; no boundary leaks stack traces in production.
+
+**Shipped as:** as specified. Two tiers in `src/lib/auth/rate-limit.ts` — 10/min + 60/hour
+per hashed IP, 5/min + 20/hour per hashed submitted email — checked before the account
+lookup, so a flood never reaches the database. Documented in `architecture.md` §6.1.1 with
+the three properties that make it safe rather than merely present: the email key is the
+**submitted** string (keying it on accounts that were found would make the limiter itself the
+enumeration oracle the decoy hash exists to prevent); the email tier records nothing once the
+IP tier has blocked (otherwise a blocked attacker burns the quota of every address they name,
+and the limiter becomes a lockout tool); and the failure path is untouched — `LOGIN_ERROR`
+and the decoy timing are unchanged, the rate-limit message describes the request rather than
+the credentials. 10 tests, including the negative case for each tier and a test that the two
+messages differ.
+
+Three additions the brief implies but does not name. (1) `hashEmail()` in
+`src/lib/privacy/hash.ts`, because the limiter's key map outlives the request and a plaintext
+address sitting in it is PII we never agreed to hold; it normalises case and whitespace, so
+capitalising a letter cannot buy a fresh quota. (2) `clientIpHash()` moved out of
+`recuperar-contrasena/actions.ts`, where it was a private copy — a second copy is how two
+endpoints quietly stop hashing the same thing. (3) The four boundaries share one
+`ShellError` client component so the rule that matters is written once: **nothing derived
+from the error reaches the page** — not `error.message`, which on a `force-dynamic` route
+against MySQL is routinely a connection string or a failing SQL fragment, and not
+`error.stack`. Only Next's opaque `digest`, so an operator can match a screenshot to a log
+line. The root boundary was refactored onto it and keeps its own `Footer`, having no shell
+layout above it; the three new ones render inside their layouts, which is what keeps the
+header, the navigation and the R-07 disclaimer present while one screen fails.
 
 ### PR-43 — Caching layer for the public surfaces · **Opus**
 

@@ -19,6 +19,7 @@ import {
   setPassword,
 } from '@/db/queries/auth';
 import { LOGIN_ERROR, authenticate } from '@/lib/auth/login';
+import { LOGIN_RATE_LIMITED, checkLoginRate, clientIpHash } from '@/lib/auth/rate-limit';
 import { startSession } from '@/lib/auth/session';
 
 export interface LoginState {
@@ -33,6 +34,15 @@ function landingFor(role: string): string {
 export async function loginAction(_state: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+
+  // The audit's one security inconsistency: every other public write was rate
+  // limited and this one, where a guess actually succeeds, was not. Checked
+  // before the lookup, so a flood never reaches the database — and keyed on
+  // the *submitted* address, so the rejection cannot tell an attacker which
+  // addresses exist. `rate-limit.ts` has the reasoning.
+  if (!checkLoginRate(await clientIpHash(), email).allowed) {
+    return { error: LOGIN_RATE_LIMITED };
+  }
 
   const account = await findAccountByEmail(email);
   const institutionId = account

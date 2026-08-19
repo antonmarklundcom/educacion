@@ -1,30 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Footer } from '@/components/layout/Footer';
-import { Button } from '@/components/ui';
+import { ShellError } from '@/components/layout/ShellError';
 
-/** Segment error boundary. Must be a client component — Next.js requirement. */
-export default function Error({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
+/**
+ * The last-resort boundary: a crash in a layout, or on a route outside the
+ * three shells. It renders its own `Footer` because there is no shell layout
+ * left above it to supply one, and the R-07 disclaimer belongs on every page
+ * (CLAUDE.md rule 9).
+ *
+ * PR-42 moved the body into `ShellError` so the "never render anything derived
+ * from the error" rule lives in one file rather than four.
+ */
+export default function Error(props: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <main className="mx-auto flex max-w-xl flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-        <h1 className="text-ink text-3xl font-bold">Algo salió mal</h1>
-        <p className="text-body">Ocurrió un error inesperado. Podés intentar de nuevo.</p>
-        <Button variant="primary" onClick={reset}>
-          Reintentar
-        </Button>
-      </main>
+      <ShellError
+        {...props}
+        title="Algo salió mal"
+        description="Ocurrió un error inesperado. Podés intentar de nuevo."
+      />
       <Footer />
     </div>
   );

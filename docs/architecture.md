@@ -185,6 +185,39 @@ The reason to derive rather than to count: the limit that actually matters is pe
 
 **Stated limits.** `x-forwarded-for` is client-forgeable, so the per-IP tier is defeated by rotating it; that is why the durable tier is per phone, which a submitter has to keep for the lead to be worth anything to them. The per-IP numbers are deliberately loose because a school lab, a cyber café and a carrier NAT all put many genuine students behind one address.
 
+### 6.1.1 Login rate limiting (PR-42)
+
+The 2026-08 audit's one security inconsistency: `checkRate` guarded the lead form, the event
+beacon, the claim request and the password-reset form, while `/ingresar` — the one endpoint
+where a guess *succeeds* — called `authenticate()` bare. `src/lib/auth/rate-limit.ts` closes
+it with the same in-process sliding window, two keys deep:
+
+| Key | Limits | Stops |
+| --- | --- | --- |
+| hashed IP | 10/min, 60/hour | one machine grinding a dictionary |
+| hashed submitted email | 5/min, 20/hour | a botnet spreading one dictionary across many machines |
+
+Three properties are load-bearing, and each has a test that fails without it:
+
+1. **The email key is the submitted string, hashed before any lookup.** Keying it on accounts
+   that were found would make the rejection appear only for real addresses — the limiter
+   itself becomes the enumeration oracle that `login.ts`'s decoy hash exists to prevent.
+2. **The email tier records nothing once the IP tier has already blocked.** Otherwise a
+   blocked attacker still burns the quota of every address they name, and a rate limiter
+   becomes a tool for locking real users out of their own panels.
+3. **The limiter never touches the failure path.** A request that reaches `authenticate()`
+   still gets `LOGIN_ERROR` and the decoy-hash timing, unchanged. The rate-limit message is
+   separate, describes the request rather than the credentials, and names nothing about an
+   account. Rejection is allowed to be *fast* — both keys are chosen by the caller, so its
+   speed leaks nothing.
+
+Limits are looser than the reset form's 3/min because a reset costs somebody else an email
+while a failed sign-in costs a hash, and a person who has forgotten which password they used
+must not lose their own panel for the morning. Same caveat as §6.1: this tier is per-process
+and per-boot, and `x-forwarded-for` is client-forgeable, so it raises the cost of a flood
+rather than making one impossible. The durable backstop for credentials is the password
+hash's own cost.
+
 ### 6.2 What PR-14 settled — `whatsapp_e164` is not on the search contract
 
 The CTA needs one value per _institution_; `program_search` is one row per _offering_. Denormalizing it would mean ~10 000 copies of ~59 values, and — the reason that actually decides it — the number's invalidation clock would become the nightly rebuild. A number corrected in the admin at 09:00 would stay wrong on every card until 03:00, and a wrong number under a WhatsApp CTA starts a conversation with a stranger. §11 already settled that institution contact fields live on `institutions`; this is the same field class.
