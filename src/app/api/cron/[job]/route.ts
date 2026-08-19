@@ -66,10 +66,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ job:
       return NextResponse.json({ status: 'ok', job, ...result });
     }
     case 'sitemap':
-      // Nothing to regenerate: `app/sitemap.ts` is generated per request from
-      // the database (PR-30/31 added the editorial URLs). §10 listed this job
-      // when a static file was the plan; answering honestly beats keeping a
-      // no-op scheduled.
+      // Nothing to regenerate: the sitemap index and its children are route
+      // handlers generated per request from the database (PR-40). §10 listed
+      // this job when a static file was the plan; answering honestly beats
+      // keeping a no-op scheduled.
       return NextResponse.json({
         status: 'not_needed',
         job,

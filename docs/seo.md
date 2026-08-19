@@ -111,7 +111,7 @@ route.
 
 ## 6. Technical baseline
 
-- `sitemap.ts` producing a **sitemap index** split at 5,000 URLs (careers, institutions, programs, editorial as separate children). ~10k program URLs makes this mandatory, not optional.
+- A **sitemap index** at `/sitemap.xml` split at 5,000 URLs, with `/sitemap/<familia>.xml` children — `paginas`, `carreras` (hub + `empleos`), `areas`, `ciudades`, `universidades`, `programas`, `editorial`. ~10k program URLs makes this mandatory, not optional. Shipped in PR-40 as route handlers rather than Next's `sitemap.ts` convention: `generateSitemaps()` is enumerated at build time and CI builds without a `DATABASE_URL` (`architecture.md` §3), so generation stays per-request. A family only gains a `-N` suffix once it actually splits, and a family with no URLs produces no child at all. `lastmod` is a real row timestamp everywhere it exists, and is omitted rather than invented for the static routes.
 - `robots.ts`: allow everything public, disallow `/panel`, `/admin`, `/api`, `/comparar`; link the sitemap index.
 - Self-referencing canonical on every indexable page; filtered URLs canonical to the clean route.
 - Slugs: lowercase ASCII, hyphens, no accents or ñ — `ingenieria-informatica`, `asuncion`.

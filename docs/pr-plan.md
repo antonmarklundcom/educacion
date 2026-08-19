@@ -407,7 +407,7 @@ MySQL uncached, login is the one endpoint without rate limiting, and production 
 invisible. Phase 6 pays that down. **PR-40 and PR-41 come first; everything except PR-43
 is independent and safe to run as a parallel batch.**
 
-### PR-40 — Sitemap index for the catalog · **Sonnet**
+### PR-40 — Sitemap index for the catalog · **Sonnet** _(built by Opus 5)_
 
 The sitemap PR-16 owed and never shipped (the current `src/app/sitemap.ts` says so in its
 own comment): a sitemap index split at 5,000 URLs with children for careers, institutions,
@@ -421,6 +421,23 @@ all; `lastmod` comes from real row timestamps, never `now()`; index + children v
 against the sitemap schema; generation stays per-request (the PR-33 `sitemap` cron stays
 `not_needed`) unless PR-43's caching decides otherwise, in which case the two PRs say so in
 the same words.
+
+**Shipped as:** as specified, with three decisions the brief left open. (1) **Route handlers,
+not `sitemap.ts`.** Next's `generateSitemaps()` enumerates its children at build time and CI
+builds without a `DATABASE_URL` (`architecture.md` §3), so the child set would have been
+frozen to the empty build. `/sitemap.xml` and `/sitemap/[child]` are `force-dynamic` route
+handlers instead; generation stays per-request and the PR-33 `sitemap` cron stays
+`not_needed`, unchanged. (2) **Seven children, not four.** The brief lists careers,
+institutions, programmes and city pages; `paginas` (the static routes), `areas` and
+`editorial` are also indexable families and would otherwise have been dropped from the
+sitemap this PR replaced. `/carreras/[slug]/empleos` is likewise indexable — it has a
+self-canonical and no `noindex` — and rides in the `carreras` child with its hub. (3)
+**`lastmod` omitted, not invented, for the static routes**: they have no row behind them, and
+a synthesised timestamp would be the same lie as the `now()` the brief forbids. A city page
+whose parent hub is itself below the editorial gate is excluded too — the gate alone would
+have admitted an orphaned doorway under a `noindex` parent. The gates are imported from
+`@/lib/careers`, never re-implemented, so `src/lib/seo/sitemap.ts` cannot drift from the
+pages; it is pure and unit-tested (14 tests) with no database.
 
 ### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review**
 

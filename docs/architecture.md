@@ -1159,7 +1159,7 @@ are the ones that actively mislead somebody.
 
 **Every §10 cron now exists.** `rebuild-search`, `admissions`, `staleness`,
 `purge-leads`, plus PR-23's and PR-29's — and `sitemap` answers `not_needed`
-rather than staying a scheduled no-op, because `app/sitemap.ts` is generated per
+rather than staying a scheduled no-op, because the sitemap index is generated per
 request.
 
 - `admissions` re-derives `offerings.enrollment_status` through the admin's own
