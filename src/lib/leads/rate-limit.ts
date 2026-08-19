@@ -102,6 +102,93 @@ export function checkRate(
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
+/**
+ * Would one more attempt on this key be allowed — **without** recording it.
+ *
+ * `checkRate` records first and asks afterwards, which is right when every
+ * attempt is equally a cost (a lead, an email, a claim). It is wrong when the
+ * attempt is a *credential check*: counting a success means a busy office NAT
+ * locks itself out by signing in, and counting a rejected attempt means an
+ * attacker can hold a key blocked forever by continuing to hit it (PR-42,
+ * `architecture.md` §6.1.1).
+ *
+ * **Do not use this to peek now and charge the outcome later.** Whatever
+ * decides the outcome will be `await`ed, and every concurrent request then
+ * peeks before any of them records — the limit stops binding entirely. Pair it
+ * with `recordRate` *immediately*, with no `await` between, and use
+ * `refundRate` or `clearRate` to give an attempt back once its outcome is
+ * known.
+ */
+export function peekRate(
+  key: string,
+  now: number = Date.now(),
+  rules: RateLimitRule[] = [IP_BURST, IP_HOURLY],
+): RateLimitDecision {
+  const timestamps = hits.get(key) ?? [];
+
+  for (const rule of rules) {
+    const inWindow = timestamps.filter((at) => at > now - rule.windowMs);
+    // `>=`: the question is whether there is room for the attempt about to be
+    // made, which is what `checkRate`'s post-push `>` amounts to.
+    if (inWindow.length >= rule.limit) {
+      const oldest = inWindow[0] ?? now;
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((oldest + rule.windowMs - now) / 1000)),
+      };
+    }
+  }
+
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+/** Charge one attempt against a key. See `peekRate`. */
+export function recordRate(
+  key: string,
+  now: number = Date.now(),
+  rules: RateLimitRule[] = [IP_BURST, IP_HOURLY],
+): void {
+  const longest = Math.max(...rules.map((rule) => rule.windowMs));
+  const timestamps = prune(hits.get(key) ?? [], now, longest);
+  timestamps.push(now);
+  hits.set(key, timestamps);
+
+  if (hits.size > MAX_KEYS) sweep(now);
+}
+
+/**
+ * Forget a key entirely — used when an attempt *succeeded*, so a person who
+ * mistyped their password twice and then got it right starts clean.
+ */
+export function clearRate(key: string): void {
+  hits.delete(key);
+}
+
+/**
+ * Give back one attempt charged at `at`.
+ *
+ * This is what lets a caller charge *before* it knows the outcome — the only
+ * order that is safe when the outcome takes an `await` to discover. Peeking
+ * first and charging afterwards leaves the whole verification in between, and
+ * every concurrent request peeks before any of them records: the limit stops
+ * binding entirely (PR-42). So the login path charges at decision time, which
+ * is atomic because both calls are synchronous and adjacent, and refunds the
+ * one timestamp when the attempt turns out to have succeeded.
+ *
+ * Removes a single occurrence, so two attempts charged in the same
+ * millisecond refund one each.
+ */
+export function refundRate(key: string, at: number): void {
+  const timestamps = hits.get(key);
+  if (!timestamps) return;
+
+  const index = timestamps.lastIndexOf(at);
+  if (index === -1) return;
+
+  timestamps.splice(index, 1);
+  if (timestamps.length === 0) hits.delete(key);
+}
+
 /** Test seam. Never called by application code. */
 export function __resetRateLimitForTests(): void {
   hits.clear();

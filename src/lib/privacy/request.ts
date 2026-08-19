@@ -31,6 +31,8 @@ function configuredHost(): string | null {
   }
 }
 
+import { hashIp } from './hash';
+
 export function clientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
@@ -38,6 +40,19 @@ export function clientIp(request: Request): string {
     if (first) return first;
   }
   return request.headers.get('x-real-ip')?.trim() || 'unknown';
+}
+
+/**
+ * The client IP from an already-resolved header list, hashed — for the server
+ * actions, which have `headers()` rather than a `Request`.
+ *
+ * `x-forwarded-for` is client-forgeable and Hostinger's proxy appends rather
+ * than replaces, so the leftmost entry is attacker-supplied: this raises the
+ * cost of a flood, it does not make one impossible (`architecture.md` §6.1).
+ */
+export function hashClientIp(headerList: Headers): string {
+  const forwarded = headerList.get('x-forwarded-for')?.split(',')[0]?.trim();
+  return hashIp(forwarded || headerList.get('x-real-ip')?.trim() || 'unknown');
 }
 
 export function userAgent(request: Request): string {

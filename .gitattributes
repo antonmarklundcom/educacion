@@ -1,0 +1,16 @@
+# Source is always text, even when a file contains a byte git heuristically
+# reads as binary.
+#
+# `src/lib/privacy/hash.ts` used a literal NUL as its `join()` separator, so
+# git classified it as binary and showed "Binary files differ" instead of a
+# diff — which is how a new function on the PII path reached review unseen
+# (PR-42). The byte itself is now an escape, but a diff is only textual when
+# *both* sides are, so this makes the classification explicit rather than
+# heuristic and stops the next one happening silently.
+*.ts   diff
+*.tsx  diff
+*.mts  diff
+*.mjs  diff
+*.json diff
+*.md   diff
+*.sql  diff

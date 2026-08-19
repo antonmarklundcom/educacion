@@ -185,6 +185,93 @@ The reason to derive rather than to count: the limit that actually matters is pe
 
 **Stated limits.** `x-forwarded-for` is client-forgeable, so the per-IP tier is defeated by rotating it; that is why the durable tier is per phone, which a submitter has to keep for the lead to be worth anything to them. The per-IP numbers are deliberately loose because a school lab, a cyber café and a carrier NAT all put many genuine students behind one address.
 
+### 6.1.1 Login rate limiting (PR-42)
+
+The 2026-08 audit's one security inconsistency: `checkRate` guarded the lead form, the event
+beacon, the claim request and the password-reset form, while `/ingresar` — the one endpoint
+where a guess *succeeds* — called `authenticate()` bare. `src/lib/auth/rate-limit.ts` closes
+it, with two departures from the obvious design that are the whole point of the section.
+
+| Key | Limits | Stops |
+| --- | --- | --- |
+| hashed IP | 30/min, 60/hour | one machine grinding a dictionary |
+| hashed (address, IP) **pair** | 5/min, 20/hour | one machine grinding one account |
+
+**There is no global per-address counter, deliberately.** "Per IP plus per email" is the
+obvious second tier and the one PR-42's brief names. A global per-email counter with a hard
+refusal is a remote account lockout, and a cheap one: the key is a string the attacker types,
+`checkRate` charges rejected attempts too, so ~21 requests an hour — a fifth of the IP budget,
+from one ordinary address, with no header spoofing at all — holds any account the attacker can
+name locked out indefinitely, and the victim's own retries top the window back up. That is a
+denial-of-service tool wearing a rate limiter's clothes, and it is the worse trade: online
+guessing is already bounded by the KDF's cost, while locking a paying institution out of its
+panel during admissions is not. Keying the second tier on the **pair** keeps the realistic
+protection and raises a lockout's price from "know the address" to "know the address *and*
+the IP it will be used from". That is a higher bar, not an impossibility, and the honest
+statement matters: `x-forwarded-for` is forgeable, so somebody who knows an institution's
+static office IP can still construct its pair, and the per-IP tier is itself a lockout of
+everyone behind one address — true of every IP-keyed limiter here. What makes both
+survivable is the charging rule below: a blocked key is not charged, so a window **drains**
+once an attacker stops, rather than being held down by the victim's own retries as it would
+have been under a global counter. What is given up — one dictionary spread thin across a
+botnet, invisible to both tiers — is not bought at the price of handing every visitor a
+lockout button. `risks.md` §R-16 records the trade and what is still unsolved.
+
+**Charged on the way in, refunded on success.** `checkRate` records every attempt, success
+included, which is right for a lead or an email and backwards for a credential check: a
+school lab or a cyber café — the exact case §6.1 says the limits must tolerate — would lock
+itself out by *signing in successfully*. But the obvious repair, "peek now and charge the
+failure afterwards", is worse than the problem: discovering the outcome takes three `await`s,
+so every concurrent request peeks before any of them records and the limit stops binding at
+all — a burst then bounded only by the attacker's connection count, on the one endpoint
+running a deliberately expensive KDF. Measured at 50 concurrent requests against a cap of 5,
+all 50 reached `authenticate()`.
+
+So the attempt is charged at decision time — `loginAllowed` and `chargeLoginAttempt` are
+synchronous and adjacent, which is atomic on one event loop — and a success is *refunded*:
+`settleLoginSuccess` clears the pair key outright and gives back the single IP timestamp the
+attempt cost (`refundRate`). An attempt that throws before it was verified — the database
+unreachable, hashing itself failing — is refunded too (a wrong password is not one of
+these: `verifyPassword` returns `false` rather than throwing, by design), because nothing was checked and a blip
+of ours must not spend a waiting user's quota. Failures stay charged, and a concurrent burst
+is counted as it arrives. The IP key is refunded by one rather than cleared: clearing it
+would let an attacker owning one valid account reset their whole budget at will.
+
+**A success costs nothing once settled — but it holds its charge while it is in flight**, so
+the per-minute rules are concurrency caps as well as rate caps. That is why the IP burst limit
+is 30 and not 10: sign-in is the slowest request on the site by design, the population behind
+one hashed IP is a NAT, and at 10 an eleventh person pressing "Ingresar" in the same moment
+was refused with a correct password — the school-lab case §6.1 promises to tolerate. 60/hour
+is the rule that actually bounds a sustained attack. The pair tier's 5 caps simultaneous
+attempts on one account, which no legitimate person reaches: two tabs and a phone is three.
+The headroom costs queue latency rather than memory — scrypt runs on the 4-thread libuv pool,
+so 30 in flight is ~4 concurrent derivations with the rest queued — which stops being true if
+anyone raises `UV_THREADPOOL_SIZE`.
+
+Refusals are logged at most once per key per minute. A refused attempt is the cheapest request
+the endpoint serves, so logging every one would hand an attacker who has already exhausted a
+key an unbounded log-volume amplifier that the limiter cannot throttle, refusal being the
+throttled state.
+
+Two properties beyond those, both covered by tests that fail without them:
+
+1. **The pair key is built from the submitted address, before any lookup.** Keying it on
+   accounts that were found would make the rejection appear only for real addresses — the
+   limiter itself becomes the enumeration oracle that `login.ts`'s decoy hash exists to
+   prevent. `src/app/(auth)/ingresar/actions.test.ts` asserts the call order in the action,
+   not just the helper: a rate-limited request must never reach `findAccountByEmail`.
+2. **The failure path is untouched.** A request that reaches `authenticate()` still returns
+   `LOGIN_ERROR` after the decoy hash, with the same timing for every reason. The rate-limit
+   message is separate, describes the request rather than the credentials, and names nothing
+   about an account. Rejection is allowed to be *fast* — both keys are chosen by the caller,
+   so its speed leaks nothing.
+
+Same caveat as §6.1, stated rather than assumed: `x-forwarded-for` is client-forgeable and
+Hostinger's proxy appends rather than replaces, so the IP tier is defeated by rotating it, and
+this tier is per-process and per-boot. It raises the cost of a flood. What actually bounds
+credential guessing is the password hash's own cost — there is no durable backstop here, and
+the pair keying is what makes that acceptable rather than alarming.
+
 ### 6.2 What PR-14 settled — `whatsapp_e164` is not on the search contract
 
 The CTA needs one value per _institution_; `program_search` is one row per _offering_. Denormalizing it would mean ~10 000 copies of ~59 values, and — the reason that actually decides it — the number's invalidation clock would become the nightly rebuild. A number corrected in the admin at 09:00 would stay wrong on every card until 03:00, and a wrong number under a WhatsApp CTA starts a conversation with a stranger. §11 already settled that institution contact fields live on `institutions`; this is the same field class.

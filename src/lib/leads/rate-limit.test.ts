@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { IP_BURST, __resetRateLimitForTests, checkRate } from './rate-limit';
+import {
+  IP_BURST,
+  __resetRateLimitForTests,
+  checkRate,
+  clearRate,
+  peekRate,
+  recordRate,
+  refundRate,
+} from './rate-limit';
 
 beforeEach(() => __resetRateLimitForTests());
 
@@ -61,5 +69,87 @@ describe('checkRate', () => {
     // The burst window passes, but the hourly count carries.
     expect(checkRate('ip', 2_000, [burst, hourly]).allowed).toBe(true);
     expect(checkRate('ip', 3_000, [burst, hourly]).allowed).toBe(false);
+  });
+});
+
+/**
+ * The peek/record/refund trio PR-42 added for the credential path. Covered
+ * directly rather than only through the auth suite, because the next caller
+ * will find them here.
+ */
+describe('peekRate / recordRate', () => {
+  const NOW = 1_800_000_000_000;
+  const RULE = { limit: 3, windowMs: 60_000 };
+
+  beforeEach(() => __resetRateLimitForTests());
+
+  it('agrees with checkRate on exactly which attempt is refused', () => {
+    // `checkRate` records then asks `> limit`; `peekRate` asks `>= limit`
+    // without recording. For the same sequence they must refuse the same one.
+    const peeked: boolean[] = [];
+    for (let attempt = 0; attempt < RULE.limit + 2; attempt += 1) {
+      peeked.push(peekRate('peek', NOW, [RULE]).allowed);
+      recordRate('peek', NOW, [RULE]);
+    }
+
+    const checked = Array.from(
+      { length: RULE.limit + 2 },
+      () => checkRate('check', NOW, [RULE]).allowed,
+    );
+
+    expect(peeked).toEqual(checked);
+  });
+
+  it('charges nothing when it only peeks', () => {
+    for (let attempt = 0; attempt < RULE.limit * 3; attempt += 1) {
+      expect(peekRate('quiet', NOW, [RULE]).allowed).toBe(true);
+    }
+  });
+
+  it('reports how long the caller must wait', () => {
+    for (let attempt = 0; attempt < RULE.limit; attempt += 1) recordRate('wait', NOW, [RULE]);
+    const decision = peekRate('wait', NOW, [RULE]);
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.retryAfterSeconds).toBe(RULE.windowMs / 1000);
+  });
+});
+
+describe('refundRate / clearRate', () => {
+  const NOW = 1_800_000_000_000;
+  const RULE = { limit: 2, windowMs: 60_000 };
+
+  beforeEach(() => __resetRateLimitForTests());
+
+  it('gives back exactly one attempt, not the whole key', () => {
+    recordRate('refund', NOW, [RULE]);
+    recordRate('refund', NOW, [RULE]);
+    expect(peekRate('refund', NOW, [RULE]).allowed).toBe(false);
+
+    refundRate('refund', NOW);
+    expect(peekRate('refund', NOW, [RULE]).allowed).toBe(true);
+
+    recordRate('refund', NOW, [RULE]);
+    expect(peekRate('refund', NOW, [RULE]).allowed).toBe(false);
+  });
+
+  it('ignores a timestamp it never charged', () => {
+    recordRate('refund', NOW, [RULE]);
+    refundRate('refund', NOW + 1);
+    refundRate('desconocida', NOW);
+
+    recordRate('refund', NOW, [RULE]);
+    expect(peekRate('refund', NOW, [RULE]).allowed).toBe(false);
+  });
+
+  it('clearRate forgets everything for that key alone', () => {
+    recordRate('a', NOW, [RULE]);
+    recordRate('a', NOW, [RULE]);
+    recordRate('b', NOW, [RULE]);
+    recordRate('b', NOW, [RULE]);
+
+    clearRate('a');
+    expect(peekRate('a', NOW, [RULE]).allowed).toBe(true);
+    expect(peekRate('b', NOW, [RULE]).allowed).toBe(false);
   });
 });

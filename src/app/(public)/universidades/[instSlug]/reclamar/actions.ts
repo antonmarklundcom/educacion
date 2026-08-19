@@ -26,7 +26,7 @@ import { headers } from 'next/headers';
 
 import { requestClaim, ROUTE_EXPLANATION, type ClaimRequestOutcome } from '@/lib/claims';
 import { checkRate } from '@/lib/leads/rate-limit';
-import { hashIp } from '@/lib/privacy/hash';
+import { hashClientIp } from '@/lib/privacy/request';
 
 export interface ClaimRequestState {
   error?: string;
@@ -67,8 +67,7 @@ export async function requestClaimAction(
     }
   }
 
-  const ip = requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { allowed } = checkRate(`claim:${hashIp(ip)}`, Date.now(), CLAIM_RATE);
+  const { allowed } = checkRate(`claim:${hashClientIp(requestHeaders)}`, Date.now(), CLAIM_RATE);
   if (!allowed) {
     return {
       error: 'Recibimos varias solicitudes desde acá. Esperá unos minutos y probá de nuevo.',

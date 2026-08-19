@@ -1,16 +1,11 @@
 'use server';
 
-import { headers } from 'next/headers';
-
-import {
-  consumePasswordReset,
-  requestPasswordReset,
-} from '@/db/queries/password-reset';
+import { consumePasswordReset, requestPasswordReset } from '@/db/queries/password-reset';
 import { sendPasswordResetEmail } from '@/lib/auth/notify';
 import { passwordProblem } from '@/lib/auth/password';
 import { RESET_TTL_MINUTES } from '@/lib/auth/reset-token';
+import { clientIpHash } from '@/lib/privacy/server-request';
 import { checkRate } from '@/lib/leads/rate-limit';
-import { hashIp } from '@/lib/privacy/hash';
 
 export interface RequestResetState {
   /** The neutral sentence, shown whether or not the address exists. */
@@ -29,12 +24,6 @@ export interface RequestResetState {
  */
 const NEUTRAL =
   'Si existe una cuenta con ese correo, te mandamos un enlace para restablecer la contraseña. Revisá también el spam.';
-
-async function clientIpHash(): Promise<string> {
-  const header = await headers();
-  const forwarded = header.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return hashIp(forwarded ?? header.get('x-real-ip') ?? 'unknown');
-}
 
 export async function requestResetAction(
   _prev: RequestResetState,

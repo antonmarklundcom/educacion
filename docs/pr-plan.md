@@ -499,7 +499,7 @@ scope line names only the four blocks above, so those are left for a follow-up r
 widened into here — both pages already render visible breadcrumbs, so it is wiring, not
 design.
 
-### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review**
+### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review** _(built by Opus 5)_
 
 The audit's one security inconsistency: `checkRate` already guards password reset, leads
 and claims, but `/ingresar`'s `loginAction` calls `authenticate()` bare. Wire the same
@@ -512,6 +512,73 @@ falling to the root boundary.
 behaviour (`src/lib/auth/login.ts`'s decoy-hash design stays intact); limits unit-tested
 including the negative case; a thrown error in a panel page renders the panel boundary with
 the disclaimer footer still present; no boundary leaks stack traces in production.
+
+**Shipped as:** specified as "per hashed IP, plus per-email"; shipped as **per hashed IP,
+plus per hashed (address, IP) pair**, which is the one deliberate deviation and the reason
+this entry is long. A global per-address counter with a hard refusal is a remote account
+lockout: the key is a string the attacker types, `checkRate` charges rejected attempts too,
+so ~21 requests an hour from one ordinary IP — no header spoofing — holds any named account
+blocked indefinitely, with the victim's own retries topping the window up. Online guessing is
+already bounded by the KDF's cost; locking a paying institution out of its panel during
+admissions is not. Keying on the pair keeps the realistic protection and raises a
+lockout's price from "know the address" to "know the address *and* the IP it will be used
+from" — a higher bar, not an impossibility, since `x-forwarded-for` is forgeable. Full reasoning in `architecture.md` §6.1.1.
+
+Second deviation, same kind: **a success costs nothing.** `checkRate` records every attempt
+including successes, which would let a school lab or cyber café behind one NAT lock itself
+out by signing in — the exact case §6.1 says the limits must tolerate. The first attempt at
+this peeked and charged the failure afterwards, which the review measured as a total bypass:
+three `await`s sit between peek and charge, so 50 concurrent requests against a cap of 5 all
+reached `authenticate()`. The attempt is now charged at decision time (atomic, both calls
+synchronous and adjacent) and *refunded* on success — the pair key cleared, the single IP
+timestamp given back — and refunded again if the lookup or the hash comparison throws, so a
+database blip does not spend a waiting user's quota. The cost of charging first is that the
+per-minute rules become concurrency caps as well; `LOGIN_IP_RULES`' burst limit is 30 rather
+than 10 for exactly that reason, measured against 20 simultaneous correct sign-ins from one
+NAT. This needed `peekRate`/`recordRate`/`clearRate`/`refundRate` alongside
+`checkRate` in `src/lib/leads/rate-limit.ts`; the existing four callers are untouched, and
+the new primitives have their own tests.
+
+Three supporting changes. (1) `hashEmail()` in `src/lib/privacy/hash.ts`, because the key map
+outlives the request and a plaintext address in it is PII we never agreed to hold; it
+normalises case and whitespace, so capitalising a letter cannot buy a fresh quota. The same
+argument applied to the pre-existing `console.warn` on a failed sign-in, which logged the
+address in plaintext to a far more durable place than the map — it now logs the hash. (2)
+the IP-hashing helpers consolidated into the privacy module, where `clientIp()`
+already lived — `hashClientIp(Headers)` in `request.ts` and the server-only `clientIpHash()`
+in `server-request.ts`, split so `request.ts` does not drag `next/headers` into the import
+graph of `lib/leads` and `lib/events`. The login, reset **and claim** actions now share one
+implementation, where there had been three that already differed. (3) The four boundaries
+share one `ShellError` client component so the rule that matters is written once: **nothing
+derived from the error reaches the page** — not `error.message`, which on a `force-dynamic`
+route against MySQL is routinely a connection string or a failing SQL fragment, and not
+`error.stack`. Only Next's opaque `digest`. The root boundary keeps its own `Footer`, having
+no shell layout above it, and is the only one that sets `id="contenido"` — the three shell
+layouts already render that id and the boundary renders inside it.
+
+31 tests: 11 on the limiter, 14 on `loginAction` itself and 6 on the new shared primitives.
+The action-level suite exists because a test that calls a helper twice and compares answers
+is a tautology over its own fixture — it would pass unchanged if the limiter moved *below*
+`findAccountByEmail`, which is what the "no enumeration oracle" claim actually rests on. Two
+of its cases were written specifically to fail against earlier revisions of this PR: a
+50-request concurrent burst, and a full run of failures after a success (a single trailing
+failure passes with or without the settle, which is why the first version of that test proved
+nothing).
+
+**Independent review** (`agent-workflow.md` §5, two passes) found the global-per-address
+lockout as a blocker, along with successes consuming quota, the duplicate `id="contenido"`,
+the surviving third copy of the IP helper, and prose claiming two properties the tests did not
+hold. The second pass then measured the concurrency bypass the first round's fix had
+introduced, found that nothing tested the success-settling wiring at all, and found this
+file and §6.1.1 again claiming more than the code delivered — "an attacker can only ever
+block a pair they already control" is false where `x-forwarded-for` is forgeable. All fixed
+here; the trade and what remains unsolved are recorded as `risks.md` §R-16, and the
+server-only `clientIpHash` moved to `privacy/server-request.ts` so `request.ts` does not drag
+`next/headers` into `lib/leads` and `lib/events`. It also found that `src/lib/privacy/hash.ts` contained a literal NUL byte in its
+`join()` separator, which made git classify the file as **binary**: the entire `hashEmail`
+addition, a new function on the PII path, showed only "Binary files differ" and was invisible
+to review. The byte is now the `\u0000` escape; digests were verified unchanged against an
+independent reimplementation, since `leads.ip_hash` values are stored.
 
 ### PR-43 — Caching layer for the public surfaces · **Opus**
 
