@@ -92,6 +92,14 @@ Much of the audience is 16–18. Paraguay has no comprehensive general data-prot
 | Institutions told not to resell                                             | In the delivery email (PR-14); the contractual version waits for the plan terms (Phase 3)                                                                                                                                                                                                                                                                                                                                                            |
 | **24-month deletion of leads**                                              | **Shipped in PR-33.** `/api/cron/purge-leads` is `CRON_SECRET`-guarded and idempotent, and it really deletes `leads` where `created_at < now() - 24 months`. It is the one job in the freshness system that destroys anything, and PR-33's stale-price policy change does **not** apply to it: showing an old arancel with a warning is a judgement about usefulness, keeping somebody's phone number past what we told them is a broken commitment. |
 
+**Planned (pr-plan.md PR-44):** executing a deletion request becomes one logged admin
+action — look up by the submitted phone/email, see every matching `leads` row, delete, with
+an `activity_log` entry recording actor and count but never the deleted values. The request
+channel itself does not change. And if student accounts ever activate, R-06 extends to them
+under the rules in `student-engagement.md` §3: versioned guardian consent for `menor_18`,
+self-service account deletion (an account session can prove ownership, so there the button
+_is_ a promise we can keep), and an inactivity purge mirroring the 24-month lead rule.
+
 **The deletion request path is deliberately not self-service.** One address — `contacto@educacion.com.py`, already in the footer — read by the operator, keyed on the phone number the person submitted, answered within 10 working days. There is no student account and no `/panel` before Phase 2, so a self-service button would be a promise the product cannot keep. `/legal/contacto` documents the channel, what to include and the window; `src/lib/legal/contact.ts` holds the constants so the pages cannot drift from each other.
 
 **One limit is stated to the user rather than hidden:** the institution received a copy of the lead by email at submission time. We delete our row and forward the request; we cannot delete from their inbox, and the policy says so instead of implying otherwise.

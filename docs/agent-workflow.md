@@ -16,7 +16,14 @@ Not "hard code vs easy code" — **"expensive to reverse vs cheap to reverse"**.
 
 **Opus also reviews** (does not write) every PR marked _Sonnet → Opus review_ in `pr-plan.md`: the ones touching data integrity, PII, access control, or money.
 
-Per-PR ownership is assigned in [`pr-plan.md`](pr-plan.md). Result: Sonnet writes 23 of 34 PRs, ~80% of the lines.
+**The review is not optional and not self-serve.** PR-23, PR-27 and PR-29 merged carrying
+their own admission that the labelled review never happened — PR-27 was reviewed by its own
+author. `pr-plan.md` PR-46 pays that debt; the standing rule from here on: a
+_Sonnet → Opus review_ PR does not merge until a session **other than its author** has
+reviewed it. CI green is not a reviewer, and the author's session is not a second pair of
+eyes no matter which model it runs.
+
+Per-PR ownership is assigned in [`pr-plan.md`](pr-plan.md). Result across the 37 shipped PRs: Sonnet wrote 24 (65%), ~80% of the lines; the planned Phases 6–7 keep the same split (see the summary table there).
 
 ## 2. Handoff contract
 

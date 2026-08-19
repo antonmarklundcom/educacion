@@ -15,6 +15,7 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
 | `docs/pr-plan.md`        | The 34 PRs, owners, dependencies, acceptance criteria               |
 | `docs/agent-workflow.md` | Opus/Sonnet split, prompt templates, review checklist               |
 | `docs/deployment.md`     | Hostinger specifics and the gotchas not to rediscover               |
+| `docs/student-engagement.md` | Student accounts / Mi lista / alerts — specified, NOT scheduled |
 
 ## Non-negotiable rules
 
