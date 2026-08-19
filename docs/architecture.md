@@ -231,7 +231,8 @@ So the attempt is charged at decision time — `loginAllowed` and `chargeLoginAt
 synchronous and adjacent, which is atomic on one event loop — and a success is *refunded*:
 `settleLoginSuccess` clears the pair key outright and gives back the single IP timestamp the
 attempt cost (`refundRate`). An attempt that throws before it was verified — the database
-unreachable, the comparison failing — is refunded too, because nothing was checked and a blip
+unreachable, hashing itself failing — is refunded too (a wrong password is not one of
+these: `verifyPassword` returns `false` rather than throwing, by design), because nothing was checked and a blip
 of ours must not spend a waiting user's quota. Failures stay charged, and a concurrent burst
 is counted as it arrives. The IP key is refunded by one rather than cleared: clearing it
 would let an attacker owning one valid account reset their whole budget at will.
@@ -243,6 +244,14 @@ one hashed IP is a NAT, and at 10 an eleventh person pressing "Ingresar" in the 
 was refused with a correct password — the school-lab case §6.1 promises to tolerate. 60/hour
 is the rule that actually bounds a sustained attack. The pair tier's 5 caps simultaneous
 attempts on one account, which no legitimate person reaches: two tabs and a phone is three.
+The headroom costs queue latency rather than memory — scrypt runs on the 4-thread libuv pool,
+so 30 in flight is ~4 concurrent derivations with the rest queued — which stops being true if
+anyone raises `UV_THREADPOOL_SIZE`.
+
+Refusals are logged at most once per key per minute. A refused attempt is the cheapest request
+the endpoint serves, so logging every one would hand an attacker who has already exhausted a
+key an unbounded log-volume amplifier that the limiter cannot throttle, refusal being the
+throttled state.
 
 Two properties beyond those, both covered by tests that fail without them:
 

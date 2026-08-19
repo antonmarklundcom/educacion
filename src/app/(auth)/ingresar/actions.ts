@@ -25,6 +25,7 @@ import {
   loginAllowed,
   refundLoginAttempt,
   settleLoginSuccess,
+  shouldLogRefusal,
 } from '@/lib/auth/rate-limit';
 import { clientIpHash } from '@/lib/privacy/server-request';
 import { startSession } from '@/lib/auth/session';
@@ -54,8 +55,12 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   if (!loginAllowed(ipHash, email, at)) {
     // Logged so an operator answering "why can nobody at this university sign
     // in?" can see whether one address is tripping it (risks.md §R-16). The
-    // IP is already a hash; the address is hashed here too.
-    console.warn(`Login rate limited: ip=${ipHash} account=${hashEmail(email)}`);
+    // IP is already a hash; the address is hashed here too. Throttled per key,
+    // because refusal is the cheapest path here and would otherwise be an
+    // unbounded log-volume amplifier — see `shouldLogRefusal`.
+    if (shouldLogRefusal(ipHash, at)) {
+      console.warn(`Login rate limited: ip=${ipHash} account=${hashEmail(email)}`);
+    }
     return { error: LOGIN_RATE_LIMITED };
   }
   // Charged before the outcome is known. `loginAllowed` and this call are

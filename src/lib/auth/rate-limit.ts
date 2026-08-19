@@ -87,6 +87,12 @@ import { hashEmail } from '@/lib/privacy/hash';
  * behind one school, café or office NAT, which is the case §6.1 promises to
  * tolerate — was refused with a correct password. 30 leaves that headroom
  * while 60/hour still bounds a sustained attack.
+ *
+ * What the headroom costs is queue latency, not memory: scrypt runs on the
+ * libuv threadpool, which is 4 threads by default, so 30 in-flight attempts
+ * are ~4 concurrent derivations with the rest queued — not 30 × 128 MiB. That
+ * stops being true the day anyone raises `UV_THREADPOOL_SIZE`, which is the
+ * one change that would make this number a memory ceiling.
  */
 export const LOGIN_IP_RULES: RateLimitRule[] = [
   { limit: 30, windowMs: 60_000 },
@@ -110,6 +116,42 @@ export const LOGIN_ACCOUNT_RULES: RateLimitRule[] = [
  * credentials, and says nothing about whether the address exists.
  */
 export const LOGIN_RATE_LIMITED = 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+
+/**
+ * At most one refusal logged per key per minute.
+ *
+ * A refused attempt is the *cheapest* request this endpoint serves — no
+ * database, no KDF, an early return — so an attacker who has deliberately
+ * exhausted a key can emit log lines at their full connection rate for free,
+ * and the limiter cannot throttle it, because refusal is already the
+ * throttled state. Logging the transition rather than every refusal keeps
+ * R-16's operator story ("which address is tripping this?") at bounded
+ * volume. Contrast the *failure* log, which sits behind the limiter and is
+ * therefore already bounded at 60/hour per IP.
+ */
+const REFUSAL_LOG_INTERVAL_MS = 60_000;
+const lastLoggedRefusal = new Map<string, number>();
+
+export function shouldLogRefusal(key: string, now: number = Date.now()): boolean {
+  const last = lastLoggedRefusal.get(key);
+  if (last != null && now - last < REFUSAL_LOG_INTERVAL_MS) return false;
+
+  // Same bound and the same opportunistic sweep as the limiter's own map, so
+  // a rotating-key flood cannot grow the heap through this either.
+  if (lastLoggedRefusal.size > 5_000) {
+    for (const [seen, at] of lastLoggedRefusal) {
+      if (now - at >= REFUSAL_LOG_INTERVAL_MS) lastLoggedRefusal.delete(seen);
+    }
+  }
+
+  lastLoggedRefusal.set(key, now);
+  return true;
+}
+
+/** Test seam. Never called by application code. */
+export function __resetRefusalLogForTests(): void {
+  lastLoggedRefusal.clear();
+}
 
 /** The two keys one sign-in attempt is charged against. */
 function keysFor(ipHash: string, email: string): { ip: string; account: string } {
@@ -147,8 +189,11 @@ export function chargeLoginAttempt(ipHash: string, email: string, now: number): 
 
 /**
  * Give back an attempt that was never actually verified — the database was
- * unreachable, or the hash comparison threw. Refunds both keys rather than
- * clearing them, so the failures around it survive.
+ * unreachable, or hashing itself failed. (Not a wrong password: `verifyPassword`
+ * returns `false` rather than throwing, by design, so a failed comparison is an
+ * ordinary charged failure.) Refunds both keys rather than clearing them, so the
+ * failures around it survive — clearing would let anyone who could induce a
+ * throw wipe every accumulated failure instead of the one attempt.
  *
  * Safe against abuse because a throw here is not caller-inducible: the
  * failure is ours, not something an attacker can provoke to sign-in for free.

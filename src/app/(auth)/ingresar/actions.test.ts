@@ -187,6 +187,27 @@ describe('loginAction — our own failures cost the user nothing', () => {
 
     expect(state.error).toBe(LOGIN_ERROR);
   });
+
+  it('refunds the one attempt, and does not wipe the failures around it', async () => {
+    // Clearing instead of refunding would hand a full quota reset to anybody
+    // who could induce a throw. Spend most of the pair budget first.
+    authenticate.mockResolvedValue({ ok: false, reason: 'wrong_password' });
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit - 1; attempt += 1) {
+      await loginAction({}, form('persona@ejemplo.test', 'incorrecta'));
+    }
+
+    findAccountByEmail.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(loginAction({}, form('persona@ejemplo.test', 'correcta'))).rejects.toThrow();
+    findAccountByEmail.mockResolvedValue(null);
+
+    // Exactly one slot came back: the next failure fits, the one after does not.
+    expect((await loginAction({}, form('persona@ejemplo.test', 'incorrecta'))).error).toBe(
+      LOGIN_ERROR,
+    );
+    expect((await loginAction({}, form('persona@ejemplo.test', 'incorrecta'))).error).toBe(
+      LOGIN_RATE_LIMITED,
+    );
+  });
 });
 
 describe('loginAction — a burst of correct passwords from one address', () => {

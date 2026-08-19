@@ -556,7 +556,7 @@ route against MySQL is routinely a connection string or a failing SQL fragment, 
 no shell layout above it, and is the only one that sets `id="contenido"` — the three shell
 layouts already render that id and the boundary renders inside it.
 
-30 tests: 11 on the limiter, 13 on `loginAction` itself and 6 on the new shared primitives.
+31 tests: 11 on the limiter, 14 on `loginAction` itself and 6 on the new shared primitives.
 The action-level suite exists because a test that calls a helper twice and compares answers
 is a tautology over its own fixture — it would pass unchanged if the limiter moved *below*
 `findAccountByEmail`, which is what the "no enumeration oracle" claim actually rests on. Two

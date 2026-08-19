@@ -264,8 +264,10 @@ rather than replaces, so somebody who knows an institution's static office IP ca
 construct its pair, and the per-IP tier remains a lockout of everyone behind one address —
 a school lab, a cyber café, one institution's office — which is true of every IP-keyed
 limiter here (§6.1). Both are bounded by the drain. If a lockout is ever reported, the
-first question is whether one address is tripping it: every refusal writes a
-`Login rate limited: ip=… account=…` line with both keys hashed, so the answer is in the
+first question is whether one address is tripping it: a refusal writes a
+`Login rate limited: ip=… account=…` line with both keys hashed — at most one per key per
+minute, since refusal is the cheapest path here and an unthrottled line would be a
+log-volume amplifier — so the answer is in the
 Hostinger log rather than in a support ticket. There is no admin view of the limiter's
 state and no unlock button — a durable per-account backstop needs a table and a deliberate
 unlock path, and it is not worth building before there is evidence anybody is trying.
