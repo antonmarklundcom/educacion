@@ -29,6 +29,11 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
 8. **Spanish UI copy is Paraguayan voseo** — `contactanos`, `solicitá`, `compará`, `elegí`, `tenés`. Currency `Gs. 1.450.000`. Repo and docs are in English.
 9. **The independence disclaimer** stays in the footer on every page: _"educacion.com.py es un sitio privado e independiente. No es un portal oficial del MEC, CONES ni ANEAES."_
 10. **One PR, one concern.** Update the relevant doc in the same PR when a decision changes.
+11. **GitHub Actions minutes are a budget, not a utility.** This repo is private, so every
+    run bills against a 2000–3000 min/month allowance. CI runs on `pull_request` only —
+    never add an `on: push` trigger, a second job, or a matrix, and never remove
+    `concurrency.cancel-in-progress`, `timeout-minutes` or `paths-ignore` from
+    `.github/workflows/ci.yml`. Any new workflow file needs the owner's explicit yes.
 
 ## Commands
 

@@ -21,6 +21,9 @@ on:
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
+    # Manual or not, an unbounded `lhci autorun` against an unresponsive origin
+    # would otherwise bill up to GitHub's 360-minute default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

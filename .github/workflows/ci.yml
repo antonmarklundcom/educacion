@@ -1,13 +1,37 @@
 name: CI
 
+# Runs on pull requests only.
+#
+# It deliberately does NOT also run `on: push: [main]`. A merge to main produces
+# a tree that the PR run already checked, commit for commit, so a push trigger
+# bills a second full run to re-prove a green result — 42 of this repo's first
+# 84 runs were exactly that duplicate. Branch protection keeps main safe by
+# requiring the PR check, not by re-running it afterwards.
 on:
   pull_request:
-  push:
-    branches: [main]
+    # A docs-only PR cannot break `next build`. Note: if main ever requires the
+    # `build` job as a status check, a PR touching only these paths will sit at
+    # "Expected — waiting for status" forever; drop this filter if that happens.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.vscode/**'
+
+# Agents push several commits to a branch in a row. Without this, every
+# superseded commit runs to completion and bills in full; with it, only the
+# newest commit on a ref survives.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # The job id stays `build` — renaming it would silently break any required
+  # status check configured on main.
   build:
     runs-on: ubuntu-latest
+    # Never inherit GitHub's 360-minute default: one hung job would be ~18% of
+    # a month's allowance. This suite runs in ~2.5 minutes.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
