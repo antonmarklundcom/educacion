@@ -45,6 +45,8 @@ import { getPlacementFlags } from '@/lib/entitlements';
 import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';
 import type { PlacementFlags } from '@/components/browse';
 import { parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
+import { itemListSchema } from '@/lib/seo/catalog-schema';
+import { breadcrumbSchema, JsonLd } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,8 +125,37 @@ export default async function CareraHubPage({
     (offering) => placements.get(offering.institutionId)?.destacado,
   );
 
+  // Schema follows the page's own `robots`: a hub below the editorial gate
+  // renders `noindex`, and structured data on a page we are asking not to
+  // index is at best ignored and at worst a thin-content signal (seo.md §5).
+  const isIndexable = hasEditorialCopy(career.descriptionMd);
+  const crumbs = [
+    { name: 'Carreras', path: '/carreras' },
+    ...(career.areaName && career.areaSlug
+      ? [{ name: career.areaName, path: areaHref(career.areaSlug) }]
+      : []),
+    { name: career.nameEs, path: basePath },
+  ];
+
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      {isIndexable && (
+        <>
+          <JsonLd data={breadcrumbSchema(crumbs)} />
+          {/* The programmes this page actually lists, in the order it lists
+              them — a paginated hub describes its own page, not a list the
+              reader cannot see. */}
+          <JsonLd
+            data={itemListSchema(
+              `${career.nameEs} en Paraguay`,
+              results.map((offering) => ({
+                name: `${offering.programName} – ${offering.institutionShort}`,
+                path: `/universidades/${offering.institutionSlug}/${offering.programSlug}`,
+              })),
+            )}
+          />
+        </>
+      )}
       <header className="flex flex-col gap-3">
         {career.areaName && career.areaSlug && (
           <Link

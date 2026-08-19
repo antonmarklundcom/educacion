@@ -43,6 +43,8 @@ import { getInstitutionBySlug } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
 import { formatDurationMonths } from '@/lib/format';
 import { findProgramOfferings, findRelatedOfferings } from '@/lib/programs/lookup';
+import { courseSchema } from '@/lib/seo/catalog-schema';
+import { JsonLd } from '@/lib/seo/jsonld';
 import {
   COMPARE_PARAM,
   LEVEL_LABELS,
@@ -136,8 +138,15 @@ export default async function ProgramPage({ params }: { params: Params }) {
     return `/carreras?${query.toString()}`;
   })();
 
+  const schema = courseSchema(offerings);
+
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
+      {/* `Course` + one `CourseInstance` per offering. An `Offer` rides along
+          only for an arancel still inside the 12-month window — a stale number
+          stays on the page with its warning, but never becomes a rich result
+          stripped of that warning (catalog-schema.ts explains why). */}
+      {schema && <JsonLd data={schema} />}
       {/* Reported from the browser, not from this render: counting the view
           server-side would count every crawler as a student, and PR-28 shows
           this number to an institution (architecture.md §12). */}

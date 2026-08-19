@@ -86,6 +86,27 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 
 **Never** emit `aggregateRating` or `review` — we have no reviews, and inventing them violates the anti-fabrication rule the whole product rests on.
 
+**Shipped in PR-41** (`src/lib/seo/catalog-schema.ts`, unit-tested; `jsonld.tsx` keeps the
+`<JsonLd>` primitive and PR-30's editorial types):
+
+- `Course` + one `CourseInstance` per offering on programme pages, with `courseMode` and an
+  ISO 8601 duration; `CollegeOrUniversity` on institution pages; `ItemList` +
+  `BreadcrumbList` on career hubs.
+- `WebSite` + `SearchAction` + `Organization` are emitted on **`/` only**, not from the
+  layout. Google reads the sitelinks searchbox only from a site's homepage, and the public
+  layout also wraps `/comparar`, which is `noindex` and must therefore carry no schema at
+  all. "All pages" in the table above is the intent; the homepage is where it is read.
+- **A page that renders `noindex` emits no JSON-LD.** The career hub reads the same
+  `hasEditorialCopy()` its `generateMetadata` reads, so the two can never disagree.
+- **`Offer` is stricter than the page, deliberately.** CLAUDE.md rule 3 shows a stale
+  arancel *with* a visible "dato desactualizado" warning; `Offer` has no field for that
+  warning, so a rich result would reprint the number stripped of the context that makes
+  showing it honest. An `Offer` is therefore emitted only for a price `priceFreshness()`
+  calls `fresh` — and only when there is an honest annual figure, so a matrícula with no
+  cuota yields no `Offer` rather than a partial sum. A stale "gratuita" is withheld on the
+  same rule: an old free claim is as wrong as an old number. `priceFreshness()` is imported
+  from `src/db/invariants.ts`, never re-implemented.
+
 **OG image routes (PR-39).** Every shared page needs a real card (§1), so each
 carries its own route handler rather than a static image — a card is per-record
 and the record isn't known at build time. All are 1200×630, `runtime = 'nodejs'`,

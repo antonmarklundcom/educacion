@@ -27,10 +27,10 @@ export function JsonLd({ data }: JsonLdProps) {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />;
 }
 
-export function siteUrl(path = ''): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://educacion.com.py';
-  return `${base.replace(/\/$/, '')}${path}`;
-}
+import { siteUrl } from './site-url';
+
+/** Re-exported so PR-30's import path keeps working; see `site-url.ts`. */
+export { siteUrl };
 
 export interface ArticleSchemaInput {
   slug: string;

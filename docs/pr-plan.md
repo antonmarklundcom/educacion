@@ -439,7 +439,7 @@ have admitted an orphaned doorway under a `noindex` parent. The gates are import
 `@/lib/careers`, never re-implemented, so `src/lib/seo/sitemap.ts` cannot drift from the
 pages; it is pure and unit-tested (14 tests) with no database.
 
-### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review**
+### PR-41 — JSON-LD on the primary catalog pages · **Sonnet → Opus review** _(built by Opus 5)_
 
 The `JsonLd` helper (`src/lib/seo/jsonld.tsx`) exists and is used on blog, becas and
 acreditación — but not on the three page types `seo.md` §5 calls the money pages. Wire:
@@ -450,6 +450,26 @@ rule) on programme pages; `CollegeOrUniversity` on institution pages; `ItemList`
 **Accept:** every block mirrors visible content only; no `aggregateRating`, no `review`,
 anywhere, ever; `Offer` is emitted **only** with a `verified_at` inside 12 months — the
 JSON-LD half of the PR-33 rule, unit-tested; pages with `noindex` emit no schema.
+
+**Shipped as:** as specified, with two decisions the brief left open and one refinement.
+(1) **The sitewide blocks live on `/`, not in the layout.** Google reads `SearchAction` only
+from a site's homepage, and the public layout also wraps `/comparar`, which is `noindex` —
+emitting schema there would have broken this PR's own last acceptance criterion. (2)
+**`Offer` is withheld from a partial price**, not only a stale one: a matrícula with no
+cuota has no honest annual figure (`computeAnnualCost` returns `null` rather than a partial
+sum), and a partial sum is precisely what must not reach a rich result. A stale "gratuita"
+is withheld on the same rule — an old free claim is as wrong as an old number. (3)
+`hasEditorialCopy()` and `priceFreshness()` are **imported** by the schema builders rather
+than re-implemented, so the JSON-LD cannot drift from the page's own `robots` or from the
+comparador and OG images. `siteUrl()` moved from `jsonld.tsx` to a JSX-free `site-url.ts`
+(re-exported, so no import path changed) purely so the pure builders can be unit-tested —
+vitest parses `.ts`, and nothing else needed a `.tsx` in that graph. 18 tests, database-free.
+
+**Not done, deliberately:** the brief's §5 table also lists `BreadcrumbList` on programme
+and institution pages, and `ItemList` on `/areas/[area]` and `/universidades`. This PR's own
+scope line names only the four blocks above, so those are left for a follow-up rather than
+widened into here — both pages already render visible breadcrumbs, so it is wiring, not
+design.
 
 ### PR-42 — Login rate limiting & route-group error boundaries · **Sonnet → Opus review**
 
