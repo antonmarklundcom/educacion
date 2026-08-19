@@ -12,6 +12,11 @@
  * visible** — every field below comes from content rendered on the same page.
  */
 
+import { siteUrl } from './site-url';
+
+/** Re-exported so every PR-30 import path keeps working; see `site-url.ts`. */
+export { siteUrl };
+
 export interface JsonLdProps {
   data: Record<string, unknown>;
 }
@@ -26,11 +31,6 @@ export function JsonLd({ data }: JsonLdProps) {
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />;
 }
-
-import { siteUrl } from './site-url';
-
-/** Re-exported so PR-30's import path keeps working; see `site-url.ts`. */
-export { siteUrl };
 
 export interface ArticleSchemaInput {
   slug: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PRICE_MAX_AGE_MONTHS } from '@/db/invariants';
+import { computeAnnualCost, PRICE_MAX_AGE_MONTHS } from '@/db/invariants';
 import type { InstitutionProfile } from '@/db/queries/institutions';
 import type { OfferingSummary, PriceSummary } from '@/lib/search';
 
@@ -139,15 +139,63 @@ describe('courseSchema — the Offer freshness gate', () => {
     expect(offersIn(schema)).toHaveLength(0);
   });
 
-  it('emits no Offer for a partial price with no honest annual figure', () => {
-    // A matrícula with no cuota: `computeAnnualCost` returns null rather than a
-    // partial sum, and a partial sum must never reach a rich result.
+  it('emits no Offer for a matrícula with no cuota', () => {
+    // The state the database really produces: `computeAnnualCost` returns the
+    // bare matrícula — NOT null — and the `annual_cost` generated column has
+    // the same CASE. Publishing it would label an enrolment fee as a year of
+    // tuition. This fixture mirrors those columns exactly; an earlier version
+    // hand-set `annualCost: null`, a row the schema cannot produce, and so
+    // passed while the guard was missing.
+    expect(computeAnnualCost({ matricula: 500_000 })).toBe(500_000);
+
     const schema = courseSchema(
-      [offering({ price: priced(1, { monthlyFee: null, annualCost: null }) })],
+      [
+        offering({
+          price: priced(1, {
+            matricula: 500_000,
+            monthlyFee: null,
+            installmentsPerYear: null,
+            annualCost: 500_000,
+          }),
+        }),
+      ],
       NOW,
     );
 
     expect(offersIn(schema)).toHaveLength(0);
+  });
+
+  it('emits no Offer for a cuota with no installment count', () => {
+    const schema = courseSchema(
+      [offering({ price: priced(1, { installmentsPerYear: null, annualCost: null }) })],
+      NOW,
+    );
+
+    expect(offersIn(schema)).toHaveLength(0);
+  });
+
+  it('emits no Offer when the row carries amounts but no currency', () => {
+    // `priceDisplay()` renders "Consultá el arancel" for this row, so the page
+    // shows no number — schema must not either.
+    const schema = courseSchema([offering({ price: priced(1, { currency: null }) })], NOW);
+
+    expect(offersIn(schema)).toHaveLength(0);
+  });
+
+  it("labels the Offer with Google's category vocabulary", () => {
+    expect(offersIn(courseSchema([offering({ price: priced(1) })], NOW))[0].category).toBe('Paid');
+    expect(
+      offersIn(
+        courseSchema(
+          [
+            offering({
+              price: priced(1, { isFree: true, annualCost: 0, matricula: null, monthlyFee: null }),
+            }),
+          ],
+          NOW,
+        ),
+      )[0].category,
+    ).toBe('Free');
   });
 
   it('treats a fresh "gratuita" as a zero-price Offer, and a stale one as no Offer', () => {
@@ -186,6 +234,46 @@ describe('courseSchema — shape', () => {
 
     expect(instances.map((instance) => instance.courseMode)).toEqual(['onsite', 'online']);
     expect((instances[0].location as Record<string, unknown>).name).toBe('Sede Central');
+  });
+
+  it('omits a Course-level duration and credential when the offerings disagree', () => {
+    const schema = courseSchema(
+      [
+        offering({ durationMonths: 60, titleAwarded: 'Título A' }),
+        offering({ offeringId: 2, durationMonths: 72, titleAwarded: 'Título B' }),
+      ],
+      NOW,
+    );
+
+    expect(schema).not.toHaveProperty('timeRequired');
+    expect(schema).not.toHaveProperty('educationalCredentialAwarded');
+  });
+
+  it('keeps them when every offering agrees', () => {
+    const schema = courseSchema(
+      [
+        offering({ durationMonths: 60, titleAwarded: 'Título A' }),
+        offering({ offeringId: 2, durationMonths: 60, titleAwarded: 'Título A' }),
+      ],
+      NOW,
+    );
+
+    expect(schema!.timeRequired).toBe('P60M');
+    expect(schema!.educationalCredentialAwarded).toBe('Título A');
+  });
+
+  it('calls an instituto an EducationalOrganization, not a university', () => {
+    const university = courseSchema([offering({ institutionType: 'universidad' })], NOW);
+    const instituto = courseSchema([offering({ institutionType: 'instituto_tecnico' })], NOW);
+
+    expect((university!.provider as Record<string, unknown>)['@type']).toBe('CollegeOrUniversity');
+    expect((instituto!.provider as Record<string, unknown>)['@type']).toBe(
+      'EducationalOrganization',
+    );
+  });
+
+  it('carries no Schedule — repeatCount is a repetition count, not a duration', () => {
+    expect(JSON.stringify(courseSchema([offering()], NOW))).not.toContain('Schedule');
   });
 
   it('omits a credential and a duration it does not have', () => {
@@ -241,6 +329,63 @@ describe('never a rating, never a review', () => {
       }
     },
   );
+});
+
+function profile(over: Partial<InstitutionProfile> = {}): InstitutionProfile {
+  return {
+    id: 1,
+    slug: 'institucion-de-prueba',
+    nameOfficial: 'Institución de prueba',
+    nameShort: 'IP',
+    logoUrl: null,
+    brandColor: null,
+    management: 'privada',
+    type: 'universidad',
+    programCount: 0,
+    offeringCount: 0,
+    aneaesAccreditedCount: 0,
+    cityNames: [],
+    foundedYear: null,
+    website: null,
+    email: null,
+    phoneE164: null,
+    whatsappE164: null,
+    descriptionMd: null,
+    isClaimed: false,
+    ...over,
+  };
+}
+
+describe('institutionSchema', () => {
+  it('types an instituto as an EducationalOrganization', () => {
+    expect(institutionSchema(profile({ type: 'universidad' }))['@type']).toBe(
+      'CollegeOrUniversity',
+    );
+    expect(institutionSchema(profile({ type: 'instituto_superior' }))['@type']).toBe(
+      'EducationalOrganization',
+    );
+  });
+
+  it('leaves an already-absolute logo URL alone', () => {
+    // `uploadInstitutionLogo` returns `${S3_PUBLIC_BASE_URL}/${key}`; prefixing
+    // the site origin would produce `https://educacion.com.pyhttps://…`.
+    const logo = 'https://cdn.ejemplo/institutions/logo.png';
+
+    expect(institutionSchema(profile({ logoUrl: logo })).logo).toBe(logo);
+  });
+
+  it('prefixes the origin onto a root-relative logo path', () => {
+    expect(institutionSchema(profile({ logoUrl: '/logo.png' })).logo).toMatch(/\/logo\.png$/);
+    expect(institutionSchema(profile({ logoUrl: '/logo.png' })).logo).not.toBe('/logo.png');
+  });
+
+  it('omits contact fields the profile does not have', () => {
+    const schema = institutionSchema(profile());
+
+    for (const field of ['email', 'telephone', 'sameAs', 'logo', 'foundingDate']) {
+      expect(schema).not.toHaveProperty(field);
+    }
+  });
 });
 
 describe('the remaining types', () => {

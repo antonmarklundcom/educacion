@@ -27,6 +27,7 @@ import {
   ResultCard,
   SortControl,
   areaHref,
+  offeringHref,
   careerHref,
   countActiveFilters,
 } from '@/components/browse';
@@ -129,6 +130,12 @@ export default async function CareraHubPage({
   // renders `noindex`, and structured data on a page we are asking not to
   // index is at best ignored and at worst a thin-content signal (seo.md §5).
   const isIndexable = hasEditorialCopy(career.descriptionMd);
+  // An `ItemList` describes *the* list at this URL. On a filtered, sorted or
+  // paginated view it would describe a slice — positions restarting at 1,
+  // `numberOfItems` counting one page — while `alternates.canonical` points at
+  // the bare hub, i.e. a different list. So the list ships only from the
+  // canonical view, and never empty.
+  const listsWholeHub = isIndexable && page === 1 && activeCount === 0 && results.length > 0;
   const crumbs = [
     { name: 'Carreras', path: '/carreras' },
     ...(career.areaName && career.areaSlug
@@ -139,22 +146,23 @@ export default async function CareraHubPage({
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:py-10">
-      {isIndexable && (
-        <>
-          <JsonLd data={breadcrumbSchema(crumbs)} />
-          {/* The programmes this page actually lists, in the order it lists
-              them — a paginated hub describes its own page, not a list the
-              reader cannot see. */}
-          <JsonLd
-            data={itemListSchema(
-              `${career.nameEs} en Paraguay`,
-              results.map((offering) => ({
-                name: `${offering.programName} – ${offering.institutionShort}`,
-                path: `/universidades/${offering.institutionSlug}/${offering.programSlug}`,
-              })),
-            )}
-          />
-        </>
+      {isIndexable && <JsonLd data={breadcrumbSchema(crumbs)} />}
+      {listsWholeHub && (
+        /* The programmes this page actually lists, in the order it lists them.
+           Results are offerings, so one programme taught at two sedes appears
+           twice with the same href — deduplicated here, because two ListItems
+           with one URL at different positions is a contradiction. */
+        <JsonLd
+          data={itemListSchema(
+            `${career.nameEs} en Paraguay`,
+            [
+              ...new Map(results.map((offering) => [offeringHref(offering), offering])).values(),
+            ].map((offering) => ({
+              name: `${offering.programName} – ${offering.institutionShort}`,
+              path: offeringHref(offering),
+            })),
+          )}
+        />
       )}
       <header className="flex flex-col gap-3">
         {career.areaName && career.areaSlug && (

@@ -66,20 +66,56 @@ function offerFor(offering: OfferingSummary, now: Date): Record<string, unknown>
   if (!price.hasAmount) return undefined;
   if (priceFreshness(price.verifiedAt, now) !== 'fresh') return undefined;
 
+  // Mirror the page: `priceDisplay()` treats a missing currency as the honest
+  // gap and renders "Consultá el arancel", so a row with amounts but no
+  // currency shows no number at all. Defaulting to PYG would publish a figure
+  // the reader cannot see.
+  if (!price.isFree && !price.currency) return undefined;
+
+  // `annualCost` is NOT null for a matrícula-only price: `computeAnnualCost`
+  // returns the bare matrícula, and the `annual_cost` generated column in
+  // `schema.ts` carries the same CASE, so that is what the database really
+  // stores. Publishing it as an annual arancel would label an enrolment fee as
+  // a year of tuition — in the one place, a rich result, where the page's
+  // surrounding context is stripped away. An annual figure is only honest when
+  // there is a recurring fee to annualise.
+  if (!price.isFree && (price.monthlyFee == null || price.installmentsPerYear == null)) {
+    return undefined;
+  }
+
   const amount = price.isFree ? 0 : price.annualCost;
-  // A price with a matrícula but no cuota has no honest annual figure;
-  // `computeAnnualCost` returns null rather than a partial sum, and a partial
-  // sum is precisely what must not reach a rich result.
   if (amount == null) return undefined;
 
   return {
     '@type': 'Offer',
     price: amount,
     priceCurrency: price.currency ?? PYG,
-    category: 'Arancel anual',
+    // Google's Course-info vocabulary, not free text.
+    category: price.isFree ? 'Free' : 'Paid',
     availability: 'https://schema.org/InStock',
     url: siteUrl(`/universidades/${offering.institutionSlug}/${offering.programSlug}`),
   };
+}
+
+/**
+ * schema.org type per institution type (`seo.md` §5: "`CollegeOrUniversity`
+ * (or `EducationalOrganization` for institutos)").
+ *
+ * Hardcoding `CollegeOrUniversity` would tell a search engine an instituto
+ * técnico is a university — a status claim we invented, contradicted by the
+ * page, which prints the real type.
+ */
+function organizationType(type: OfferingSummary['institutionType']): string {
+  return type === 'universidad' ? 'CollegeOrUniversity' : 'EducationalOrganization';
+}
+
+/** A value shared by every offering, or `undefined` when they disagree. */
+function agreedOn<T>(
+  offerings: readonly OfferingSummary[],
+  read: (offering: OfferingSummary) => T,
+): T | undefined {
+  const first = read(offerings[0]);
+  return offerings.every((offering) => read(offering) === first) ? first : undefined;
 }
 
 /**
@@ -113,12 +149,17 @@ export function courseSchema(
           addressCountry: 'PY',
         },
       },
-      ...(isoDuration(offering.durationMonths)
-        ? { courseSchedule: { '@type': 'Schedule', repeatCount: offering.durationMonths } }
-        : {}),
       ...(offer ? { offers: offer } : {}),
     };
   });
+
+  // `durationMonths` and `titleAwarded` are per-offering columns and genuinely
+  // differ — a distancia sede is commonly longer than the presencial one. A
+  // Course-level value read off `offerings[0]` (ordered only by `nombre_asc`)
+  // would contradict the other instances, so these ship only where every
+  // offering agrees.
+  const duration = agreedOn(offerings, (offering) => offering.durationMonths) ?? null;
+  const credential = agreedOn(offerings, (offering) => offering.titleAwarded) ?? null;
 
   return {
     '@context': 'https://schema.org',
@@ -128,20 +169,18 @@ export function courseSchema(
     inLanguage: 'es-PY',
     // `name_official` on detail pages, matching what the page prints.
     provider: {
-      '@type': 'CollegeOrUniversity',
+      '@type': organizationType(primary.institutionType),
       name: primary.institutionName,
       url: siteUrl(`/universidades/${primary.institutionSlug}`),
     },
-    ...(primary.titleAwarded ? { educationalCredentialAwarded: primary.titleAwarded } : {}),
-    ...(isoDuration(primary.durationMonths)
-      ? { timeRequired: isoDuration(primary.durationMonths) }
-      : {}),
+    ...(credential ? { educationalCredentialAwarded: credential } : {}),
+    ...(isoDuration(duration) ? { timeRequired: isoDuration(duration) } : {}),
     hasCourseInstance: instances,
   };
 }
 
 /**
- * `CollegeOrUniversity` for an institution profile.
+ * `CollegeOrUniversity` — or `EducationalOrganization` — for a profile.
  *
  * Contact fields are emitted only where the profile actually shows them; an
  * institution with no captured website or phone gets a smaller block, not a
@@ -150,12 +189,17 @@ export function courseSchema(
 export function institutionSchema(profile: InstitutionProfile): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
-    '@type': 'CollegeOrUniversity',
+    '@type': organizationType(profile.type),
     name: profile.nameOfficial,
     alternateName: profile.nameShort,
     url: siteUrl(`/universidades/${profile.slug}`),
     ...(profile.website ? { sameAs: [profile.website] } : {}),
-    ...(profile.logoUrl ? { logo: siteUrl(profile.logoUrl) } : {}),
+    // Already absolute — `uploadInstitutionLogo` returns
+    // `${S3_PUBLIC_BASE_URL}/${key}` — so prefixing the origin would emit
+    // `https://educacion.com.pyhttps://cdn…`. Only a root-relative path needs it.
+    ...(profile.logoUrl
+      ? { logo: profile.logoUrl.startsWith('/') ? siteUrl(profile.logoUrl) : profile.logoUrl }
+      : {}),
     ...(profile.foundedYear ? { foundingDate: String(profile.foundedYear) } : {}),
     ...(profile.email ? { email: profile.email } : {}),
     ...(profile.phoneE164 ? { telephone: profile.phoneE164 } : {}),
