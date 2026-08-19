@@ -8,9 +8,9 @@ import {
   LOGIN_ACCOUNT_RULES,
   LOGIN_IP_RULES,
   LOGIN_RATE_LIMITED,
-  clearLoginRate,
+  chargeLoginAttempt,
   loginAllowed,
-  recordLoginFailure,
+  settleLoginSuccess,
 } from './rate-limit';
 
 const NOW = 1_800_000_000_000;
@@ -25,11 +25,20 @@ beforeEach(() => {
 
 const ip = (n: number) => `ip-hash-${n}`;
 
-/** One failed attempt, as `loginAction` performs it. */
+/** One failed attempt, in the order `loginAction` performs it. */
 function fail(ipHash: string, email: string, now = NOW): boolean {
   const allowed = loginAllowed(ipHash, email, now);
-  if (allowed) recordLoginFailure(ipHash, email, now);
+  if (allowed) chargeLoginAttempt(ipHash, email, now);
   return allowed;
+}
+
+/** One successful attempt: charged on the way in, settled on the way out. */
+function succeed(ipHash: string, email: string, now = NOW): boolean {
+  const allowed = loginAllowed(ipHash, email, now);
+  if (!allowed) return false;
+  chargeLoginAttempt(ipHash, email, now);
+  settleLoginSuccess(ipHash, email, now);
+  return true;
 }
 
 describe('only failures are charged', () => {
@@ -37,8 +46,7 @@ describe('only failures are charged', () => {
     // A school lab or cyber café behind one NAT — the case architecture.md
     // §6.1 says the limits must tolerate. Successes are not recorded at all.
     for (let attempt = 0; attempt < IP_PER_HOUR * 3; attempt += 1) {
-      expect(loginAllowed(ip(1), `persona-${attempt}@ejemplo.test`, NOW), `#${attempt}`).toBe(true);
-      clearLoginRate(ip(1), `persona-${attempt}@ejemplo.test`);
+      expect(succeed(ip(1), `persona-${attempt}@ejemplo.test`), `#${attempt}`).toBe(true);
     }
   });
 
@@ -48,18 +56,23 @@ describe('only failures are charged', () => {
     }
     expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW)).toBe(false);
 
-    clearLoginRate(ip(1), 'persona@ejemplo.test');
+    // A success on a *different* address from the same machine still has IP
+    // room, and settling it forgets the blocked pair.
+    settleLoginSuccess(ip(1), 'persona@ejemplo.test', NOW);
     expect(loginAllowed(ip(1), 'persona@ejemplo.test', NOW)).toBe(true);
   });
 
-  it('does not clear the IP key on success', () => {
-    // Otherwise an attacker owning one valid account resets their own IP
-    // budget at will and grinds the rest of the catalog for free.
-    for (let attempt = 0; attempt < IP_PER_MINUTE; attempt += 1) {
+  it('refunds one IP attempt on success rather than clearing the key', () => {
+    // Clearing would let an attacker who owns one valid account reset their
+    // whole IP budget at will and grind the rest of the catalog for free.
+    // Refunding only what the successful attempt cost keeps the failures.
+    for (let attempt = 0; attempt < IP_PER_MINUTE - 1; attempt += 1) {
       fail(ip(1), `persona-${attempt}@ejemplo.test`);
     }
-    clearLoginRate(ip(1), 'persona-0@ejemplo.test');
+    expect(succeed(ip(1), 'suya@ejemplo.test')).toBe(true);
 
+    // The refund bought exactly one slot back, not a clean slate.
+    expect(fail(ip(1), 'otra@ejemplo.test')).toBe(true);
     expect(loginAllowed(ip(1), 'otra@ejemplo.test', NOW)).toBe(false);
   });
 });

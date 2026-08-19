@@ -20,20 +20,35 @@
  * paying institution out of its own panel during admissions is not.
  *
  * So the second tier is keyed on **(address, IP) together**. It still stops
- * one machine grinding one account, which is the realistic attack, and an
- * attacker can only ever lock out a pair they already control. The protection
- * a global counter would have added — one dictionary spread thin across a
- * botnet — is deliberately not bought at the price of handing every visitor a
- * lockout button. `risks.md` and `architecture.md` §6.1.1 record the trade.
+ * one machine grinding one account, which is the realistic attack, and it
+ * raises the price of a lockout from "know the address" to "know the address
+ * *and* the IP it will be used from". Stated precisely, because the weaker
+ * claim is tempting: this is a higher bar, not an impossibility —
+ * `x-forwarded-for` is forgeable, so somebody who knows an institution's
+ * office IP can still construct the pair. And the IP tier is itself a lockout
+ * of everyone behind an address, which is true of every IP-keyed limiter in
+ * this codebase. What makes both survivable, and what v1 lacked, is that a
+ * blocked key is no longer charged: it drains, instead of being held down by
+ * the victim's own retries. `architecture.md` §6.1.1 and `risks.md` §R-16
+ * record the trade.
  *
- * ### Why only failures are charged
+ * ### Charge first, refund a success
  *
  * `checkRate` records every attempt, success included. On a credential
  * endpoint that is backwards: a school lab or a cyber café — the exact case
  * §6.1 says the limits must tolerate — would lock itself out by *signing in
- * successfully*. So this module peeks before the attempt, charges only a
- * failure, and clears the pair key on success, so somebody who mistyped twice
- * and then got it right starts clean.
+ * successfully*. But the obvious repair, "peek now and charge the failure
+ * afterwards", is worse: discovering the outcome takes three `await`s, and
+ * every concurrent request peeks before any of them records, so the limit
+ * stops binding at all — a burst is then bounded only by the attacker's
+ * connection count, on the one endpoint that runs a deliberately expensive
+ * KDF.
+ *
+ * So the attempt is charged at decision time — `loginAllowed` and
+ * `chargeLoginAttempt` are both synchronous and adjacent, which is atomic on
+ * one event loop — and a success is *refunded*: the pair key is cleared
+ * outright, and the one IP timestamp is given back. Failures stay charged,
+ * successes cost nothing, and a concurrent burst is counted as it arrives.
  *
  * The IP itself is hashed by `clientIpHash()` in `@/lib/privacy/request`,
  * which every abuse-limited action shares. `x-forwarded-for` is
@@ -51,7 +66,13 @@
  * rejection is *fast* leaks nothing.
  */
 
-import { clearRate, peekRate, recordRate, type RateLimitRule } from '@/lib/leads/rate-limit';
+import {
+  clearRate,
+  peekRate,
+  recordRate,
+  refundRate,
+  type RateLimitRule,
+} from '@/lib/leads/rate-limit';
 import { hashEmail } from '@/lib/privacy/hash';
 
 /**
@@ -91,8 +112,8 @@ function keysFor(ipHash: string, email: string): { ip: string; account: string }
 }
 
 /**
- * May this attempt proceed? Charges nothing — call `recordLoginFailure` or
- * `clearLoginRate` once the attempt has an outcome.
+ * May this attempt proceed? Charges nothing on its own — it must be followed
+ * immediately, with no `await` between, by `chargeLoginAttempt`.
  */
 export function loginAllowed(ipHash: string, email: string, now: number = Date.now()): boolean {
   const keys = keysFor(ipHash, email);
@@ -102,20 +123,28 @@ export function loginAllowed(ipHash: string, email: string, now: number = Date.n
   );
 }
 
-/** Charge a failed attempt against both keys. */
-export function recordLoginFailure(ipHash: string, email: string, now: number = Date.now()): void {
+/**
+ * Charge the attempt against both keys, before its outcome is known. Pass the
+ * same `now` given to `loginAllowed`, so the pair is atomic and so a success
+ * can refund exactly this timestamp.
+ */
+export function chargeLoginAttempt(ipHash: string, email: string, now: number): void {
   const keys = keysFor(ipHash, email);
   recordRate(keys.ip, now, LOGIN_IP_RULES);
   recordRate(keys.account, now, LOGIN_ACCOUNT_RULES);
 }
 
 /**
- * Forget the account key after a successful sign-in.
+ * Settle a successful sign-in: forget the pair key entirely, and give back the
+ * IP attempt this sign-in charged.
  *
- * The IP key is deliberately **not** cleared: an attacker who owns one valid
- * account could otherwise reset their own IP budget at will and grind the rest
- * of the catalog for free.
+ * The IP key is refunded by one timestamp rather than **cleared**: clearing it
+ * would let an attacker who owns one valid account reset their whole IP budget
+ * at will and grind the rest of the catalog for free. Refunding only what this
+ * attempt cost means a success is free without being a reset.
  */
-export function clearLoginRate(ipHash: string, email: string): void {
-  clearRate(keysFor(ipHash, email).account);
+export function settleLoginSuccess(ipHash: string, email: string, now: number): void {
+  const keys = keysFor(ipHash, email);
+  clearRate(keys.account);
+  refundRate(keys.ip, now);
 }

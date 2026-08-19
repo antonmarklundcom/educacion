@@ -523,13 +523,16 @@ already bounded by the KDF's cost; locking a paying institution out of its panel
 admissions is not. Keying on the pair keeps the realistic protection and lets an attacker
 block only a pair they already control. Full reasoning in `architecture.md` §6.1.1.
 
-Second deviation, same kind: **only failures are charged.** `checkRate` records every
-attempt including successes, which would let a school lab or cyber café behind one NAT lock
-itself out by signing in — the exact case §6.1 says the limits must tolerate. The login path
-peeks, charges a failure, and clears the pair key on success; the IP key is deliberately not
-cleared, or an attacker owning one valid account could reset their own budget at will. This
-needed `peekRate`/`recordRate`/`clearRate` alongside `checkRate` in
-`src/lib/leads/rate-limit.ts`; the existing four callers are untouched.
+Second deviation, same kind: **a success costs nothing.** `checkRate` records every attempt
+including successes, which would let a school lab or cyber café behind one NAT lock itself
+out by signing in — the exact case §6.1 says the limits must tolerate. The first attempt at
+this peeked and charged the failure afterwards, which the review measured as a total bypass:
+three `await`s sit between peek and charge, so 50 concurrent requests against a cap of 5 all
+reached `authenticate()`. The attempt is now charged at decision time (atomic, both calls
+synchronous and adjacent) and *refunded* on success — the pair key cleared, the single IP
+timestamp given back. This needed `peekRate`/`recordRate`/`clearRate`/`refundRate` alongside
+`checkRate` in `src/lib/leads/rate-limit.ts`; the existing four callers are untouched, and
+the new primitives have their own tests.
 
 Three supporting changes. (1) `hashEmail()` in `src/lib/privacy/hash.ts`, because the key map
 outlives the request and a plaintext address in it is PII we never agreed to hold; it
@@ -546,15 +549,25 @@ route against MySQL is routinely a connection string or a failing SQL fragment, 
 no shell layout above it, and is the only one that sets `id="contenido"` — the three shell
 layouts already render that id and the boundary renders inside it.
 
-20 tests: 11 on the limiter and 9 on `loginAction` itself, the latter added because a test
-that calls the helper twice and compares answers is a tautology over its own fixture — it
-would pass unchanged if the limiter moved *below* `findAccountByEmail`, which is what the "no
-enumeration oracle" and "a flood never reaches the database" claims actually rest on.
+28 tests: 11 on the limiter, 11 on `loginAction` itself and 6 on the new shared primitives.
+The action-level suite exists because a test that calls a helper twice and compares answers
+is a tautology over its own fixture — it would pass unchanged if the limiter moved *below*
+`findAccountByEmail`, which is what the "no enumeration oracle" claim actually rests on. Two
+of its cases were written specifically to fail against earlier revisions of this PR: a
+50-request concurrent burst, and a full run of failures after a success (a single trailing
+failure passes with or without the settle, which is why the first version of that test proved
+nothing).
 
-**Independent review** (`agent-workflow.md` §5) found the global-per-address lockout above as
-a blocker, along with successes consuming quota, the duplicate `id="contenido"`, the surviving
-third copy of the IP helper, and prose claiming two properties the tests did not hold — all
-fixed here. It also found that `src/lib/privacy/hash.ts` contained a literal NUL byte in its
+**Independent review** (`agent-workflow.md` §5, two passes) found the global-per-address
+lockout as a blocker, along with successes consuming quota, the duplicate `id="contenido"`,
+the surviving third copy of the IP helper, and prose claiming two properties the tests did not
+hold. The second pass then measured the concurrency bypass the first round's fix had
+introduced, found that nothing tested the success-settling wiring at all, and found this
+file and §6.1.1 again claiming more than the code delivered — "an attacker can only ever
+block a pair they already control" is false where `x-forwarded-for` is forgeable. All fixed
+here; the trade and what remains unsolved are recorded as `risks.md` §R-16, and the
+server-only `clientIpHash` moved to `privacy/server-request.ts` so `request.ts` does not drag
+`next/headers` into `lib/leads` and `lib/events`. It also found that `src/lib/privacy/hash.ts` contained a literal NUL byte in its
 `join()` separator, which made git classify the file as **binary**: the entire `hashEmail`
 addition, a new function on the PII path, showed only "Binary files differ" and was invisible
 to review. The byte is now the `\u0000` escape; digests were verified unchanged against an

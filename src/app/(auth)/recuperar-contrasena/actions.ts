@@ -4,7 +4,7 @@ import { consumePasswordReset, requestPasswordReset } from '@/db/queries/passwor
 import { sendPasswordResetEmail } from '@/lib/auth/notify';
 import { passwordProblem } from '@/lib/auth/password';
 import { RESET_TTL_MINUTES } from '@/lib/auth/reset-token';
-import { clientIpHash } from '@/lib/privacy/request';
+import { clientIpHash } from '@/lib/privacy/server-request';
 import { checkRate } from '@/lib/leads/rate-limit';
 
 export interface RequestResetState {

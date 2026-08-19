@@ -31,8 +31,6 @@ function configuredHost(): string | null {
   }
 }
 
-import { headers } from 'next/headers';
-
 import { hashIp } from './hash';
 
 export function clientIp(request: Request): string {
@@ -55,11 +53,6 @@ export function clientIp(request: Request): string {
 export function hashClientIp(headerList: Headers): string {
   const forwarded = headerList.get('x-forwarded-for')?.split(',')[0]?.trim();
   return hashIp(forwarded || headerList.get('x-real-ip')?.trim() || 'unknown');
-}
-
-/** `hashClientIp` for a server action, which must await the header list. */
-export async function clientIpHash(): Promise<string> {
-  return hashClientIp(await headers());
 }
 
 export function userAgent(request: Request): string {

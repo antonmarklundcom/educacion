@@ -206,17 +206,33 @@ name locked out indefinitely, and the victim's own retries top the window back u
 denial-of-service tool wearing a rate limiter's clothes, and it is the worse trade: online
 guessing is already bounded by the KDF's cost, while locking a paying institution out of its
 panel during admissions is not. Keying the second tier on the **pair** keeps the realistic
-protection and means an attacker can only ever block a pair they already control. What is
-given up — one dictionary spread thin across a botnet, which the IP tier cannot see — is not
-bought at the price of handing every visitor a lockout button.
+protection and raises a lockout's price from "know the address" to "know the address *and*
+the IP it will be used from". That is a higher bar, not an impossibility, and the honest
+statement matters: `x-forwarded-for` is forgeable, so somebody who knows an institution's
+static office IP can still construct its pair, and the per-IP tier is itself a lockout of
+everyone behind one address — true of every IP-keyed limiter here. What makes both
+survivable is the charging rule below: a blocked key is not charged, so a window **drains**
+once an attacker stops, rather than being held down by the victim's own retries as it would
+have been under a global counter. What is given up — one dictionary spread thin across a
+botnet, invisible to both tiers — is not bought at the price of handing every visitor a
+lockout button. `risks.md` §R-16 records the trade and what is still unsolved.
 
-**Only failures are charged.** `checkRate` records every attempt, success included, which is
-right for a lead or an email and backwards for a credential check: a school lab or a cyber
-café — the exact case §6.1 says the limits must tolerate — would lock itself out by *signing
-in successfully*. So the login path peeks (`peekRate`), charges only a failure
-(`recordRate`), and clears the pair key on success (`clearRate`), so somebody who mistyped
-twice and then got it right starts clean. The IP key is **not** cleared on success: an
-attacker owning one valid account could otherwise reset their own budget at will.
+**Charged on the way in, refunded on success.** `checkRate` records every attempt, success
+included, which is right for a lead or an email and backwards for a credential check: a
+school lab or a cyber café — the exact case §6.1 says the limits must tolerate — would lock
+itself out by *signing in successfully*. But the obvious repair, "peek now and charge the
+failure afterwards", is worse than the problem: discovering the outcome takes three `await`s,
+so every concurrent request peeks before any of them records and the limit stops binding at
+all — a burst then bounded only by the attacker's connection count, on the one endpoint
+running a deliberately expensive KDF. Measured at 50 concurrent requests against a cap of 5,
+all 50 reached `authenticate()`.
+
+So the attempt is charged at decision time — `loginAllowed` and `chargeLoginAttempt` are
+synchronous and adjacent, which is atomic on one event loop — and a success is *refunded*:
+`settleLoginSuccess` clears the pair key outright and gives back the single IP timestamp the
+attempt cost (`refundRate`). Failures stay charged, a success costs nothing, and a
+concurrent burst is counted as it arrives. The IP key is refunded by one rather than cleared:
+clearing it would let an attacker owning one valid account reset their whole budget at will.
 
 Two properties beyond those, both covered by tests that fail without them:
 

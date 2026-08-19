@@ -21,11 +21,11 @@ import {
 import { LOGIN_ERROR, authenticate } from '@/lib/auth/login';
 import {
   LOGIN_RATE_LIMITED,
-  clearLoginRate,
+  chargeLoginAttempt,
   loginAllowed,
-  recordLoginFailure,
+  settleLoginSuccess,
 } from '@/lib/auth/rate-limit';
-import { clientIpHash } from '@/lib/privacy/request';
+import { clientIpHash } from '@/lib/privacy/server-request';
 import { startSession } from '@/lib/auth/session';
 import { hashEmail } from '@/lib/privacy/hash';
 
@@ -49,9 +49,16 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   // exist. Only failures are charged, below — `rate-limit.ts` has the
   // reasoning for that and for why there is no global per-address counter.
   const ipHash = await clientIpHash();
-  if (!loginAllowed(ipHash, email)) {
+  const at = Date.now();
+  if (!loginAllowed(ipHash, email, at)) {
     return { error: LOGIN_RATE_LIMITED };
   }
+  // Charged here, before the outcome is known. `loginAllowed` and this call are
+  // synchronous and adjacent, so no other request can interleave between them;
+  // peeking now and charging after `authenticate()` would leave three `await`s
+  // in the window, and a concurrent burst would pass the limit wholesale.
+  // A success refunds it below.
+  chargeLoginAttempt(ipHash, email, at);
 
   const account = await findAccountByEmail(email);
   const institutionId = account
@@ -61,7 +68,7 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
   const result = await authenticate(account, password, institutionId);
 
   if (!result.ok) {
-    recordLoginFailure(ipHash, email);
+    // Already charged above; a failure simply keeps it.
     // One message for every failure — see `login.ts`. The reason stays
     // server-side, and the address is hashed: a log line outlives the
     // in-process limiter that `hashEmail` exists to keep addresses out of.
@@ -69,8 +76,10 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
     return { error: LOGIN_ERROR };
   }
 
-  // Somebody who mistyped twice and then got it right starts clean.
-  clearLoginRate(ipHash, email);
+  // Somebody who mistyped twice and then got it right starts clean, and the
+  // sign-in itself costs nothing — a busy shared address must not lock itself
+  // out by succeeding (architecture.md §6.1.1).
+  settleLoginSuccess(ipHash, email, at);
 
   if (result.rehashTo && account) {
     await setPassword(account.id, result.rehashTo, {

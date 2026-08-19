@@ -233,3 +233,37 @@ no waiting on a human.
 Becas, blog, empleos, cursos, colegios, comparador de universidades regionales — all reasonable, all tempting, each one a quarter of work.
 
 **Mitigation:** Phase 4 exists precisely to hold these. Nothing from Phase 4 starts before Phase 3 has one paying customer. If a Phase-4 idea seems urgent, it is almost always a marketing problem wearing a feature costume.
+
+---
+
+## R-16 — Rate limiting a credential endpoint can become the attack
+
+**Severity: Medium · Mitigate: PR-42, done**
+
+The obvious way to protect a sign-in form is a per-address counter: too many failures for
+`ana@universidad.edu.py`, refuse that address for a while. It is also a remote account
+lockout, and a cheap one — the key is a string the attacker types, and a limiter that
+charges rejected attempts keeps the window full for as long as they keep hitting it. A
+handful of requests an hour, from one ordinary connection, locks a paying institution out
+of `/panel` during admissions. The victim's own retries make it worse.
+
+The trade is worth stating because it goes the opposite way to intuition: **online password
+guessing is already bounded** by the cost of the password hash, while a lockout is bounded
+by nothing. A limiter that trades a slow attack for a fast denial of service has made the
+site less available without making it much safer.
+
+**Mitigation** (`architecture.md` §6.1.1): the second tier is keyed on the **(address, IP)
+pair**, not the address, so an attacker must know the victim's IP as well as their address;
+only failures are charged, and a blocked key is not charged at all, so a window **drains**
+once an attacker stops rather than being held down. What this gives up, knowingly: one
+dictionary spread thin across a botnet is invisible to both tiers.
+
+**What is not solved.** `x-forwarded-for` is client-forgeable and Hostinger's proxy appends
+rather than replaces, so somebody who knows an institution's static office IP can still
+construct its pair, and the per-IP tier remains a lockout of everyone behind one address —
+a school lab, a cyber café, one institution's office — which is true of every IP-keyed
+limiter here (§6.1). Both are bounded by the drain. If a lockout is ever reported, the
+first question is whether the address it came from is shared, and the answer is in the
+`login-ip:` key, not in a support ticket. A durable per-account backstop needs a table and
+a deliberate unlock path; it is not worth building before there is evidence anybody is
+trying.

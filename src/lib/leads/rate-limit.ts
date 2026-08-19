@@ -158,6 +158,31 @@ export function clearRate(key: string): void {
   hits.delete(key);
 }
 
+/**
+ * Give back one attempt charged at `at`.
+ *
+ * This is what lets a caller charge *before* it knows the outcome — the only
+ * order that is safe when the outcome takes an `await` to discover. Peeking
+ * first and charging afterwards leaves the whole verification in between, and
+ * every concurrent request peeks before any of them records: the limit stops
+ * binding entirely (PR-42). So the login path charges at decision time, which
+ * is atomic because both calls are synchronous and adjacent, and refunds the
+ * one timestamp when the attempt turns out to have succeeded.
+ *
+ * Removes a single occurrence, so two attempts charged in the same
+ * millisecond refund one each.
+ */
+export function refundRate(key: string, at: number): void {
+  const timestamps = hits.get(key);
+  if (!timestamps) return;
+
+  const index = timestamps.lastIndexOf(at);
+  if (index === -1) return;
+
+  timestamps.splice(index, 1);
+  if (timestamps.length === 0) hits.delete(key);
+}
+
 /** Test seam. Never called by application code. */
 export function __resetRateLimitForTests(): void {
   hits.clear();

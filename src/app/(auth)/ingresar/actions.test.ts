@@ -50,7 +50,8 @@ vi.mock('next/navigation', () => ({
 
 const { loginAction } = await import('./actions');
 const { LOGIN_ERROR } = await import('@/lib/auth/login');
-const { LOGIN_RATE_LIMITED, LOGIN_ACCOUNT_RULES } = await import('@/lib/auth/rate-limit');
+const { LOGIN_RATE_LIMITED, LOGIN_ACCOUNT_RULES, LOGIN_IP_RULES } =
+  await import('@/lib/auth/rate-limit');
 
 function form(email: string, password: string): FormData {
   const data = new FormData();
@@ -140,6 +141,31 @@ describe('loginAction — the failure path is untouched', () => {
   });
 });
 
+describe('loginAction — a concurrent burst is counted as it arrives', () => {
+  it('admits no more than the limit even when every request is in flight at once', async () => {
+    // The regression this design exists for: peeking now and charging after
+    // `authenticate()` leaves three awaits in the window, so every concurrent
+    // request peeks before any of them records and the limit stops binding —
+    // a burst bounded only by the attacker's connection count, on the one
+    // endpoint that runs a deliberately expensive KDF.
+    authenticate.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ ok: false, reason: 'wrong_password' }), 5),
+        ),
+    );
+
+    const burst = await Promise.all(
+      Array.from({ length: 50 }, () => loginAction({}, form('victima@ejemplo.test', 'incorrecta'))),
+    );
+
+    const limited = burst.filter((state) => state.error === LOGIN_RATE_LIMITED).length;
+    expect(authenticate.mock.calls.length).toBeLessThanOrEqual(LOGIN_ACCOUNT_RULES[0].limit);
+    expect(findAccountByEmail.mock.calls.length).toBeLessThanOrEqual(LOGIN_ACCOUNT_RULES[0].limit);
+    expect(limited).toBe(50 - authenticate.mock.calls.length);
+  });
+});
+
 describe('loginAction — a success', () => {
   const user = { id: 7, role: 'institution', institutionId: 3, mustChangePassword: false };
 
@@ -156,9 +182,31 @@ describe('loginAction — a success', () => {
     );
     expect(startSession).toHaveBeenCalledWith(user);
 
-    // The quota is forgotten, so a later typo does not resume where it left off.
+    // The quota is forgotten, so a later typo does not resume where it left
+    // off. A full run of failures must fit: with the settle, five slots are
+    // free; without it the first of these is already refused. One trailing
+    // failure would pass either way, which is what made an earlier version of
+    // this test prove nothing.
     authenticate.mockResolvedValue({ ok: false, reason: 'wrong_password' });
-    const state = await loginAction({}, form('persona@ejemplo.test', 'incorrecta'));
+    for (let attempt = 0; attempt < LOGIN_ACCOUNT_RULES[0].limit; attempt += 1) {
+      const state = await loginAction({}, form('persona@ejemplo.test', 'incorrecta'));
+      expect(state.error, `#${attempt}`).toBe(LOGIN_ERROR);
+    }
+  });
+
+  it('does not spend IP budget on a successful sign-in', async () => {
+    authenticate.mockResolvedValue({ ok: true, user });
+
+    for (let attempt = 0; attempt < LOGIN_IP_RULES[0].limit * 2; attempt += 1) {
+      await expect(
+        loginAction({}, form(`persona-${attempt}@ejemplo.test`, 'correcta')),
+      ).rejects.toThrow('NEXT_REDIRECT');
+    }
+
+    // A shared address — school lab, cyber café, one institution's office —
+    // must not lock itself out by signing in (architecture.md §6.1).
+    authenticate.mockResolvedValue({ ok: false, reason: 'wrong_password' });
+    const state = await loginAction({}, form('otra@ejemplo.test', 'incorrecta'));
     expect(state.error).toBe(LOGIN_ERROR);
   });
 });
