@@ -41,6 +41,7 @@ import { and, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
 import { db as defaultDb, type Db } from '@/db';
 import { claims, institutionMembers, institutions, users } from '@/db/schema';
 import { logActivity } from '@/db/queries/admin/activity-log';
+import { expirePublicReads } from '@/lib/cache';
 import { AuthError, isStaff, requireRole } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
 import { hashPassword, passwordProblem } from '@/lib/auth/password';
@@ -695,6 +696,14 @@ export async function redeemClaim(
 
       return created ? ('created' as const) : ('linked' as const);
     });
+
+    // `institutions.claimed_by_user_id` is the one column a catalog write
+    // touches without going through `rebuildProgramSearch()` — the claim is not
+    // in the search index. It *is* in `InstitutionProfile.isClaimed`, which
+    // PR-43 caches, and which decides whether the institution page keeps
+    // offering "¿Es tu institución?" to somebody who has just claimed it. So
+    // this path expires the cache itself. (`src/lib/cache/tags.ts`.)
+    expirePublicReads();
 
     return { ok: true, mode, institutionName: row.institutionName, email };
   } catch (error) {

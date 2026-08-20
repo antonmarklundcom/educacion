@@ -118,6 +118,15 @@ vi.mock('@/lib/claims/notify', () => ({
   claimUrl: (token: string) => `https://example.test/reclamar/${token}`,
 }));
 
+/**
+ * PR-43 caches `getInstitutionBySlug()`, and `isClaimed` is on that payload.
+ * Redemption is the one catalog write that does not go through
+ * `rebuildProgramSearch()`, so it has to expire the cache itself — see
+ * `src/lib/cache/tags.ts`. This records whether it did.
+ */
+const expirePublicReads = vi.fn();
+vi.mock('@/lib/cache', () => ({ expirePublicReads: () => expirePublicReads() }));
+
 const { approveClaim, previewClaim, redeemClaim, rejectClaim, requestClaim, listClaims, getClaim } =
   await import('./claims');
 
@@ -168,6 +177,7 @@ beforeEach(() => {
   writes = [];
   affectedByTable = {};
   sent.length = 0;
+  expirePublicReads.mockClear();
 });
 
 /** No write ran, and the failure is the one we expected. */
@@ -489,6 +499,31 @@ describe('redeeming a token — completing the claim', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'already_claimed' });
     expect(writes).not.toContain('insert:institution_members');
+  });
+
+  /**
+   * Without this, a redeemed claim leaves `/universidades/[slug]` telling the
+   * new owner to "reclamá este perfil" for the rest of the cache TTL —
+   * `institutions.claimed_by_user_id` is the one catalog column whose write
+   * never reaches `rebuildProgramSearch()`.
+   */
+  it('expires the public cache, because no rebuild will do it for this write', async () => {
+    rowsByTable.claims = [liveClaim()];
+    rowsByTable.users = [];
+
+    await redeemClaim(TOKEN, { password, name: 'Ana Rectora' });
+
+    expect(expirePublicReads).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expire it when the redemption lost the race', async () => {
+    rowsByTable.claims = [liveClaim()];
+    rowsByTable.users = [];
+    affectedByTable.institutions = 0;
+
+    await redeemClaim(TOKEN, { password, name: null });
+
+    expect(expirePublicReads).not.toHaveBeenCalled();
   });
 
   /**

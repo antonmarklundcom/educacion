@@ -1,7 +1,7 @@
 # Pull Request Plan
 
-**Status (2026-08-19):** PR-01–36 and PR-39 are merged; Phases 6–7 below are planned and
-not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
+**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–43 are merged; the rest of Phases 6–7
+below are planned and not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
 left as-is rather than backfilled, so branch names in git history stay truthful.
 
 **Sizing principle:** one PR = one reviewable concern, deployable on its own. If explaining the scope takes a paragraph, split it.
@@ -595,6 +595,71 @@ deployed environment (numbers recorded in `architecture.md`); a price superseded
 same as today; stale-price warnings can never outlive a cache entry's price (one object,
 per PR-33's `priceDisplay()` contract); cache keys include every searchParam that changes
 the result.
+
+**Shipped as:** the interface is `src/lib/cache/`, and `architecture.md` §27 is
+the decision record the brief asked for. Four decisions the brief left open.
+(1) **The cache sits around the read paths, not the routes.** The App Router's
+full-route cache does not vary by `searchParams`, so `/carreras` — the heaviest
+page and a pure function of its query string — could not have used ISR at all;
+`unstable_cache` around `searchPrograms`, `getOfferingsByIds`,
+`listInstitutions` and `getInstitutionBySlug` covers every public surface
+instead, and the routes stay `force-dynamic`. `getPlacementFlags` and
+`getWhatsappNumbers` are deliberately excluded: §17 and §6.2 already decided
+those two are read live, and an hour is still a refresh clock.
+(2) **One tag, not one per entity**, because one `program_search` row carries
+the institution, the career, the city, the arancel, the badge and the
+`plan_rank`, so for nearly any write the honest answer to "which entries could
+this have changed?" is *any of them*. The expiry lives inside
+`rebuildProgramSearch()`, which almost every catalog write already funnels
+through, rather than at ~40 call sites.
+(3) **The cache holds rows, never derived facts.** `toOfferingSummary(row, now)`
+runs on every read, hit or miss, so `price.freshness` — the PR-33 warning — is
+always this request's clock against the cached `verified_at`. The twelve-month
+boundary falls at an arbitrary moment, so the test that pins it reads one entry
+twice on either side of the boundary within one day.
+(4) **`experimental.isrFlushToDisk: false`.** `unstable_cache` entries are
+written to `.next/cache/fetch-cache` with no eviction, and the cache key comes
+from the URL — an unbounded keyspace anybody can mint into, against a fixed
+Hostinger disk quota. Memory-only makes LRU eviction the bound (§27.2.1).
+
+**The p95 numbers are not recorded, and nothing was invented in their place.**
+The measurement needs the real dataset on the real host, and this build
+environment has neither a production database nor a deploy. §27.5 holds the
+empty table, the exact command to fill it, and says plainly that it is
+outstanding — **the operator records it after the next deploy**. This is the one
+acceptance criterion PR-43 does not meet, and it is stated rather than papered
+over (CLAUDE.md rule 1). The other three are met and each has a test that fails
+without the code that meets it.
+
+**Independent review** (`agent-workflow.md` §5, a session that wrote none of
+this) found no blocker and five should-fixes, all fixed here. (a) The
+"every catalog write funnels through `rebuildProgramSearch()`" invariant — the
+reason one tag is enough — was **false**: claim redemption writes
+`institutions.claimed_by_user_id`, which is not in the index and is
+`isClaimed` on the newly cached institution profile, so a redeemed claim would
+have left the public page telling the new owner to claim it for up to an hour.
+That path now expires the cache itself, with a test; the docs name the remaining
+exception (`npm run curate`, out of process) instead of claiming there is none.
+(b) `expirePublicReads()` had **no test at all** — both guards could be deleted
+with the suite green, because the only thing near it asserted a predicate
+against its own hand-built error. It is now exercised inside Next's real work
+storages: the tag genuinely lands in `pendingRevalidatedTags`, a call during
+render still throws, and an unrelated error still propagates. (c) `JsonPlain`
+caught `Date` and nothing else while three comments claimed it caught everything
+JSON changes — a `Map` or an optional property would have passed. It now covers
+`Map`, `Set`, `bigint`, `symbol`, functions and optional keys, and
+`json-plain.test-d.ts` compiles one `@ts-expect-error` per kind so the claim is
+checked by `tsc`. (d) A comment cited a `Wire extends JsonPlain<Wire>`
+constraint that does not exist (it is circular — TS2313); the guard is `load`'s
+return type and the comment now says so. (e) The unbounded, attacker-reachable
+keyspace was not discussed at all — hence decision (4) and §27.2.1. It also
+found two wrong cross-references, corrected in §27.
+
+While here, two sentences elsewhere in `architecture.md` that PR-33 should have
+updated and did not: §8 still said an arancel older than 12 months is **hidden**,
+which CLAUDE.md rule 3 and §23 reversed; and §3's `force-dynamic` note now says
+what PR-43 did and did not change. One-line corrections to statements this PR's
+own code depends on, rather than a widened scope.
 
 ### PR-44 — Activity-log viewer & deletion-request tooling · **Sonnet → Opus review**
 
