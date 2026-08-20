@@ -35,6 +35,10 @@ const SERVER_ONLY = [
   'lib/copy/es-py.ts',
   'lib/copy/browse.ts',
   'lib/copy/total-cost.ts',
+  // PR-48: reaches `@/db/invariants` and therefore the schema module and
+  // Drizzle. `architecture.md` §5.1 documents what that costs in a browser
+  // bundle; this is the check that stops it happening again.
+  'lib/prices/total-cost.ts',
 ].map((p) => join(SRC, p));
 
 function walkFiles(dir: string): string[] {

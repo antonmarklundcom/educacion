@@ -13,9 +13,10 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { computeAnnualCost } from '@/db/invariants';
 import type { PriceSummary } from '@/lib/search';
 
-import { partialLabel, totalCostLabel } from './total-cost-display';
+import { compareCellLabel, partialLabel, totalCostLabel } from './total-cost-display';
 import { cheapestTotalIndex, compareTotalCost, totalCost } from './total-cost';
 
 const VERIFIED = new Date('2026-05-01T00:00:00Z');
@@ -100,16 +101,66 @@ describe('totalCost — every component or no number at all', () => {
     expect(total.missing).toEqual(['arancel']);
   });
 
+  it('refuses a total whose units it cannot name', () => {
+    // `program_search.price_currency` is nullable while `matricula_gs` is
+    // written independently, so amounts without a currency are representable.
+    // Without this the function returns `complete` with `currency: null`, and
+    // the comparador cell emits a bare "total incompleto" as a **non-gap** —
+    // eligible for the "el más barato" marker with no number in it.
+    const total = totalCost(price({ currency: null }), 60);
+    expect(total.kind).toBe('partial');
+    expect(total.missing).toEqual(['arancel']);
+  });
+
+  it('treats a zero duration as no duration', () => {
+    // `offerings.duration_months` has a CHECK for this; the denormalized
+    // `program_search.duration_months` this module reads does not. 0 % 12 is 0,
+    // so without the `<= 0` guard a zero-length carrera totals to its exam fee
+    // and presents it as the cost of the whole degree.
+    const total = totalCost(price(), 0);
+    expect(total.kind).toBe('partial');
+    expect(total.missing).toEqual(['duracion']);
+  });
+
+  it('refuses a row that is free and priced at the same time, rather than dropping the fee', () => {
+    // `prices_free_has_no_fees` forbids this on `prices`; `program_search`
+    // carries no such CHECK. Trusting the flag would turn a Gs. 22.650.000
+    // carrera into a Gs. 150.000 one.
+    const total = totalCost(price({ isFree: true }), 60);
+    expect(total.kind).toBe('partial');
+    expect(total.missing).toEqual(['incoherente']);
+    expect(totalCostLabel(total)).toContain('gratuito y a la vez tiene montos cargados');
+  });
+
+  it('names an undetermined case as undetermined, never as missing data', () => {
+    // The institution's record is complete here. Saying "sin datos de duración"
+    // about a row that has a duration is a false statement about them.
+    const label = totalCostLabel(totalCost(price(), 30));
+    expect(label).toContain('no dura un número entero de años');
+    expect(label).not.toContain('sin datos');
+  });
+
+  it('orders the gaps the same way however the checks happen to run', () => {
+    const total = totalCost(price({ matricula: null, admissionFee: null }), null);
+    expect(total.missing).toEqual(['matricula', 'derecho_examen', 'duracion']);
+  });
+
+  it('carries staleness onto a partial too, so a later consumer cannot read it as fresh', () => {
+    const total = totalCost(price({ freshness: 'stale', admissionFee: null }), 60);
+    expect(total.freshness).toBe('stale');
+    expect(total.verifiedAt).toEqual(VERIFIED);
+  });
+
   it('never puts a figure on a partial — not even a lower bound', () => {
     const total = totalCost(price({ admissionFee: null }), 60);
     expect(totalCostLabel(total)).toBe('sin datos de derecho de examen — total incompleto');
     expect(totalCostLabel(total)).not.toMatch(/\d/);
   });
 
-  it('lists several gaps in reading order', () => {
+  it('lists several gaps in reading order, saying "sin datos de" once', () => {
     const total = totalCost(price({ matricula: null, admissionFee: null }), 60);
     expect(partialLabel(total)).toBe(
-      'sin datos de matrícula y sin datos de derecho de examen — total incompleto',
+      'sin datos de matrícula y derecho de examen — total incompleto',
     );
   });
 });
@@ -127,6 +178,35 @@ describe('totalCost — staleness travels, it never hides', () => {
     const total = totalCost(price({ freshness: 'unknown', verifiedAt: null }), 60);
     expect(total.freshness).toBe('unknown');
     expect(total.verifiedAt).toBeNull();
+  });
+});
+
+describe('the comparador cell — CLAUDE.md rule 3', () => {
+  it('attaches the words "Dato desactualizado" to a stale total, not just a date', () => {
+    // "dato de mayo de 2026" reads as provenance; a reader cannot tell it from
+    // a fresh date. Rule 3 asks for the warning.
+    const cell = compareCellLabel(totalCost(price({ freshness: 'stale' }), 60));
+    expect(cell).toBe('Gs. 22.650.000 · Dato desactualizado (mayo de 2026)');
+  });
+
+  it('says the date is unknown rather than implying there is one', () => {
+    const cell = compareCellLabel(totalCost(price({ freshness: 'unknown', verifiedAt: null }), 60));
+    expect(cell).toBe('Gs. 22.650.000 · Dato desactualizado (sin fecha de verificación)');
+  });
+
+  it('leaves a fresh total unadorned', () => {
+    expect(compareCellLabel(totalCost(price(), 60))).toBe('Gs. 22.650.000');
+  });
+});
+
+describe('the annual figure has one definition', () => {
+  it('is computeAnnualCost, not a fourth copy of the formula', () => {
+    // data-model.md: the generated column and `computeAnnualCost()` "must stay
+    // in lockstep". This asserts the total is built from that function rather
+    // than from a restatement of it that could drift.
+    for (const p of [price(), price({ matricula: 0 }), price({ installmentsPerYear: 1 })]) {
+      expect(totalCost(p, 60).annualCost).toBe(computeAnnualCost(p));
+    }
   });
 });
 

@@ -84,7 +84,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
       'Aranceles, convocatorias, calendarios de examen de ingreso, planes de estudio y datos de contacto.',
     refresh: 'Por cada ciclo de admisión.',
     caveat:
-      'Acá no hay registro público: cada dato se releva y se fecha a mano. Un arancel con más de 12 meses de verificado deja de mostrarse en todo el sitio, en vez de mostrarse desactualizado.',
+      'Acá no hay registro público: cada dato se releva y se fecha a mano. Un arancel con más de 12 meses de verificado se sigue mostrando, siempre con un aviso de dato desactualizado y la fecha en que lo confirmamos por última vez.',
   },
   {
     id: 'instituciones-directo',

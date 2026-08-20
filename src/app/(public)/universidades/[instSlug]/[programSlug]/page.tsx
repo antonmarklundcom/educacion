@@ -258,7 +258,11 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-6">
           <PriceBlock price={primary.price} />
-          <TotalCostBlock price={primary.price} durationMonths={primary.durationMonths} />
+          <TotalCostBlock
+            price={primary.price}
+            durationMonths={primary.durationMonths}
+            campusName={offerings.length > 1 ? primary.campusName : undefined}
+          />
           <AdmissionBlock offering={primary} />
         </aside>
       </div>

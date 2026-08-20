@@ -14,11 +14,11 @@
  */
 
 import { accreditationLabel } from '@/components/browse/accreditation-display';
-import { priceDisplay } from '@/components/browse/price';
+import { STALE_LABEL, STALE_UNKNOWN_LABEL, priceDisplay } from '@/components/browse/price';
 import { copy } from '@/lib/copy';
-import { formatDurationMonths, formatMonthYear } from '@/lib/format';
+import { formatDurationMonths } from '@/lib/format';
 import { cheapestTotalIndex, totalCost } from '@/lib/prices/total-cost';
-import { totalCostLabel } from '@/lib/prices/total-cost-display';
+import { compareCellLabel } from '@/lib/prices/total-cost-display';
 import {
   ENROLLMENT_STATUS_LABELS,
   LEVEL_LABELS,
@@ -90,9 +90,12 @@ const EXTRACTORS: readonly Extractor[] = [
       const display = priceDisplay(o.price);
       if (display.isGap) return { text: display.label, isGap: true };
       const amount = `${display.label}${display.unit ?? ''}`;
+      // "dato de mayo de 2026" alone reads as provenance; rule 3 asks for the
+      // words. PR-48 fixed the wording here as well as on the total below, so
+      // the two cells of the same column cannot warn differently.
       return value(
         display.isStale
-          ? `${amount} · ${display.verifiedLabel ? `dato de ${display.verifiedLabel}` : 'sin fecha'}`
+          ? `${amount} · ${display.verifiedLabel ? `${STALE_LABEL} (${display.verifiedLabel})` : STALE_UNKNOWN_LABEL}`
           : amount,
       );
     },
@@ -106,13 +109,8 @@ const EXTRACTORS: readonly Extractor[] = [
       // two cells cannot disagree. A stale total keeps its date for the same
       // reason the arancel cell does (PR-33).
       const total = totalCost(o.price, o.durationMonths);
-      if (total.kind === 'partial') return { text: totalCostLabel(total), isGap: true };
-      const text = totalCostLabel(total);
-      return value(
-        total.freshness === 'fresh'
-          ? text
-          : `${text} · ${total.verifiedAt ? `dato de ${formatMonthYear(total.verifiedAt)}` : 'sin fecha'}`,
-      );
+      const text = compareCellLabel(total);
+      return total.kind === 'partial' ? { text, isGap: true } : value(text);
     },
   },
   {

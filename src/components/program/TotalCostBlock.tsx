@@ -5,47 +5,73 @@
  * a second source of it. Everything here is `total-cost.ts` arithmetic over
  * verified `prices` columns; this component decides layout and nothing else.
  *
- * The PR-33 warning rides on the total itself and not only on the breakdown:
- * a stale cuota multiplied by five years is a stale number five times over,
- * and it is the number a family will budget against (CLAUDE.md rule 3).
+ * ### The two claims this file makes, and where they are held
+ *
+ * 1. **A stale figure never appears without the words rule 3 requires.** The
+ *    PR-33 warning rides on the total itself and not only on the arancel above
+ *    it — a stale cuota multiplied by five years is a stale number five times
+ *    over, and it is the number a family will budget against.
+ * 2. **A partial shows no figure at all.**
+ *
+ * Neither is a comment: `TotalCostBlock.test.tsx` renders this component with
+ * `renderToStaticMarkup` and asserts both against the emitted HTML. That is
+ * why the block reads its warning from `staleSuffix()` rather than deciding it
+ * inline — the decision is testable, the JSX is not.
+ *
+ * ### It names its sede
+ *
+ * The programme page picks `offerings[0]` for its aside, and two sedes of one
+ * carrera can charge different aranceles. So this block says which sede its
+ * number belongs to, and `OfferingsBlock` carries the per-sede totals.
  */
 
-import { staleNotice } from '@/components/browse/price';
 import { Card } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { formatMoney } from '@/lib/format';
 import { totalCost } from '@/lib/prices/total-cost';
-import { totalCostLabel, yearsLabel } from '@/lib/prices/total-cost-display';
+import { staleSuffix, totalCostLabel, yearsLabel } from '@/lib/prices/total-cost-display';
 import type { PriceSummary } from '@/lib/search';
 
 export function TotalCostBlock({
   price,
   durationMonths,
+  campusName,
 }: {
   price: PriceSummary;
   durationMonths: number | null;
+  /** Named on the card: this total is one sede's, not the carrera's average. */
+  campusName?: string;
 }) {
   const total = totalCost(price, durationMonths);
-  const stale = staleNotice(price);
+  const warning = staleSuffix(total);
   const years = yearsLabel(total);
+  const complete = total.kind === 'complete';
 
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="text-ink text-base font-semibold">{copy.totalCost.heading}</h2>
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-ink text-base font-semibold">{copy.totalCost.heading}</h2>
+        {campusName && (
+          <p className="text-muted text-xs">{copy.totalCost.scopeLabel(campusName)}</p>
+        )}
+      </div>
 
-      {stale && total.kind === 'complete' && (
+      {warning && (
         <p
           role="note"
           className="border-warn/40 bg-warn-bg text-warn rounded-md border px-3 py-2 text-sm font-medium"
         >
-          {stale}
+          {warning}
         </p>
       )}
 
-      {total.kind === 'complete' ? (
+      {complete ? (
         <>
           <p className="text-ink font-mono text-2xl font-semibold">{totalCostLabel(total)}</p>
           {total.isFree && <p className="text-body text-sm">{copy.totalCost.freeNote}</p>}
+          {!total.isFree && total.total === 0 && (
+            <p className="text-body text-sm">{copy.totalCost.zeroNote}</p>
+          )}
           <dl className="flex flex-col gap-2">
             {years && <Line label={copy.totalCost.breakdown.duration} value={years} />}
             {!total.isFree && total.annualCost != null && total.currency && (

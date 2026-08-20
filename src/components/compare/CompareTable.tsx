@@ -77,7 +77,7 @@ export function CompareTable({ offerings }: { offerings: readonly OfferingSummar
                     <>
                       {cell.text}
                       {cell.note && (
-                        <span className="text-ok mt-0.5 block font-sans text-xs font-medium">
+                        <span className="text-ink mt-0.5 block font-sans text-xs font-medium">
                           {cell.note}
                         </span>
                       )}
@@ -136,7 +136,7 @@ export function CompareTable({ offerings }: { offerings: readonly OfferingSummar
                   >
                     {cell.text}
                     {cell.note && (
-                      <span className="text-ok mt-0.5 block font-sans text-xs font-medium">
+                      <span className="text-ink mt-0.5 block font-sans text-xs font-medium">
                         {cell.note}
                       </span>
                     )}

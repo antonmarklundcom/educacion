@@ -140,6 +140,9 @@ describe('buildCompareRows', () => {
     const text = row(rows, 'price').cells[0]!.text;
     expect(text).toContain('Gs. 1.200.000/mes');
     expect(text).toMatch(/2024/);
+    // PR-48: a date alone reads as provenance. Rule 3 asks for the words, and
+    // the arancel cell and the total cell below must not warn differently.
+    expect(text).toContain('Dato desactualizado');
   });
 
   /* ---- PR-48: the total-cost row ------------------------------------- */
@@ -169,7 +172,9 @@ describe('buildCompareRows', () => {
     const rows = buildCompareRows([
       offering(1, { price: priced({ freshness: 'stale' }), durationMonths: 60 }),
     ]);
-    expect(row(rows, 'totalCost').cells[0]!.text).toBe('Gs. 22.650.000 · dato de mayo de 2026');
+    expect(row(rows, 'totalCost').cells[0]!.text).toBe(
+      'Gs. 22.650.000 · Dato desactualizado (mayo de 2026)',
+    );
   });
 
   it('renders an incomplete total as the honest gap, with no figure in it', () => {

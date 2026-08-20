@@ -133,7 +133,15 @@ export function assertScopeTarget(row: ScopedRowInput, table: string): void {
 /* Price rules                                                                */
 /* -------------------------------------------------------------------------- */
 
-/** An arancel older than this is not displayed anywhere. Not negotiable. */
+/**
+ * How long an arancel counts as current.
+ *
+ * Past this it is **still displayed**, under a visible "dato desactualizado"
+ * warning carrying the date it was last confirmed — PR-33 reversed the
+ * hide-after-12-months rule and CLAUDE.md rule 3 is the current statement of
+ * it. What the threshold still gates is the `Offer` JSON-LD (`seo.md` §5) and
+ * the freshness queue in `/admin/frescura`.
+ */
 export const PRICE_MAX_AGE_MONTHS = 12;
 
 export interface PriceInput {

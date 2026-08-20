@@ -104,9 +104,9 @@ describe('buildOrderBy', () => {
     expect(render(buildOrderBy('relevancia', NO_QUERY) as never[])).toEqual(
       render(TIEBREAKERS as never[]),
     );
-    expect(
-      render(buildOrderBy('relevancia', WITH_QUERY) as never[]).length,
-    ).toBeGreaterThan(TIEBREAKERS.length);
+    expect(render(buildOrderBy('relevancia', WITH_QUERY) as never[]).length).toBeGreaterThan(
+      TIEBREAKERS.length,
+    );
   });
 });
 

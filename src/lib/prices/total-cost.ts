@@ -12,22 +12,30 @@
  * an operator verified, and the only operations are multiplication and
  * addition of integers.
  *
+ * ### Server-only, because the annual figure has one definition
+ *
+ * The per-year half is `computeAnnualCost()` from `@/db/invariants` — not a
+ * fourth copy of `matricula + cuota × cuotas_por_año`. `data-model.md` says the
+ * generated `annual_cost` column and `computeAnnualCost()` "must stay in
+ * lockstep"; adding a third implementation here is how that stops being true,
+ * so this module calls the second one instead of restating it. That import
+ * pulls the schema module in, which is why `client-bundle.test.ts` holds this
+ * file behind the server boundary.
+ *
  * ### Matrícula is an annual charge
  *
- * Not this module's invention — `data-model.md` §prices defines the canonical
- * annual figure as `matricula + monthly_fee × installments_per_year`, and the
- * generated `annual_cost` column and `computeAnnualCost()` both implement it.
- * A total that treated matrícula as a one-off would disagree with the number
- * the comparador already sorts on. So the total is
- * `annual × years + derecho de examen`, and the exam fee is the one-off.
+ * Not this module's invention — `data-model.md` defines the canonical annual
+ * figure as `matricula + monthly_fee × installments_per_year`. A total that
+ * treated matrícula as a one-off would disagree with the number the comparador
+ * already sorts on. So the total is `annual × years + derecho de examen`, and
+ * the exam fee is the one-off.
  *
- * ### Why a fractional year is a gap and not a rounding
+ * ### Why a fractional year is a gap
  *
- * A 30-month carrera bills either three matrículas or two-and-a-half, and the
- * data does not say which. Rather than pick one, a duration that is not a
- * whole number of years is reported as a gap like any other. Careers in the
- * index are overwhelmingly 48, 60 or 72 months, so this is the rare case, and
- * the rare case is exactly where an invented convention would do its damage.
+ * A 30-month carrera bills either three matrículas or two and a half, and the
+ * data does not say which. That is a gap in **our billing model**, not in the
+ * institution's data, and the copy says so in as many words rather than
+ * telling a reader something is missing that is not.
  *
  * ### Every component or no number at all
  *
@@ -43,9 +51,16 @@
  * and the comparador cell can put the warning on the total itself.
  */
 
+import { computeAnnualCost } from '@/db/invariants';
 import type { Currency, PriceFreshness, PriceSummary } from '@/lib/search';
 
-/** What is missing, in the order a reader should hear about it. */
+/**
+ * What is missing, in the order a reader should hear about it.
+ *
+ * `duracion_parcial` and `incoherente` are **not** absent data — they are cases
+ * where the numbers we hold do not determine a total. They are reported
+ * separately for that reason; see `total-cost-display.ts`.
+ */
 export type TotalCostGap =
   | 'arancel'
   | 'matricula'
@@ -53,7 +68,8 @@ export type TotalCostGap =
   | 'cuotas_por_ano'
   | 'derecho_examen'
   | 'duracion'
-  | 'duracion_parcial';
+  | 'duracion_parcial'
+  | 'incoherente';
 
 export interface TotalCost {
   /** `complete` carries a number; `partial` never does. */
@@ -78,6 +94,7 @@ export interface TotalCost {
 }
 
 const GAP_ORDER: readonly TotalCostGap[] = [
+  'incoherente',
   'arancel',
   'matricula',
   'cuota',
@@ -104,7 +121,7 @@ function partial(price: PriceSummary, missing: TotalCostGap[], years: number | n
 }
 
 /**
- * Composes the total, or says exactly what is missing.
+ * Composes the total, or says exactly what stops it being composable.
  *
  * `durationMonths` comes from the offering, not from the price row, which is
  * why it is a separate argument rather than something this module can look up.
@@ -114,6 +131,9 @@ export function totalCost(price: PriceSummary, durationMonths: number | null): T
 
   let years: number | null = null;
   if (durationMonths == null || durationMonths <= 0) {
+    // Zero is not a duration. `offerings.duration_months` has a CHECK for it;
+    // `program_search.duration_months` does not, and this module reads the
+    // denormalized table.
     missing.push('duracion');
   } else if (durationMonths % 12 !== 0) {
     missing.push('duracion_parcial');
@@ -122,34 +142,42 @@ export function totalCost(price: PriceSummary, durationMonths: number | null): T
   }
 
   if (!price.hasAmount || price.currency == null) {
+    // A currency-less row with amounts is representable in `program_search`
+    // (`price_currency` is nullable and `matricula_gs` is written
+    // independently), and a total whose units we cannot name is not a total.
     missing.push('arancel');
     return partial(price, missing, years);
   }
 
-  // A free arancel has no matrícula and no cuota by construction
-  // (`prices_free_has_no_fees`), so there is nothing to be missing on that
-  // side — only the derecho de examen can still be unknown.
-  if (!price.isFree) {
+  if (price.isFree) {
+    // `prices_free_has_no_fees` forbids this on the `prices` table, but this
+    // module reads `program_search`, which carries no such CHECK. Rather than
+    // trust the flag and silently drop a fee that is sitting right there, an
+    // incoherent row is reported as one.
+    if (price.matricula != null || price.monthlyFee != null) missing.push('incoherente');
+  } else {
     if (price.matricula == null) missing.push('matricula');
     if (price.monthlyFee == null) missing.push('cuota');
-    if (price.monthlyFee != null && price.installmentsPerYear == null)
+    if (price.monthlyFee != null && price.installmentsPerYear == null) {
       missing.push('cuotas_por_ano');
+    }
   }
   if (price.admissionFee == null) missing.push('derecho_examen');
 
   if (missing.length > 0 || years == null) return partial(price, missing, years);
 
-  const annualCost = price.isFree
-    ? 0
-    : price.matricula! + price.monthlyFee! * price.installmentsPerYear!;
-  const installments = price.isFree ? 0 : price.installmentsPerYear! * years;
+  const annualCost = computeAnnualCost(price);
+  // Unreachable: every input `computeAnnualCost` refuses has already been
+  // pushed onto `missing` above. Asserted rather than assumed, because a
+  // silent `null` here would become `NaN` in the total.
+  if (annualCost == null) return partial(price, ['arancel'], years);
 
   return {
     kind: 'complete',
     total: annualCost * years + price.admissionFee!,
     currency: price.currency,
     years,
-    installments,
+    installments: price.isFree ? 0 : price.installmentsPerYear! * years,
     annualCost,
     admissionFee: price.admissionFee,
     missing: [],
@@ -164,8 +192,8 @@ export function totalCost(price: PriceSummary, durationMonths: number | null): T
  *
  * Currencies are never compared against each other — `data-model.md` says a
  * USD row sorts after the guaraní ones rather than being converted at a rate
- * we would have to defend. Ties keep their original order (the sort is
- * stable), so the comparador never reshuffles equal columns.
+ * we would have to defend. Ties compare equal, so a stable sort keeps the
+ * column order the URL asked for.
  */
 export function compareTotalCost(a: TotalCost, b: TotalCost): number {
   const rank = (t: TotalCost) => (t.kind === 'partial' ? 2 : t.currency === 'USD' ? 1 : 0);
@@ -179,6 +207,9 @@ export function compareTotalCost(a: TotalCost, b: TotalCost): number {
  * The single cheapest column, or `null` when there is no honest winner —
  * fewer than two complete totals, a tie, or totals in more than one currency.
  * Marking a "cheapest" across currencies would be the FX claim rule 1 bans.
+ *
+ * Built on `compareTotalCost` so the ordering has one definition rather than
+ * two that agree by inspection.
  */
 export function cheapestTotalIndex(totals: readonly TotalCost[]): number | null {
   const complete = totals
@@ -188,7 +219,6 @@ export function cheapestTotalIndex(totals: readonly TotalCost[]): number | null 
   if (complete.length < 2) return null;
   if (new Set(complete.map((entry) => entry.total.currency)).size > 1) return null;
 
-  const lowest = Math.min(...complete.map((entry) => entry.total.total!));
-  const winners = complete.filter((entry) => entry.total.total === lowest);
-  return winners.length === 1 ? winners[0]!.index : null;
+  const [best, runnerUp] = [...complete].sort((a, b) => compareTotalCost(a.total, b.total));
+  return compareTotalCost(best!.total, runnerUp!.total) < 0 ? best!.index : null;
 }
