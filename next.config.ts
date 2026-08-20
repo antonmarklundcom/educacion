@@ -28,6 +28,25 @@ function remoteImagePatterns(): NonNullable<NextConfig['images']>['remotePattern
 }
 
 const nextConfig: NextConfig = {
+  /**
+   * PR-43's cache lives in memory only.
+   *
+   * `unstable_cache` entries are `FETCH`-kind entries, and Next's default
+   * incremental cache writes every one of them to `.next/cache/fetch-cache`
+   * with **no eviction**. The catalog's cache key is derived from the URL —
+   * free text, slug lists, page numbers — so its keyspace is unbounded and
+   * anybody with a browser can mint entries. On Hostinger that is a fixed disk
+   * quota being filled by strangers.
+   *
+   * With `isrFlushToDisk: false` the same entries live in the in-memory LRU
+   * (`cacheMaxMemorySize`, 50 MB by default) and eviction becomes the bound.
+   * Nothing is lost that this site was relying on: `architecture.md` §3 already
+   * treats the cache as per-instance and wiped on redeploy, so persistence
+   * across deploys was never part of the contract. Residual risk and why no
+   * key-shape rule was added instead: §27.2.
+   */
+  experimental: { isrFlushToDisk: false },
+
   images: {
     remotePatterns: remoteImagePatterns(),
     // Institution logos are small and square; there is no hero photography on

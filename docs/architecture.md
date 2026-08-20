@@ -88,7 +88,7 @@ docs/
 | `/comparar`                                               | Server component, `noindex`                                      | Selection encoded in URL so it can be shared on WhatsApp.                            |
 | `/panel`, `/admin`                                        | Fully dynamic, `noindex`, auth-gated                             |                                                                                      |
 
-**`/carreras` is `force-dynamic`, and the detail pages are too until a build-time database exists.** The browse page is a function of `searchParams`, so there is nothing to prerender; the SEO surfaces are dynamic for a more boring reason — CI runs `npm run build` without a `DATABASE_URL`, so any `generateStaticParams` would have to fabricate or fail. Server-rendered HTML is fully crawlable either way, and the ISR cache on Hostinger is per-instance and wiped on redeploy, so the loss is an optimization rather than an SEO property. Revisit in PR-16, which owns the SEO pack.
+**`/carreras` is `force-dynamic`, and the detail pages are too until a build-time database exists.** (They still are after PR-43 — the caching sits one layer below the route, in the read paths themselves. See §27.) The browse page is a function of `searchParams`, so there is nothing to prerender; the SEO surfaces are dynamic for a more boring reason — CI runs `npm run build` without a `DATABASE_URL`, so any `generateStaticParams` would have to fabricate or fail. Server-rendered HTML is fully crawlable either way, and the ISR cache on Hostinger is per-instance and wiped on redeploy, so the loss is an optimization rather than an SEO property. Revisit in PR-16, which owns the SEO pack.
 
 **ISR caveat on Hostinger:** the ISR cache is per-instance and is wiped on redeploy. Treat it as an optimization only — never as the source of truth. On-demand revalidation (`/api/revalidate` with a secret, called by admin saves) invalidates tags for the affected program/institution.
 
@@ -364,7 +364,7 @@ Every fact that a user could act on carries provenance. This is non-negotiable g
 - `source_records` — raw imported rows kept verbatim (source name, fetched_at, payload JSON, checksum). Never edited.
 - Curated tables reference the source record they came from.
 - `verified_at` + `verified_by` on prices, accreditations and admissions.
-- The UI shows "Actualizado: {date}" on every price and accreditation badge, and **hides** an arancel older than 12 months rather than showing a stale number.
+- The UI shows "Actualizado: {date}" on every price and accreditation badge. An arancel older than 12 months is **displayed with a visible "dato desactualizado" warning**, not hidden — §23 reversed the original hide rule and CLAUDE.md rule 3 is the current wording.
 - Admin edits write to `activity_log` (actor, entity, before/after JSON, timestamp).
 
 ---
@@ -1465,3 +1465,183 @@ somebody actually asks.
 Accounts are **created and disabled** here, not edited: changing an address or
 a role is rare, auditable and currently a database edit. A screen for it is
 worth building when it is needed, not before.
+
+---
+
+## 27. The public-read cache (settled in PR-43)
+
+§3 has said since PR-01 that every public route is `force-dynamic`, and §9's
+budget has carried the consequence: on shared-host MySQL with
+`connectionLimit: 8` (§1, `deployment.md` §3), every request re-runs the ten
+statements a filtered browse costs (§4). PR-43 closes it. (The PR-43 brief in
+`pr-plan.md` cites "§8" for this deferral; §8 is *Data integrity & provenance*
+and says nothing about it. The brief is wrong and this paragraph is the
+correction.) The interface is `src/lib/cache/`, and the decisions it fixes are below —
+they are the expensive-to-reverse part, which is why this is an Opus PR.
+
+### 27.1 What is cached, and at which layer
+
+`unstable_cache`, not ISR. The App Router's full-route cache does not vary by
+`searchParams`, so `/carreras` — the heaviest page and a pure function of its
+query string — cannot use it at all. `generateStaticParams` is out for the
+reason §3 already gives: CI builds without a `DATABASE_URL`. So the cache sits
+one layer down, around the read paths themselves, and the routes stay
+`force-dynamic`.
+
+| Read path | Module | Why |
+| --- | --- | --- |
+| `searchPrograms(filters)` | `src/lib/search` | Ten statements per call, and the funnel behind `/carreras`, career hubs, city pages, `/areas/[area]`, institution pages, programme pages and the home page |
+| `getOfferingsByIds(ids)` | `src/lib/search` | The comparador |
+| `listInstitutions()` | `src/lib/institutions` | `/universidades` plus the home logo strip; a `GROUP BY` over the whole index |
+| `getInstitutionBySlug(slug)` | `src/lib/institutions` | Every institution and programme page |
+
+The programme page is the largest single win: `findProgramOfferings()` pages
+through an institution's offerings 100 at a time, so a big institution costs
+several full search round-trips per view, all of which collapse to one entry.
+
+**Not cached, deliberately.** `getPlacementFlags()` — §17 already decided that a
+label about a paid commercial relationship is read live and never from a
+refreshed copy, and an hour is still a copy. `getWhatsappNumbers()` — §6.2 made
+the same call about the number under a WhatsApp CTA. Both are single indexed
+`IN (…)` lookups over ~59 rows; there is nothing here worth trading for.
+
+### 27.2 One tag, because a finer one would be a lie
+
+Every cached entry carries the tag `public-read`, and there is no second tag.
+Per-entity tags look obviously better and are unsound: one `program_search` row
+carries the institution's name, the career, the city, the arancel, the
+accreditation badge and the `plan_rank` derived from the subscription, and a
+facet count is an aggregate over the whole table. For nearly any write, "which
+entries could this have changed?" answers *any of them*. A scheme that claimed
+otherwise would leave a corrected arancel visible somewhere, which is the same
+failure as publishing it (CLAUDE.md rule 1), only slower to notice.
+
+The invalidation point is `rebuildProgramSearch()` — **not** the call sites.
+Almost every catalog write already funnels through it: the admin CRUD for
+institutions, campuses, programmes, offerings, prices, accreditations,
+admissions and careers, the moderation queue's conflict-apply, the subscription
+writes that move `plan_rank`, the panel's direct edits, the dispute file/resolve
+paths, and the nightly cron. Expiring the tag there rather than at ~40 call
+sites is what makes it impossible to forget, and
+`rebuild-search.cache.test.ts` fails if the call is removed. So a price
+superseded from `/panel` and a dispute's badge are publicly gone on the next
+request, exactly as before PR-43 — the panel writes rebuild the index inline
+and the rebuild expires the cache in the same action.
+
+**"Almost" is exact, and the exceptions are named.** The first draft of this
+section said "every", and the independent review found a write that was not:
+claim redemption (`db/queries/claims.ts`) writes
+`institutions.claimed_by_user_id`, which is not in the search index — so no
+rebuild would ever fire — and is `InstitutionProfile.isClaimed`, which decides
+whether the public profile keeps offering "¿Es tu institución?" to the person
+who just claimed it. That path now calls `expirePublicReads()` itself, with a
+test in `claims.access.test.ts` that fails without it. The second exception is
+`npm run curate`, which writes curated tables without rebuilding: it runs out of
+process, where there is no cache to expire, and the runbook's
+`npm run search:rebuild` is what publishes its work. `src/lib/cache/tags.ts`
+carries the same list next to the code.
+
+The TTL is 3600 s, matching the `revalidate: 3600` §3 already names. It is the
+backstop, not the mechanism: the only thing it catches is a query whose meaning
+changed without a write, and the one of those we have — the `WHERE` comparing
+`admission_closes_on` against today — is handled exactly instead, by putting
+the date in the cache key.
+
+### 27.2.1 How many entries there can be, and where they live
+
+The cache key is derived from the URL, and the URL is not ours: free text is up
+to 120 characters, each slug filter accepts up to 50 values matching
+`[a-z0-9][a-z0-9-]{0,127}`, and `pagina` is any integer. The keyspace is
+therefore **unbounded and attacker-reachable** — one request, one entry. That
+is inherent to caching a faceted search by its query string, and no key-shape
+rule fixes it: refusing to cache free text would leave `?ciudad=<random>` doing
+the same thing, while giving up the cache on searches students actually run.
+
+So the bound has to come from the cache, and by default there is none. Next
+stores `unstable_cache` entries as `FETCH` entries, and its file-system cache
+handler writes **every one of them to `.next/cache/fetch-cache`, with no
+eviction** — a fixed Hostinger disk quota, fillable by strangers. `next.config.ts`
+therefore sets `experimental.isrFlushToDisk: false`, which keeps those entries
+in the in-memory LRU (`cacheMaxMemorySize`, 50 MB) and makes eviction the bound.
+Nothing depended on the disk copy: §3 has always treated this cache as
+per-instance and wiped on redeploy.
+
+The residual risk is stated rather than solved: a flood of junk URLs evicts the
+hot entries, and the site degrades to the uncached behaviour it had before
+PR-43. Slower, never wrong — which is the right shape for a failure nobody is
+paid to prevent.
+
+### 27.3 The two things that make this safe rather than clever
+
+**A cache hit is not the object the function returned.** `unstable_cache` stores
+`JSON.stringify(result)` and hands back `JSON.parse(body)` on a hit, but returns
+the live object on a miss. A `Date` in a cached payload is therefore a `Date` on
+the request that filled the entry and a *string* on every request after it — a
+bug that passes review, passes the first manual test, and appears on the second
+page view in production. `cachedRead()` closes it two ways. First, `load`'s return type is
+`JsonPlain<Wire>`, which maps everything JSON does not round-trip — `Date`,
+`Map`, `Set`, `bigint`, `symbol`, functions, and an optional property, whose key
+is *present* on a miss and *absent* on a hit — to `never`, so any of them in a
+wire type is a **compile error at the call site**. That is a claim about the
+type system, so it is checked by the type system:
+`src/lib/cache/json-plain.test-d.ts` compiles one `@ts-expect-error` case per
+kind, and `npm run typecheck` fails if any of them stops being an error. (The
+first version of this guard caught `Date` alone while this paragraph claimed
+more; the review caught the gap, which is the argument for that file existing.)
+Second, the two `Date` columns of `program_search` — `price_verified_at` and
+`updated_at`; every other date column is already `mode: 'string'` — are
+converted in one place, `src/lib/cache/wire.ts`, with a fixture-driven test that
+a third cannot creep in unnoticed.
+
+**Nothing derived from a clock is ever stored.** The cache holds
+`program_search` *rows*; `toOfferingSummary(row, now)` runs on every read, hit
+or miss. So `price.freshness` — the "dato desactualizado" warning of CLAUDE.md
+rule 3 and §23 — is always the cached `verified_at` compared against *this*
+request's clock, and can never outlive the price it belongs to. The twelve-month
+boundary is crossed at an arbitrary moment, so this is not theoretical, and
+`src/lib/search/cache.test.ts` pins it: one entry, two reads either side of the
+boundary within the same day, `fresh` then `stale`, with the loader called once.
+
+The same rule is why `searchPrograms` measures `tookMs` per request instead of
+caching it.
+
+### 27.4 Where the cache is not
+
+`unstable_cache` needs an incremental cache in the process, and
+`revalidateTag` needs a work store. `npm run search:rebuild`,
+`npm run search:bench` and the unit tests have neither. Both cases are detected
+by Next's own structured error codes — `E469` and `E263`, not message text — and
+translated into the uncached behaviour. **Only** those two codes are: a
+`revalidateTag` during render (`E7`) is a real bug and still throws.
+
+Verified in the built server rather than assumed, once, by hand on
+2026-08-20: a throwaway `force-dynamic` route handler calling `cachedRead` on
+`next start` ran its loader once across three requests, and reported
+`process.env.NEXT_RUNTIME === 'nodejs'`. The probe was deleted rather than
+committed — a permanent route whose only job is to prove the cache exists is a
+public endpoint nobody would maintain. Re-run it the same way if a Next upgrade
+makes the question live again.
+
+### 27.5 The numbers
+
+PR-43's acceptance criterion asks for a measured p95 drop on a deployed
+environment. **Those numbers are not in this table yet, and nothing invented
+has been put in their place** (CLAUDE.md rule 1). The measurement needs the
+real dataset on the real host; the build environment has neither.
+
+To record them, from a machine that can reach the site:
+
+```
+# cold (first hit populates), then warm
+for i in $(seq 1 30); do curl -s -o /dev/null -w '%{time_total}\n' \
+  https://educacion.com.py/carreras; done
+```
+
+| Surface | p95 before | p95 after |
+| --- | --- | --- |
+| `/carreras`, unfiltered | — | — |
+| a career hub | — | — |
+| a programme page | — | — |
+
+`npm run search:bench` is the synthetic-dataset harness for the SQL side (§4);
+it measures the query mix, not the cache, and its 150 ms budget is unchanged.

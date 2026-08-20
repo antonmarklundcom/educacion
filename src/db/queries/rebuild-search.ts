@@ -55,6 +55,7 @@ import {
   programSearch,
   programs,
 } from '@/db/schema';
+import { expirePublicReads } from '@/lib/cache';
 import { pastDueGraceDays, resolveEntitlements, type SubscriptionFacts } from '@/lib/entitlements';
 import {
   resolveAccreditation,
@@ -441,6 +442,14 @@ export async function rebuildProgramSearch(options: RebuildOptions = {}): Promis
       await tx.insert(programSearch).values(indexRows.slice(i, i + INSERT_CHUNK_SIZE));
     }
   });
+
+  // Every write that can change a public read reaches this function — all ~40
+  // admin and panel paths call it, and so does the nightly cron. That is what
+  // makes one cache tag sufficient (`src/lib/cache/tags.ts`), and putting the
+  // expiry here rather than at each call site is what makes it impossible to
+  // forget. Outside a request scope (`npm run search:rebuild`) it is a no-op:
+  // there is no cache in that process to expire.
+  expirePublicReads();
 
   const today = toDateOnly(now);
   return {

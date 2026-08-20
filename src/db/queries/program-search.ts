@@ -23,7 +23,7 @@ import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 import { db as defaultDb, type Db } from '@/db';
 import { areas, programSearch as ps } from '@/db/schema';
 import { toDateOnly } from '@/lib/search/accreditation';
-import type { SearchFilters, SearchResponse, SortKey } from '@/lib/search/contract';
+import type { Facets, SearchFilters, SearchResponse, SortKey } from '@/lib/search/contract';
 import {
   buildFacetGroup,
   emptyFacets,
@@ -219,6 +219,17 @@ const FACET_COLUMNS = {
 /* Queries                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/** `searchProgramSearchRows`' answer: the page of rows, plus everything the
+ *  response carries that is not derived from a clock. */
+export interface SearchRowsResult {
+  rows: ProgramSearchRow[];
+  facets: Facets;
+  total: number;
+  page: number;
+  pageSize: number;
+  sort: SortKey;
+}
+
 export interface SearchQueryOptions {
   db?: Db;
   now?: Date;
@@ -264,11 +275,20 @@ async function countFacet(
   }));
 }
 
-export async function searchProgramSearch(
+/**
+ * The rows behind a search, **unmapped**.
+ *
+ * PR-43 caches this rather than `searchProgramSearch`: a `program_search` row
+ * is a fact with a date on it, while an `OfferingSummary` carries
+ * `price.freshness`, which is that date compared against *now*. Caching the
+ * comparison would let a "vigente" label outlive the twelve-month boundary it
+ * describes; caching the row and re-deriving the label on every read cannot
+ * (CLAUDE.md rule 3, `architecture.md` §27).
+ */
+export async function searchProgramSearchRows(
   filters: SearchFilters,
   options: SearchQueryOptions = {},
-): Promise<SearchResponse> {
-  const startedAt = Date.now();
+): Promise<SearchRowsResult> {
   const database = options.db ?? defaultDb;
   const now = options.now ?? new Date();
   const today = toDateOnly(now);
@@ -322,12 +342,30 @@ export async function searchProgramSearch(
   }
 
   return {
-    results: (rows as ProgramSearchRow[]).map((row) => toOfferingSummary(row, now)),
+    rows: rows as ProgramSearchRow[],
     facets,
     total: Number(totalRows[0]?.total ?? 0),
     page,
     pageSize,
     sort,
+  };
+}
+
+/**
+ * The mapped search response — what `searchPrograms()` used to be before the
+ * cache split, and still is for every caller that reads uncached (the bench
+ * script, the in-memory cross-check).
+ */
+export async function searchProgramSearch(
+  filters: SearchFilters,
+  options: SearchQueryOptions = {},
+): Promise<SearchResponse> {
+  const startedAt = Date.now();
+  const now = options.now ?? new Date();
+  const { rows, ...rest } = await searchProgramSearchRows(filters, options);
+  return {
+    ...rest,
+    results: rows.map((row) => toOfferingSummary(row, now)),
     tookMs: Date.now() - startedAt,
   };
 }
