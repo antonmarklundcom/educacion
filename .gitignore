@@ -146,3 +146,7 @@ vite.config.ts.timestamp-*
 # (docs/data-sources.md §3.1). Save them, run --dry-run, leave them out of git.
 cones-*.html
 cones-*_files/
+
+# Scratch git worktrees the agent harness creates for isolated review sessions.
+# A second checkout of this repo, never project content.
+.claude/worktrees/
