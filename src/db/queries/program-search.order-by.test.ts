@@ -117,7 +117,6 @@ describe('the filtered set is decided without plan_rank', () => {
    * version is that `plan_rank` appears in the ORDER BY and nowhere in the
    * WHERE, so no filter combination can be widened by it.
    */
-  const TODAY = '2026-08-20';
 
   it.each([
     ['no filters', {}],
@@ -129,9 +128,9 @@ describe('the filtered set is decided without plan_rank', () => {
     ['an institution scope', { institutionSlug: 'una' }],
   ])('%s', (_label, filters) => {
     for (const query of [NO_QUERY, WITH_QUERY]) {
-      const rendered = render(
-        buildConditions(filters as never, { today: TODAY, query }) as never[],
-      ).join(' and ');
+      const rendered = render(buildConditions(filters as never, { query }) as never[]).join(
+        ' and ',
+      );
       expect(rendered).not.toContain('plan_rank');
     }
   });

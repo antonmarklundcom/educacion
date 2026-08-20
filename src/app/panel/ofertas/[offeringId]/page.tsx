@@ -41,7 +41,11 @@ export default async function PanelOfferingPage({
   }
   if (!offering) notFound();
 
-  const displayable = priceFreshness(price?.verifiedAt ?? null) === 'fresh';
+  // Two states, not one: an arancel past 12 months, and one we never had a date
+  // for. `?? new Date()` printed *today* as the verification date for the
+  // second — a fabricated fact told to the institution that gave us the number
+  // (CLAUDE.md rule 1). Fixed in PR-48b.
+  const isFresh = priceFreshness(price?.verifiedAt ?? null) === 'fresh';
 
   return (
     <>
@@ -56,10 +60,19 @@ export default async function PanelOfferingPage({
 
         <section className="flex flex-col gap-3">
           <h2 className="text-ink text-lg font-semibold">Arancel</h2>
-          {price && !displayable && (
+          {price && !isFresh && (
             <p className="border-warn/40 bg-warn-bg text-body rounded-md border px-4 py-3 text-sm">
-              El último arancel que cargaste es de {formatMonthYear(price.verifiedAt ?? new Date())}
-              . Como pasó de 12 meses, hoy se muestra con un aviso de que está desactualizado.
+              {price.verifiedAt ? (
+                <>
+                  El último arancel que cargaste es de {formatMonthYear(price.verifiedAt)}. Como
+                  pasó de 12 meses, hoy se muestra con un aviso de que está desactualizado.
+                </>
+              ) : (
+                <>
+                  No tenemos fecha de verificación de este arancel, así que hoy se muestra con un
+                  aviso de que está desactualizado.
+                </>
+              )}{' '}
               Cargalo de nuevo y el aviso desaparece al instante.
             </p>
           )}

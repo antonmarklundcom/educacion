@@ -3,14 +3,22 @@
  *
  * Reachable at `/og/programa?instSlug=…&programSlug=…`, outside `/api`
  * (robots.ts). Draws exactly what the task scopes: programme name,
- * institution, duración and the arancel exactly as `priceDisplay()` returns
+ * institution, duración and the arancel exactly as `priceImageLines()` returns
  * it — including the "dato desactualizado" note, matching `/og/comparar`
  * rather than reimplementing the 12-month rule (CLAUDE.md rule 3).
+ *
+ * The price is whatever `priceImageLines()` returns, drawn in order. This file
+ * used to compose its own note — "Dato de mayo de 2026", provenance rather than
+ * the warning rule 3 asks for — and because nothing here is reachable by a
+ * render test (an `ImageResponse` is not HTML), it kept saying it for months
+ * after every other surface was fixed. An OG image is the surface with the
+ * *least* context around it: it is read in a WhatsApp preview with no page
+ * attached, so it is the last place that can afford a bare number (PR-48b).
  */
 
 import { ImageResponse } from 'next/og';
 
-import { priceDisplay } from '@/components/browse/price';
+import { priceImageLines } from '@/components/browse/price';
 import { formatDurationMonths } from '@/lib/format';
 import { findProgramOfferings } from '@/lib/programs/lookup';
 
@@ -40,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
     return new Response('Not found', { status: 404 });
   }
 
-  const price = priceDisplay(primary.price);
+  const priceLines = priceImageLines(primary.price);
 
   return new ImageResponse(
     <div
@@ -71,15 +79,19 @@ export async function GET(request: Request): Promise<Response> {
           ? formatDurationMonths(primary.durationMonths)
           : 'Duración sin datos'}
       </div>
-      <div style={{ display: 'flex', fontSize: 30, color: INK, fontWeight: 600, marginTop: 8 }}>
-        {`${price.label}${price.unit ?? ''}`}
-      </div>
-      {/* A shared image is read without any of the page around it, so the
-          staleness note travels with the number (PR-33). */}
-      {price.isStale && (
-        <div style={{ display: 'flex', fontSize: 19, color: WARN, marginTop: 6 }}>
-          {price.verifiedLabel ? `Dato de ${price.verifiedLabel}` : 'Sin fecha de verificación'}
-        </div>
+      {priceLines.map((line) =>
+        line.kind === 'amount' ? (
+          <div
+            key={line.kind}
+            style={{ display: 'flex', fontSize: 30, color: INK, fontWeight: 600, marginTop: 8 }}
+          >
+            {line.text}
+          </div>
+        ) : (
+          <div key={line.kind} style={{ display: 'flex', fontSize: 19, color: WARN, marginTop: 6 }}>
+            {line.text}
+          </div>
+        ),
       )}
     </div>,
     { width: WIDTH, height: HEIGHT },

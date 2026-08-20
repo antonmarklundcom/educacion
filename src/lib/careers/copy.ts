@@ -194,17 +194,26 @@ export function buildCareerCityIntro(
     );
   }
 
-  const prices = offerings
+  // Age is not a filter (PR-33 reversed that), so this range can be built from
+  // an old number — and rule 3 does not exempt prose: a figure never appears
+  // without the warning. The sentence carries it for the whole range rather
+  // than per number, because a range has no one date to name; each carrera's
+  // own page shows its date beside its arancel.
+  const priced = offerings
     .map((o) => o.price)
-    .filter((price) => price.hasAmount && price.annualCost != null && price.currency === 'PYG')
-    .map((price) => price.annualCost as number);
+    .filter((price) => price.hasAmount && price.annualCost != null && price.currency === 'PYG');
+  const prices = priced.map((price) => price.annualCost as number);
+  const anyStale = priced.some((price) => price.freshness !== 'fresh');
   if (prices.length > 0) {
     const min = Math.min(...prices);
     const max = Math.max(...prices);
+    const staleNote = anyStale
+      ? ' Algunos de esos datos están desactualizados: en cada carrera figura la fecha en que lo verificamos.'
+      : '';
     sentences.push(
-      min === max
+      (min === max
         ? `El arancel anual publicado es de ${formatGs(min)}.`
-        : `El arancel anual publicado va de ${formatGs(min)} a ${formatGs(max)}.`,
+        : `El arancel anual publicado va de ${formatGs(min)} a ${formatGs(max)}.`) + staleNote,
     );
   } else {
     sentences.push(

@@ -64,7 +64,7 @@
  * and the comparador cell can put the warning on the total itself.
  */
 
-import { computeAnnualCost } from '@/db/invariants';
+import { computeAnnualCost, priceCheckViolations } from '@/db/invariants';
 import type { Currency, PriceFreshness, PriceSummary } from '@/lib/search';
 
 /**
@@ -80,6 +80,7 @@ export type TotalCostGap =
   | 'cuota'
   | 'cuotas_por_ano'
   | 'cuotas_invalidas'
+  | 'montos_invalidos'
   | 'derecho_examen'
   | 'duracion'
   | 'duracion_parcial'
@@ -88,7 +89,11 @@ export type TotalCostGap =
 export interface TotalCost {
   /** `complete` carries a number; `partial` never does. */
   kind: 'complete' | 'partial';
-  /** Integer, in `currency`. Null on every partial. */
+  /**
+   * Integer, in `currency`. Null on every partial. Integer because
+   * `money_is_integer` is re-asserted above — a fractional cuota is refused
+   * rather than multiplied.
+   */
   total: number | null;
   currency: Currency | null;
   /** The carrera's length in whole years. Null when the duration is unusable. */
@@ -121,6 +126,7 @@ export interface TotalCost {
 const GAP_ORDER: readonly TotalCostGap[] = [
   'incoherente',
   'cuotas_invalidas',
+  'montos_invalidos',
   'arancel',
   'matricula',
   'cuota',
@@ -175,29 +181,35 @@ export function totalCost(price: PriceSummary, durationMonths: number | null): T
     return partial(price, missing, years);
   }
 
-  // `prices_installments_range` (1–24) is the second CHECK `program_search`
-  // does not carry, and the one that costs money: `computeAnnualCost` multiplies
-  // by `coalesce(installments_per_year, 0)`, so a 0 does not fail — it deletes
-  // every cuota and returns the bare matrícula. The total then renders as
-  // `complete`, with no gap and no warning, and can win the cheapest marker
-  // while being an order of magnitude below the real figure. Mirrored here for
-  // the same reason `prices_free_has_no_fees` is, and before the free branch
-  // because the value is impossible whatever `is_free` says.
-  const installments = price.installmentsPerYear;
-  if (
-    installments != null &&
-    (!Number.isInteger(installments) || installments < 1 || installments > 24)
-  ) {
-    missing.push('cuotas_invalidas');
+  // Every CHECK on `prices` re-asserted here, because `program_search` carries
+  // none of them and this module reads the copy (`architecture.md` §31.8). The
+  // arithmetic on a violating row is not wrong-looking, it is quietly wrong:
+  // `computeAnnualCost` multiplies by `coalesce(installments_per_year, 0)`, so a
+  // 0 does not fail — it deletes every cuota and returns the bare matrícula, and
+  // a negative matrícula subtracts from the total. Either renders as `complete`,
+  // with no gap and no warning, and can win the cheapest marker while being an
+  // order of magnitude below the real figure.
+  //
+  // `priceCheckViolations()` is the one statement of those rules, shared with
+  // the write path, so this cannot fall behind a fourth constraint the way
+  // PR-48 fell behind the second and third.
+  for (const { check } of priceCheckViolations(price)) {
+    switch (check) {
+      // Not "trust `is_free` and drop the fee sitting right there".
+      case 'prices_free_has_no_fees':
+        missing.push('incoherente');
+        break;
+      case 'prices_installments_range':
+        missing.push('cuotas_invalidas');
+        break;
+      case 'prices_non_negative':
+      case 'money_is_integer':
+        missing.push('montos_invalidos');
+        break;
+    }
   }
 
-  if (price.isFree) {
-    // `prices_free_has_no_fees` forbids this on the `prices` table, but this
-    // module reads `program_search`, which carries no such CHECK. Rather than
-    // trust the flag and silently drop a fee that is sitting right there, an
-    // incoherent row is reported as one.
-    if (price.matricula != null || price.monthlyFee != null) missing.push('incoherente');
-  } else {
+  if (!price.isFree) {
     if (price.matricula == null) missing.push('matricula');
     if (price.monthlyFee == null) missing.push('cuota');
     if (price.monthlyFee != null && price.installmentsPerYear == null) {

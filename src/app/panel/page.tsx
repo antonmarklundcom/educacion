@@ -102,9 +102,10 @@ export default async function PanelPage() {
               {stats.pricesExpired > 0 && (
                 <>
                   Y <strong>{stats.pricesExpired}</strong>{' '}
-                  {stats.pricesExpired === 1 ? 'arancel tiene' : 'aranceles tienen'} más de 12
-                  meses, así que {stats.pricesExpired === 1 ? 'se muestra' : 'se muestran'} con un
-                  aviso de “dato desactualizado” al lado del número.{' '}
+                  {stats.pricesExpired === 1 ? 'arancel está' : 'aranceles están'} sin verificar o
+                  con más de 12 meses, así que en las carreras publicadas{' '}
+                  {stats.pricesExpired === 1 ? 'aparece' : 'aparecen'} con un aviso de “dato
+                  desactualizado” al lado del número.{' '}
                 </>
               )}
               El arancel es lo primero que compara una familia, y sos la única fuente confiable de
@@ -142,7 +143,7 @@ export default async function PanelPage() {
           <Stat
             value={stats.pricesExpired}
             label="Aranceles vencidos"
-            detail="Con más de 12 meses: se muestran con el aviso de dato desactualizado."
+            detail="Sin verificar o verificados hace más de 12 meses. Los de carreras publicadas se ven con el aviso de dato desactualizado."
             href="/panel/ofertas"
             tone={stats.pricesExpired > 0 ? 'danger' : 'neutral'}
           />

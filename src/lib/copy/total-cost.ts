@@ -44,6 +44,7 @@ export const totalCostCopy = {
     incoherente: 'el arancel figura como gratuito y a la vez tiene montos cargados',
     cuotas_invalidas:
       'la cantidad de cuotas por año que figura no es un número posible, así que no podemos multiplicar las cuotas',
+    montos_invalidos: 'alguno de los montos cargados no es un importe posible',
   },
   /** The comparador cell when there is no total to show. */
   compareLabel: 'Costo total',

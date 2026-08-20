@@ -12,7 +12,12 @@ import { formatDurationMonths, formatMonthYear, formatMoney } from '@/lib/format
 
 import type { TotalCost, TotalCostGap } from './total-cost';
 
-const UNDETERMINED = ['duracion_parcial', 'incoherente', 'cuotas_invalidas'] as const;
+const UNDETERMINED = [
+  'duracion_parcial',
+  'incoherente',
+  'cuotas_invalidas',
+  'montos_invalidos',
+] as const;
 
 type UndeterminedGap = (typeof UNDETERMINED)[number];
 type AbsenceGap = Exclude<TotalCostGap, UndeterminedGap>;

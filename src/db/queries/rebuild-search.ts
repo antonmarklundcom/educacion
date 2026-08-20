@@ -78,7 +78,12 @@ const INSERT_CHUNK_SIZE = 250;
 export interface RebuildSummary {
   rows: number;
   published: number;
-  withDisplayablePrice: number;
+  /**
+   * Prices still inside the 12-month window. Named `withDisplayablePrice` until
+   * PR-48b, which was the pre-PR-33 rule: a stale price *is* displayed, with its
+   * warning. What this counts is how much of the index is fresh.
+   */
+  withFreshPrice: number;
   withAccreditationBadge: number;
   tookMs: number;
 }
@@ -477,7 +482,7 @@ export async function rebuildProgramSearch(options: RebuildOptions = {}): Promis
   return {
     rows: indexRows.length,
     published: indexRows.filter((row) => row.isPublished).length,
-    withDisplayablePrice: indexRows.filter(
+    withFreshPrice: indexRows.filter(
       (row) => row.priceExpiresOn != null && row.priceExpiresOn > today,
     ).length,
     withAccreditationBadge: indexRows.filter((row) => row.accreditationStatus !== 'sin_datos')

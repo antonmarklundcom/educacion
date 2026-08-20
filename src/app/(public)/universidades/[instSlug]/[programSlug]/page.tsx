@@ -6,8 +6,9 @@
  * `findProgramOfferings()`; there is no client JavaScript on this route at all.
  *
  * **Provenance, or the honest gap.** Every fact carries where it came from
- * where the model has one: the arancel shows when it was verified and hides
- * itself past twelve months, the accreditation badge links to its source. Where
+ * where the model has one: the arancel shows when it was verified, and past
+ * twelve months it is shown with a visible "dato desactualizado" rather than
+ * hidden (PR-33); the accreditation badge links to its source. Where
  * we have nothing — plan de estudio, título que otorga, fechas de convocatoria
  * — the page says "sin datos" and explains why, rather than leaving a blank
  * that reads as "none" (CLAUDE.md rule 1).

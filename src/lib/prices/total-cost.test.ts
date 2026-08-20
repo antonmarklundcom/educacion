@@ -152,6 +152,21 @@ describe('totalCost — every component or no number at all', () => {
     }
   });
 
+  it.each([
+    ['a negative matrícula', { matricula: -500_000 }],
+    ['a negative derecho de examen', { admissionFee: -1_000_000 }],
+    ['a fractional cuota', { monthlyFee: 400_000.5 }],
+  ])('refuses %s instead of subtracting it from the total', (_label, overrides) => {
+    // `prices_non_negative` is the third CHECK `program_search` does not carry.
+    // Without this, -500.000 of matrícula silently turns a Gs. 22.650.000
+    // carrera into a Gs. 17.650.000 one: complete, no gap, no warning.
+    const total = totalCost(price(overrides as Partial<PriceSummary>), 60);
+    expect(total.kind).toBe('partial');
+    expect(total.total).toBeNull();
+    expect(total.missing).toEqual(['montos_invalidos']);
+    expect(totalCostLabel(total)).not.toMatch(/Gs\./);
+  });
+
   it('refuses a row that is free and priced at the same time, rather than dropping the fee', () => {
     // `prices_free_has_no_fees` forbids this on `prices`; `program_search`
     // carries no such CHECK. Trusting the flag would turn a Gs. 22.650.000

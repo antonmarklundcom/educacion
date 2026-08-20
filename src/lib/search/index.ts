@@ -9,10 +9,14 @@
  * Everything returned is already resolved: hrefs can be built from the slugs
  * on the row, the accreditation badge carries its own source link, and the
  * price carries its `freshness` beside its amounts, classified once by
- * `priceFreshness()`. A component that receives an `OfferingSummary` cannot
- * render a stale arancel *without its warning* — `priceDisplay()` produces the
- * number and the warning in one call (PR-33 reversed the strip-the-amounts
- * rule) — and cannot need a second query.
+ * `priceFreshness()`, and a component cannot need a second query.
+ *
+ * What this layer does **not** do is enforce rule 3. It hands over the amounts
+ * and the freshness; whether the warning is rendered beside the number is the
+ * component's to get right, and PR-48b found three that did not. What keeps
+ * them in line is that `priceDisplay()` returns both in one call and
+ * `staleWarning()` is the only wording of the sentence — a convention, held by
+ * the render tests in `architecture.md` §31.7, not a type.
  */
 
 import { getOfferingRowsByIds, searchProgramSearchRows } from '@/db/queries/program-search';

@@ -111,7 +111,10 @@ const EXTRACTORS: readonly Extractor[] = [
     label: copy.totalCost.compareLabel,
     isNumeric: true,
     // The arancel composed over the duration, not a second fact about the
-    // institution: whenever two aranceles differ their totals differ too.
+    // institution — so a differing arancel would otherwise be counted twice.
+    // Not quite the reverse: two sedes can quote the same cuota and differ in
+    // matrícula, and then the total row is the only one carrying the
+    // difference. It is still rendered and still highlighted; it does not vote.
     isDerived: true,
     of: (o) => {
       // Composed here from the same PriceSummary the arancel row reads, so the

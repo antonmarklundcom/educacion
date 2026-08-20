@@ -7,15 +7,18 @@
  * `/api`, which `robots.ts` disallows.
  *
  * What it may draw is exactly what the page shows: program name, institution,
- * duración and the arancel *as the 12-month rule left it* — when the price is
- * not displayable the card says "Consultá el arancel" rather than a number
- * (CLAUDE.md rule 3, seo.md §5). Nothing is computed here that the page does
- * not also render.
+ * duración and the arancel as `priceImageLines()` returns it. With no number at
+ * all the card says "Consultá el arancel"; with an old one it says the number
+ * **and** the warning, in one list this file cannot take apart (CLAUDE.md
+ * rule 3 — PR-33 reversed the hide rule, and PR-48b moved the decision out of
+ * this file, which had gone on composing "Dato de mayo de 2026": provenance,
+ * not a warning, and unreachable by any test because an `ImageResponse` is not
+ * HTML). Nothing is computed here that the page does not also render.
  */
 
 import { ImageResponse } from 'next/og';
 
-import { priceDisplay } from '@/components/browse/price';
+import { priceImageLines } from '@/components/browse/price';
 import { accreditationLabel } from '@/components/browse/accreditation-display';
 import { COMPARE_IDS_PARAM, parseCompareIds } from '@/lib/compare/state';
 import { formatDurationMonths } from '@/lib/format';
@@ -73,7 +76,6 @@ export async function GET(request: Request): Promise<Response> {
       ) : (
         <div style={{ display: 'flex', gap: 16, marginTop: 34 }}>
           {offerings.map((offering) => {
-            const price = priceDisplay(offering.price);
             return (
               <div
                 key={offering.offeringId}
@@ -97,17 +99,25 @@ export async function GET(request: Request): Promise<Response> {
                     ? formatDurationMonths(offering.durationMonths)
                     : 'Duración sin datos'}
                 </div>
-                <div style={{ display: 'flex', fontSize: 23, color: INK, marginTop: 8 }}>
-                  {`${price.label}${price.unit ?? ''}`}
-                </div>
-                {/* A shared image is read without any of the page around it, so
-                    the staleness note travels with the number (PR-33). */}
-                {price.isStale && (
-                  <div style={{ display: 'flex', fontSize: 17, color: WARN, marginTop: 4 }}>
-                    {price.verifiedLabel
-                      ? `Dato de ${price.verifiedLabel}`
-                      : 'Sin fecha de verificación'}
-                  </div>
+                {/* A shared image is read without any of the page around it,
+                    so the staleness note travels with the number — as one list
+                    this file cannot take apart (PR-33, PR-48b). */}
+                {priceImageLines(offering.price).map((line) =>
+                  line.kind === 'amount' ? (
+                    <div
+                      key={line.kind}
+                      style={{ display: 'flex', fontSize: 23, color: INK, marginTop: 8 }}
+                    >
+                      {line.text}
+                    </div>
+                  ) : (
+                    <div
+                      key={line.kind}
+                      style={{ display: 'flex', fontSize: 17, color: WARN, marginTop: 4 }}
+                    >
+                      {line.text}
+                    </div>
+                  ),
                 )}
                 <div style={{ display: 'flex', fontSize: 19, color: MUTED, marginTop: 14 }}>
                   {truncate(accreditationLabel(offering.accreditation), 30)}

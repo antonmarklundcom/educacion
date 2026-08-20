@@ -159,9 +159,10 @@ export function matchesFilters(
   }
 
   if (filters.isFree != null) {
-    // "Gratuita" is a price claim like any other: an unverifiable one is not
-    // evidence of either answer, so rows without a displayable price are out
-    // of both sides of this filter.
+    // "Gratuita" is a price claim like any other: a row with no price at all is
+    // not evidence of either answer, so it is out of both sides of this filter.
+    // Age is not the test — an old "gratuita" is still a claim, and it is shown
+    // with its warning (PR-33).
     if (!isPriceFilterable(row)) return false;
     if (row.isFree !== filters.isFree) return false;
   }

@@ -119,9 +119,9 @@ The shape above survived implementation. These are the decisions it forced, each
 
 **One extra query for area labels.** `program_search` carries `area_slug` but not the area's name, so the areas facet reads its labels from the seeded `areas` table — 14 rows, one small query. Adding an `area_name` column would remove it; it is not worth a migration.
 
-**Today comes from Node, not `CURDATE()`.** The 12-month arancel boundary decides what may be displayed, the pool is pinned to UTC, and the MySQL session timezone on shared hosting is not ours to guarantee. The query layer passes the date in as a parameter.
+**Dates come from Node, not `CURDATE()`.** The pool is pinned to UTC and the MySQL session timezone on shared hosting is not ours to guarantee, so any date a comparison needs is passed in as a parameter. Since PR-33 the arancel needs none: age no longer decides what may be displayed.
 
-**Two price predicates, deliberately.** Rendering uses `isPriceDisplayable()` (timestamp precision, `src/db/invariants.ts`, the single decision point). Filtering and sorting use `price_expires_on > :today` (date precision), because that is what an index can answer. The date form is never more permissive than the timestamp form, so a row can drop out of an arancel range on its last day while still showing its price — never the reverse. `row.test.ts` asserts the property.
+**One price predicate, since PR-33.** This paragraph used to describe two — `isPriceDisplayable()` for rendering and `price_expires_on > :today` for filtering, with a written rule about which was the more permissive. PR-33 deleted the first (there is no such function in the repo) and stopped filtering on the second, because age no longer decides what may be shown. What survives is `priceFreshness()`: one classification, derived per read from `verified_at`, travelling on every `PriceSummary` as `fresh | stale | unknown` and rendered by `priceDisplay()` as the number **and** its warning in one call. `price_expires_on` is still written by the rebuild and still read by `/admin/frescura` and the `Offer` gate; it filters nothing a visitor sees.
 
 **Short queries are the one place FULLTEXT is not enough.** InnoDB does not index tokens below `innodb_ft_min_token_size` (3), so "UC" is invisible to it and falls back to a prefix `LIKE` on `institution_short`. But two-letter Spanish function words are everywhere — "medicina de la UC" — so a short token only _filters_ when the whole query is short; alongside real words it only raises the rank of rows whose acronym it matches. The alternative, requiring every short token, returns an empty page for ordinary Spanish.
 
@@ -189,13 +189,13 @@ The reason to derive rather than to count: the limit that actually matters is pe
 
 The 2026-08 audit's one security inconsistency: `checkRate` guarded the lead form, the event
 beacon, the claim request and the password-reset form, while `/ingresar` — the one endpoint
-where a guess _succeeds_ — called `authenticate()` bare. `src/lib/auth/rate-limit.ts` closes
+where a guess *succeeds* — called `authenticate()` bare. `src/lib/auth/rate-limit.ts` closes
 it, with two departures from the obvious design that are the whole point of the section.
 
-| Key                           | Limits          | Stops                             |
-| ----------------------------- | --------------- | --------------------------------- |
-| hashed IP                     | 30/min, 60/hour | one machine grinding a dictionary |
-| hashed (address, IP) **pair** | 5/min, 20/hour  | one machine grinding one account  |
+| Key | Limits | Stops |
+| --- | --- | --- |
+| hashed IP | 30/min, 60/hour | one machine grinding a dictionary |
+| hashed (address, IP) **pair** | 5/min, 20/hour | one machine grinding one account |
 
 **There is no global per-address counter, deliberately.** "Per IP plus per email" is the
 obvious second tier and the one PR-42's brief names. A global per-email counter with a hard
@@ -206,7 +206,7 @@ name locked out indefinitely, and the victim's own retries top the window back u
 denial-of-service tool wearing a rate limiter's clothes, and it is the worse trade: online
 guessing is already bounded by the KDF's cost, while locking a paying institution out of its
 panel during admissions is not. Keying the second tier on the **pair** keeps the realistic
-protection and raises a lockout's price from "know the address" to "know the address _and_
+protection and raises a lockout's price from "know the address" to "know the address *and*
 the IP it will be used from". That is a higher bar, not an impossibility, and the honest
 statement matters: `x-forwarded-for` is forgeable, so somebody who knows an institution's
 static office IP can still construct its pair, and the per-IP tier is itself a lockout of
@@ -220,7 +220,7 @@ lockout button. `risks.md` §R-16 records the trade and what is still unsolved.
 **Charged on the way in, refunded on success.** `checkRate` records every attempt, success
 included, which is right for a lead or an email and backwards for a credential check: a
 school lab or a cyber café — the exact case §6.1 says the limits must tolerate — would lock
-itself out by _signing in successfully_. But the obvious repair, "peek now and charge the
+itself out by *signing in successfully*. But the obvious repair, "peek now and charge the
 failure afterwards", is worse than the problem: discovering the outcome takes three `await`s,
 so every concurrent request peeks before any of them records and the limit stops binding at
 all — a burst then bounded only by the attacker's connection count, on the one endpoint
@@ -228,7 +228,7 @@ running a deliberately expensive KDF. Measured at 50 concurrent requests against
 all 50 reached `authenticate()`.
 
 So the attempt is charged at decision time — `loginAllowed` and `chargeLoginAttempt` are
-synchronous and adjacent, which is atomic on one event loop — and a success is _refunded_:
+synchronous and adjacent, which is atomic on one event loop — and a success is *refunded*:
 `settleLoginSuccess` clears the pair key outright and gives back the single IP timestamp the
 attempt cost (`refundRate`). An attempt that throws before it was verified — the database
 unreachable, hashing itself failing — is refunded too (a wrong password is not one of
@@ -263,7 +263,7 @@ Two properties beyond those, both covered by tests that fail without them:
 2. **The failure path is untouched.** A request that reaches `authenticate()` still returns
    `LOGIN_ERROR` after the decoy hash, with the same timing for every reason. The rate-limit
    message is separate, describes the request rather than the credentials, and names nothing
-   about an account. Rejection is allowed to be _fast_ — both keys are chosen by the caller,
+   about an account. Rejection is allowed to be *fast* — both keys are chosen by the caller,
    so its speed leaks nothing.
 
 Same caveat as §6.1, stated rather than assumed: `x-forwarded-for` is client-forgeable and
@@ -413,7 +413,7 @@ old `-04` in this table was wrong for every month of the year. `asuncionToday()`
 ---
 
 **PR-46 correction.** "Idempotent by construction" was true only of the case
-this section considered — a second cron firing _after_ a completed run, since a
+this section considered — a second cron firing *after* a completed run, since a
 lead marked `sent` no longer matches `listUndeliveredLeads`. It was not true of
 a failed final write, and it is not true of two overlapping invocations.
 
@@ -424,6 +424,7 @@ second is not, and is a trade rather than an oversight: a claim step
 every send failure into a **lost** lead instead of a repeated one, and at one
 hourly hPanel entry the overlap does not happen. At-least-once is the right side
 to err on for a lead; the sentence now says so instead of implying at-most-once.
+
 
 ## 11. The institution directory (settled in PR-11)
 
@@ -582,8 +583,9 @@ this in the words a person reads, not only in a comment.
 carrying a visible "dato desactualizado" and the month we last verified it
 (§23), and is withheld only from `Offer` JSON-LD, which a machine repeats
 stripped of that warning. So `pricesExpired` counts carreras currently quoting a
-number we are hedging on — the queue whose whole cost is paid in credibility. PR-33 owns the automated half — the
-weekly digest, the cron, the public "última actualización" surfaces. This is the
+number we are hedging on — the queue whose whole cost is paid in credibility.
+PR-33 owns the automated half — the weekly digest, the cron, the public
+"última actualización" surfaces. This is the
 manual half, which had to exist first: there is no point scheduling a reminder
 about a queue nobody can work.
 
@@ -925,7 +927,7 @@ every consumer in `src/components`, `src/lib/seo` and `src/app`, and it holds.
 What `placement.test.ts` pins is narrower than its name suggests: it varies
 `SubscriptionFacts.planRank` (a `plans.rank` value), not the index column, so
 it is a second cancelled-subscription case rather than a guard on the index.
-The property that _is_ enforced by a test is the one in
+The property that *is* enforced by a test is the one in
 `rebuild-search.plan-rank.test.ts` — the index boosts exactly what the label
 path labels.
 
@@ -936,7 +938,7 @@ cheaper one under `arancel_asc`, and `plan_rank` never pulls a row into a
 filtered set it does not belong in.
 
 **PR-46 correction — those two tests did not, until PR-46.** The independent
-review promoted `plan_rank` to the _primary_ sort key, i.e. paid placement
+review promoted `plan_rank` to the *primary* sort key, i.e. paid placement
 fully overriding the user's choice, and all 28 tests passed: the first test
 scanned one page of results, and the fixture holds enough rank-2 rows to fill
 it, so no adjacent pair ever crossed a rank boundary. The second asserted only
@@ -945,7 +947,7 @@ now a property over every cross-rank pair, and a check that a named boosted
 excluded row is absent.
 
 **And PR-46 fixed what neither was ever going to catch**: `plan_rank` was
-written from the entitlement's _rank_, so **Verificado** — which does not buy
+written from the entitlement's *rank*, so **Verificado** — which does not buy
 `priority_placement` — was boosted on every default-sorted page while
 `placementFlags().destacado` stayed `false` for it. No badge, no disclosure,
 paid ordering. `planRanksByInstitution` now gates on the entitlement, and
@@ -1054,7 +1056,7 @@ mistake. Only the **narrowest applicable** threshold fires per run, so an accoun
 seen five days out gets one mail, not three.
 
 **PR-46 correction: "applicable", not "unsent".** The shipped code took the
-narrowest _unsent_ one, which meant that once the 7-day notice had gone, the
+narrowest *unsent* one, which meant that once the 7-day notice had gone, the
 next run fired the next-widest — "faltan 4 días" under the 30-day heading, then
 "faltan 3 días" under the 90-day one. Three mails, spread over three days,
 each labelled with a threshold the period had already passed. A threshold that
@@ -1525,7 +1527,7 @@ worth building when it is needed, not before.
 budget has carried the consequence: on shared-host MySQL with
 `connectionLimit: 8` (§1, `deployment.md` §3), every request re-runs the ten
 statements a filtered browse costs (§4). PR-43 closes it. (The PR-43 brief in
-`pr-plan.md` cites "§8" for this deferral; §8 is _Data integrity & provenance_
+`pr-plan.md` cites "§8" for this deferral; §8 is *Data integrity & provenance*
 and says nothing about it. The brief is wrong and this paragraph is the
 correction.) The interface is `src/lib/cache/`, and the decisions it fixes are below —
 they are the expensive-to-reverse part, which is why this is an Opus PR.
@@ -1539,12 +1541,12 @@ reason §3 already gives: CI builds without a `DATABASE_URL`. So the cache sits
 one layer down, around the read paths themselves, and the routes stay
 `force-dynamic`.
 
-| Read path                    | Module                 | Why                                                                                                                                                        |
-| ---------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `searchPrograms(filters)`    | `src/lib/search`       | Ten statements per call, and the funnel behind `/carreras`, career hubs, city pages, `/areas/[area]`, institution pages, programme pages and the home page |
-| `getOfferingsByIds(ids)`     | `src/lib/search`       | The comparador                                                                                                                                             |
-| `listInstitutions()`         | `src/lib/institutions` | `/universidades` plus the home logo strip; a `GROUP BY` over the whole index                                                                               |
-| `getInstitutionBySlug(slug)` | `src/lib/institutions` | Every institution and programme page                                                                                                                       |
+| Read path | Module | Why |
+| --- | --- | --- |
+| `searchPrograms(filters)` | `src/lib/search` | Ten statements per call, and the funnel behind `/carreras`, career hubs, city pages, `/areas/[area]`, institution pages, programme pages and the home page |
+| `getOfferingsByIds(ids)` | `src/lib/search` | The comparador |
+| `listInstitutions()` | `src/lib/institutions` | `/universidades` plus the home logo strip; a `GROUP BY` over the whole index |
+| `getInstitutionBySlug(slug)` | `src/lib/institutions` | Every institution and programme page |
 
 The programme page is the largest single win: `findProgramOfferings()` pages
 through an institution's offerings 100 at a time, so a big institution costs
@@ -1563,7 +1565,7 @@ Per-entity tags look obviously better and are unsound: one `program_search` row
 carries the institution's name, the career, the city, the arancel, the
 accreditation badge and the `plan_rank` derived from the subscription, and a
 facet count is an aggregate over the whole table. For nearly any write, "which
-entries could this have changed?" answers _any of them_. A scheme that claimed
+entries could this have changed?" answers *any of them*. A scheme that claimed
 otherwise would leave a corrected arancel visible somewhere, which is the same
 failure as publishing it (CLAUDE.md rule 1), only slower to notice.
 
@@ -1627,12 +1629,12 @@ paid to prevent.
 **A cache hit is not the object the function returned.** `unstable_cache` stores
 `JSON.stringify(result)` and hands back `JSON.parse(body)` on a hit, but returns
 the live object on a miss. A `Date` in a cached payload is therefore a `Date` on
-the request that filled the entry and a _string_ on every request after it — a
+the request that filled the entry and a *string* on every request after it — a
 bug that passes review, passes the first manual test, and appears on the second
 page view in production. `cachedRead()` closes it two ways. First, `load`'s return type is
 `JsonPlain<Wire>`, which maps everything JSON does not round-trip — `Date`,
 `Map`, `Set`, `bigint`, `symbol`, functions, and an optional property, whose key
-is _present_ on a miss and _absent_ on a hit — to `never`, so any of them in a
+is *present* on a miss and *absent* on a hit — to `never`, so any of them in a
 wire type is a **compile error at the call site**. That is a claim about the
 type system, so it is checked by the type system:
 `src/lib/cache/json-plain.test-d.ts` compiles one `@ts-expect-error` case per
@@ -1645,9 +1647,9 @@ converted in one place, `src/lib/cache/wire.ts`, with a fixture-driven test that
 a third cannot creep in unnoticed.
 
 **Nothing derived from a clock is ever stored.** The cache holds
-`program_search` _rows_; `toOfferingSummary(row, now)` runs on every read, hit
+`program_search` *rows*; `toOfferingSummary(row, now)` runs on every read, hit
 or miss. So `price.freshness` — the "dato desactualizado" warning of CLAUDE.md
-rule 3 and §23 — is always the cached `verified_at` compared against _this_
+rule 3 and §23 — is always the cached `verified_at` compared against *this*
 request's clock, and can never outlive the price it belongs to. The twelve-month
 boundary is crossed at an arbitrary moment, so this is not theoretical, and
 `src/lib/search/cache.test.ts` pins it: one entry, two reads either side of the
@@ -1688,11 +1690,11 @@ for i in $(seq 1 30); do curl -s -o /dev/null -w '%{time_total}\n' \
   https://educacion.com.py/carreras; done
 ```
 
-| Surface                 | p95 before | p95 after |
-| ----------------------- | ---------- | --------- |
-| `/carreras`, unfiltered | —          | —         |
-| a career hub            | —          | —         |
-| a programme page        | —          | —         |
+| Surface | p95 before | p95 after |
+| --- | --- | --- |
+| `/carreras`, unfiltered | — | — |
+| a career hub | — | — |
+| a programme page | — | — |
 
 `npm run search:bench` is the synthetic-dataset harness for the SQL side (§4);
 it measures the query mix, not the cache, and its 150 ms budget is unchanged.
@@ -1732,8 +1734,8 @@ make the activity log a way around a role boundary the rest of the admin
 enforces. CLAUDE.md rule 4 cuts both ways: a read refused on one screen cannot
 be granted on another.
 
-**Two things are withheld, not one.** The snapshots above, and the _actor's
-email address_. The independent review found the second: the entries join
+**Two things are withheld, not one.** The snapshots above, and the *actor's
+email address*. The independent review found the second: the entries join
 `users` for "who did this", and that column is the content of the `admin`-only
 `/admin/usuarios` — including institution members, whose address the same query
 was withholding one line below as `institution_member` snapshot data. An editor
@@ -1742,7 +1744,7 @@ apart, which is what the column is for.
 
 So the **row** stays visible to an editor — that an account was created, by
 whom, when, is what an audit log is for — and only the payload is withheld,
-with a line saying so rather than an empty space. `claim` is deliberately _not_
+with a line saying so rather than an empty space. `claim` is deliberately *not*
 on the list even though its snapshot carries an email: `/admin/reclamos` is
 already `editor`-gated and shows the same address, so hiding it here would
 protect nothing. **The rule is "does another screen already refuse this
@@ -1767,8 +1769,8 @@ Two things make that rule hold rather than merely be written down:
 `before_json` and `after_json` are whole rows. Rendering both side by side asks
 the reader to diff twenty fields to find the one that moved, which is how an
 audit log becomes something nobody opens. `diffSnapshots` returns only the keys
-that differ. Two cases it is careful about, both tested: a key that _went away_
-and a key that _turned null_ are different edits and render differently, and
+that differ. Two cases it is careful about, both tested: a key that *went away*
+and a key that *turned null* are different edits and render differently, and
 `0`, `false` and `''` are values, not absences — a diff written with truthiness
 checks would report `installmentsPerYear: 0` as a removal.
 
@@ -1802,7 +1804,7 @@ connection back proves nothing about atomicity. The clause is now rendered
 through `MySqlDialect` and asserted, and the fake transaction hands back a
 distinct handle with a rollback case.
 
-**One index, one migration.** This PR is the first _reader_ of `activity_log`,
+**One index, one migration.** This PR is the first *reader* of `activity_log`,
 and the default view is `ORDER BY created_at DESC LIMIT 50` with no `WHERE` —
 a full scan plus filesort on a table that gains a row on every admin and panel
 write and is never purged. Migration `0010` adds `(created_at)` and
@@ -1830,7 +1832,7 @@ because Turbopack does not tree-shake the package's index even though it is
 marked `sideEffects: false`. The public page budget is **150 kB total** (§9).
 The measurement is reproducible: install `@sentry/browser`, `import` it from a
 client entry, `npm run build`, then gzip the chunks the app build manifest does
-_not_ reference. It is recorded here rather than kept because the package is not
+*not* reference. It is recorded here rather than kept because the package is not
 a dependency any more — nothing in CI re-checks it, so treat the number as of
 2026-08-20 and `@sentry/browser` 10.70.
 An error reporter larger than the application it reports on is not a trade this
@@ -1853,24 +1855,24 @@ to the Node SDK:
 
 **The bounds on that endpoint, in the order they apply and with what each one
 is actually worth.** An independent review's first finding was that an earlier
-version presented "rate limited per hashed IP" as _the_ control, and it is not
+version presented "rate limited per hashed IP" as *the* control, and it is not
 one:
 
-1. **Same origin** — the check the lead endpoint already uses. A missing
-   `Origin` on a POST means the caller is not a browser. Forgeable by a
-   script, which is why it is first and not last.
-2. **`content-length`, then bytes** — refused before the body is read when the
-   caller declares a big one, and after, on `Buffer.byteLength` rather than
-   `String.length` (8 000 emoji is 8 000 "characters" and 32 kB on the wire).
-3. **Per hashed IP**, 5/min. This stops an ordinary crash loop in one browser,
-   which is the common case. It is **not** a bound on an attacker:
-   `hashClientIp` reads `x-forwarded-for`, which the caller writes, so
-   rotating it buys a fresh bucket. §6.1 says the same thing about the lead
-   limiter, which is why that one has a second, durable tier.
-4. **A process-wide budget** in `capture.ts` — 20 forwards a minute, keyed on
-   a constant. This is the bound that holds. `beforeSend`'s per-fingerprint
-   throttle cannot substitute for it: the fingerprint is derived from the
-   `name` and `stack` in the report, which the caller also writes.
+  1. **Same origin** — the check the lead endpoint already uses. A missing
+     `Origin` on a POST means the caller is not a browser. Forgeable by a
+     script, which is why it is first and not last.
+  2. **`content-length`, then bytes** — refused before the body is read when the
+     caller declares a big one, and after, on `Buffer.byteLength` rather than
+     `String.length` (8 000 emoji is 8 000 "characters" and 32 kB on the wire).
+  3. **Per hashed IP**, 5/min. This stops an ordinary crash loop in one browser,
+     which is the common case. It is **not** a bound on an attacker:
+     `hashClientIp` reads `x-forwarded-for`, which the caller writes, so
+     rotating it buys a fresh bucket. §6.1 says the same thing about the lead
+     limiter, which is why that one has a second, durable tier.
+  4. **A process-wide budget** in `capture.ts` — 20 forwards a minute, keyed on
+     a constant. This is the bound that holds. `beforeSend`'s per-fingerprint
+     throttle cannot substitute for it: the fingerprint is derived from the
+     `name` and `stack` in the report, which the caller also writes.
 
 **And the payload is treated as a forgery until proven otherwise.** Anyone can
 POST `{name:'DatabaseError', message:'ECONNREFUSED 127.0.0.1:3306'}`, so the
@@ -1953,8 +1955,8 @@ suppression is **sent** carrying `throttled=true` and the count, because a
 limiter that suppresses silently hides the outage it was installed to reveal.
 
 There are two of these, and they answer different questions. The
-per-fingerprint one above bounds a _server_ crash loop, where the fingerprint is
-ours and trustworthy. `capture.ts`'s process-wide budget bounds _browser_
+per-fingerprint one above bounds a *server* crash loop, where the fingerprint is
+ours and trustworthy. `capture.ts`'s process-wide budget bounds *browser*
 reports, where it is not (§29.1). Both are in-process and both reset when
 Hostinger recycles the app, which is why `deployment.md` §8.1 also sets a
 **per-key rate limit in the Sentry project** — that is the half that survives a
@@ -1971,12 +1973,12 @@ has to set.
 
 Measured here instead — the numbers that do not need an account:
 
-| Build                                       | `/carreras` First Load JS (gz) |
-| ------------------------------------------- | ------------------------------ |
-| Before PR-45                                | 129.3 kB                       |
-| PR-45, no Sentry env (CI, local dev)        | 129.9 kB                       |
-| PR-45, DSN + auth token (production)        | 132.4 kB                       |
-| _Rejected:_ `@sentry/browser` in the client | +144.5 kB, deferred chunk      |
+| Build | `/carreras` First Load JS (gz) |
+| --- | --- |
+| Before PR-45 | 129.3 kB |
+| PR-45, no Sentry env (CI, local dev) | 129.9 kB |
+| PR-45, DSN + auth token (production) | 132.4 kB |
+| *Rejected:* `@sentry/browser` in the client | +144.5 kB, deferred chunk |
 
 Budget 150 kB (§9). The first two rows are reproducible with `npm run build &&
 npm run perf:budget`; the third needs a DSN and an auth token and is recorded
@@ -2035,11 +2037,11 @@ and rule 9's disclaimer is required there like everywhere else.
 
 Measured, reproducible with `npm run build && npm run perf:budget`:
 
-| Build                          | `/carreras` First Load JS (gz) | every other public route |
-| ------------------------------ | ------------------------------ | ------------------------ |
-| Before PR-47                   | 129.9 kB                       | 129.2 kB                 |
-| _Rejected:_ one-module catalog | 132.2 kB                       | 131.5 kB                 |
-| PR-47 as shipped               | **130.5 kB**                   | **129.8 kB**             |
+| Build | `/carreras` First Load JS (gz) | every other public route |
+| --- | --- | --- |
+| Before PR-47 | 129.9 kB | 129.2 kB |
+| *Rejected:* one-module catalog | 132.2 kB | 131.5 kB |
+| PR-47 as shipped | **130.5 kB** | **129.8 kB** |
 
 Budget 150 kB (§9). The remaining +0.6 kB is module overhead for the five
 slices; the copy itself was already in those bundles as inline JSX.
@@ -2065,7 +2067,7 @@ with a translator. When that decision is made:
 ### 30.4 What is not in the catalog, and why
 
 - **The `copy.ts` generators under `src/lib`** (career and city intros, §20).
-  They are data-provenance sentences whose logic _is_ Spanish grammar —
+  They are data-provenance sentences whose logic *is* Spanish grammar —
   agreement, elision, pluralisation over a row's actual fields. Fragmenting
   them into catalog keys makes them less translatable, not more. They move when
   a real second locale forces the question, which is also when somebody can
@@ -2122,7 +2124,7 @@ A total renders only when every component the row needs is present:
 **derecho de examen and duration always, plus matrícula, cuota and cuotas por
 año unless the arancel is free** — a free carrera has no matrícula and no cuota
 by construction (`prices_free_has_no_fees`), so its total is the exam fee and
-nothing else. A missing derecho de examen is _unknown_, not zero
+nothing else. A missing derecho de examen is *unknown*, not zero
 (`data-model.md`: NULL means _sin datos_, 0 means _gratuita_).
 
 Not a lower bound and not a "desde". A floor reads as a total to anyone
@@ -2134,11 +2136,11 @@ skimming, and this is the number a family budgets against, so a partial carries
 Three inputs are refused for reasons that are not absence, because
 `program_search` is denormalized and carries fewer CHECKs than `prices`:
 
-| input                                     | why                                                                               |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| amounts with `price_currency = NULL`      | a total whose units we cannot name is not a total                                 |
-| `duration_months = 0`                     | `0 % 12 === 0`, so without the guard a zero-length carrera totals to its exam fee |
-| `is_free = 1` with a matrícula on the row | trusting the flag would silently drop a fee that is sitting right there           |
+| input | why |
+| --- | --- |
+| amounts with `price_currency = NULL` | a total whose units we cannot name is not a total |
+| `duration_months = 0` | `0 % 12 === 0`, so without the guard a zero-length carrera totals to its exam fee |
+| `is_free = 1` with a matrícula on the row | trusting the flag would silently drop a fee that is sitting right there |
 
 Each has a test. The third is reported as `incoherente` and worded as a
 contradiction in our data, not as a gap in the institution's.
@@ -2204,56 +2206,93 @@ All three are server components. No schema change, no new query, no new cron.
 `TotalCostBlock` had no test in the first version of this PR, and replacing its
 stale-warning condition with `false` left the entire suite green. A pure-function
 test cannot catch that: the defect lives in the JSX. `OfferingsBlock`'s per-sede
-total and the programme page's sede-name gate had the same hole and were closed
-the same way in PR-48b — deleting either left all 1212 tests passing. The gate
-moved out of the page into `totalCostScope()` to be reachable at all: a
-condition written inline in an async server component is a condition no test in
-this suite renders.
+total, the programme page's sede-name gate and — found by PR-48b's own review —
+`PriceLabel`'s stale badge had the same hole. The last is the price surface on
+every result card and both table layouts, and deleting its badge outright left
+1231 tests green. All three are pinned now. The sede gate moved out of the page
+into `totalCostScope()` to be reachable at all: a condition written inline in an
+async server component is a condition no test in this suite renders.
 
-`TotalCostBlock.test.ts` and `OfferingsBlock.test.ts` render their component
-with `react-dom/server`'s `renderToStaticMarkup` — no new dependency, no DOM,
-one line of vitest config for the JSX transform — and assert against the HTML
-that a stale figure never appears without the words rule 3 requires, and that a
-partial card contains no `Gs.` at all. Both go red when their guard is removed.
+`TotalCostBlock.test.ts`, `OfferingsBlock.test.ts` and `PriceLabel.test.ts`
+render their component with `react-dom/server`'s `renderToStaticMarkup` — no new
+dependency, no DOM, one line of vitest config for the JSX transform — and assert
+against the HTML that a stale figure never appears without the words rule 3
+requires, and that a partial card contains no `Gs.` at all. All go red when
+their guard is removed.
 
 **What that is evidence of, exactly.** `renderToStaticMarkup` proves that a
 given substring is present in (or absent from) the HTML one component emits, in
 guaraníes, for the props the test passes. It is a string assertion, and it is
 worth having because the defects above were string-level. It does **not**
-exercise the RSC pipeline — no async component, no `page.tsx`, no data
-loading, no streaming — so a component correct here can still be wired up
-wrongly, or not rendered at all, and nothing in this suite would say so. It says
-nothing about _visibility_: CSS is not applied, so a warning behind
-`hidden`, in `text-transparent`, or scrolled off a mobile viewport passes every
-one of these tests. Contrast and layout stay a design review (`design-system.md`
-§15 owns the a11y budgets), and the page's own composition stays uncovered.
+exercise the RSC pipeline — no async component, no `page.tsx`, no data loading,
+no streaming — so a component correct here can still be wired up wrongly, or not
+rendered at all, and nothing in this suite would say so. It says nothing about
+*visibility*: CSS is not applied, so a warning behind `hidden`, in
+`text-transparent`, or scrolled off a mobile viewport passes every one of these
+tests. Contrast and layout stay a design review (`design-system.md` §15 owns the
+a11y budgets), and the page's own composition stays uncovered.
+
+The OG routes are the gap this technique does not close: they return an
+`ImageResponse`, not HTML, so nothing here can read what they drew. That is not
+hypothetical — deleting the staleness branch from **both** routes left 1248
+tests green, and it is why those two files were still saying "Dato de mayo de
+2026" months after the wording was fixed everywhere else. Rather than accept an
+untestable surface, the decision moved out of them: `priceImageLines()` returns
+the amount and the warning as one list, tested as a pure function, and each
+route maps over it. A route can still mis-style a line; it can no longer draw
+the number and omit the warning, because it never receives them as two separate
+things.
 
 Its scope is stated on the card rather than implied: the total covers matrícula,
 cuotas and the derecho de examen, and says in as many words that it excludes
-materials and travel.
+materials and travel. `OfferingsBlock`'s per-sede figure is labelled but does
+not repeat that note; the aside card carries it once per page.
 
 ### 31.8 The CHECKs `program_search` does not carry (PR-48b)
 
-`prices` constrains what a price row may say — `prices_free_has_no_fees`, and
-`prices_installments_range` (1–24). `program_search` is a denormalized copy of
-those columns with **neither** constraint, and the calculator reads the copy.
+`prices` constrains what a price row may say. `drizzle/0000_init_schema.sql` has
+three CHECKs on that table: `prices_free_has_no_fees`, `prices_installments_range`
+(1–24) and `prices_non_negative`, and `assertPriceIsCoherent()` adds
+`money_is_integer` on the write path. **`program_search` is a denormalized copy
+of those columns with none of them**, and every public price surface reads the
+copy.
 
-PR-48 mirrored the first and not the second, which cost real money: an
+PR-48 mirrored the first and not the rest, which is the whole hazard: an
 `installments_per_year` of 0 does not make `computeAnnualCost` fail, it makes it
 multiply the cuota by zero and return the bare matrícula. A Gs. 22.650.000
-carrera rendered as Gs. 2.650.000 — `complete`, no gap, no warning, and eligible
-for the "el más barato" marker. Both CHECKs are now re-asserted in
-`total-cost.ts`, and an impossible value is reported like `duracion_parcial` is:
-undetermined, not "sin datos", because there _is_ a number on file and saying
-the institution gave us nothing would be false.
+carrera would render as Gs. 2.650.000 — `complete`, no gap, no warning, and
+eligible for the "el más barato" marker. A negative `matricula` or
+`admission_fee` does the same, quietly, in the other direction.
 
-**`computeAnnualCost` is deliberately not where that guard lives**, and it has
-three callers who might have wanted it there. That function is documented and
-tested as an exact mirror of the `annual_cost` STORED GENERATED column, which is
-the only reason it may be trusted to agree with what the database sorts on. A
-generated column cannot refuse a value its table's CHECK already rejects, so a
-guard in the TypeScript copy alone would break the lockstep `data-model.md`
-requires and make the two disagree about rows the database can hold. Validation
-belongs at the boundary where unconstrained data enters — which is
-`total-cost.ts` for the search index, and `assertPriceIsCoherent` for the admin
-form.
+**This is a reachable hazard, not an observed incident.** The nightly rebuild
+copies straight from `prices`, which does carry the CHECKs, so under that path
+the values cannot appear. What it defends against is a direct write, an
+interrupted rebuild, or a MySQL that parses CHECK constraints and ignores them
+(anything before 8.0.16). The rule this establishes is the point: **a module
+reading `program_search` re-asserts the constraints the table it is copied from
+enforces**, because "the source table has a CHECK" is not a property of the
+copy.
+
+So `priceCheckViolations()` in `db/invariants.ts` states the four rules once, as
+data. `assertPriceIsCoherent()` is built on it, so the write path and the read
+path cannot drift apart. `total-cost.ts` maps each violation onto a gap and
+refuses to compose a total; `seo/catalog-schema.ts` refuses to emit the `Offer`,
+which matters more than it looks — a rich result is the one surface that repeats
+our number stripped of every qualification on the page around it.
+
+A violation is reported as **undetermined**, like `duracion_parcial`, never as
+"sin datos": there is a number on file, and telling a reader the institution
+gave us nothing would be a false statement about them.
+
+**`computeAnnualCost` is deliberately not where any of this lives.** It is a
+line-for-line mirror of the `annual_cost` STORED GENERATED column, which is the
+only reason it can be trusted to agree with the number the comparador sorts on.
+A generated column cannot refuse a value its table's CHECK already rejects, so a
+guard in the TypeScript copy alone would break that lockstep and make the two
+disagree about rows the database can hold. (It has exactly one production
+caller, `total-cost.ts`; PR-48b's first draft of this section claimed three,
+which was wrong and is what made the `catalog-schema.ts` exposure invisible to
+it.) Validation belongs at each boundary where unconstrained data enters —
+`total-cost.ts` and `catalog-schema.ts` for the index, `assertPriceIsCoherent`
+for the write path — and those are now the same four rules, not three
+paraphrases of them.

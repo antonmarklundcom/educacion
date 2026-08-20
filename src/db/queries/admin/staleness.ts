@@ -68,7 +68,11 @@ function daysFromNow(days: number, now: Date): Date {
 }
 
 export interface StalenessCounts {
-  /** Current prices whose 12 months have already passed — warned on the site now. */
+  /**
+   * Current prices past 12 months **or never verified at all**, on published and
+   * draft offerings alike: warned wherever they are shown, and shown nowhere
+   * while the offering is a draft.
+   */
   pricesExpired: number;
   /** Current prices expiring within `PRICE_WARNING_DAYS`. */
   pricesExpiringSoon: number;

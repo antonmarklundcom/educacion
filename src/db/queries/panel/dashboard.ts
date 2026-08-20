@@ -10,7 +10,12 @@
  * - **Aranceles vencidos.** A statement of what their own pages are *currently
  *   hedging on*: a price past 12 months is shown with a visible "dato
  *   desactualizado" beside it (`data-model.md` §2, PR-33) and withheld from
- *   `Offer` JSON-LD. This is the sentence that gets a price updated.
+ *   `Offer` JSON-LD. This is the sentence that gets a price updated. It counts
+ *   never-verified rows too — those are not "old", they carry no date at all,
+ *   and they render the same warning — and it does **not** filter by
+ *   publication, so it includes drafts, which are not indexed and are shown
+ *   nowhere. The copy on `/panel` says both of those in as many words rather
+ *   than telling an institution its unpublished prices are live (PR-48b).
  *
  * The engagement counts come from `events` through the same aggregate PR-17
  * fixed with an optional `institutionId` (`architecture.md` §12), so PR-28's
