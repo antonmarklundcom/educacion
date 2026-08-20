@@ -412,7 +412,7 @@ Fixed by PR-02 so that PR-05, PR-06, PR-07, PR-08 and PR-09 do not have to reneg
 
 **PR-07** implements `searchPrograms(filters) => { results, facets, total }` and nothing else may read `program_search`. Two things the contract already decides for it:
 
-- `PriceSummary.isDisplayable` has the 12-month rule pre-applied and the amounts are `null` when it is false. Components cannot render a stale arancel because they never receive one.
+- `PriceSummary` carries `freshness` (`fresh | stale | unknown`) alongside the amounts. **PR-33 reversed the rule this line used to state**: nothing is stripped and there is no `isDisplayable` — a stale arancel is displayed with its warning and its date, and `priceDisplay()` produces both in one call so a component cannot render the number without the warning. See the staleness rule above.
 - Facet counts use cross-filtering semantics: each group counts with every _other_ active filter applied but not its own.
 
 **PR-08 / PR-09** consume `OfferingSummary` for the card view, the table view and the comparador. `FILTER_PARAMS` is the single source of truth for URL parsing and serialization, so the two views cannot drift; `MAX_COMPARE` is 4 (3 on mobile).

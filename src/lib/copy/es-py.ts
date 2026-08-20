@@ -32,6 +32,7 @@ import { filterSheetCopy } from './filter-sheet';
 import { footerCopy } from './footer';
 import { leadCopy } from './lead';
 import { navCopy } from './nav';
+import { totalCostCopy } from './total-cost';
 
 export const esPY = {
   brand: brandCopy,
@@ -39,4 +40,5 @@ export const esPY = {
   footer: footerCopy,
   browse: { ...browseCopy, filterSheet: filterSheetCopy },
   lead: leadCopy,
+  totalCost: totalCostCopy,
 } as const;

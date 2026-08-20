@@ -2086,3 +2086,78 @@ R-07 disclaimer on its own, since one string now feeds every footer.
 Migrated in PR-47: `Header`, `Footer`, `nav-links`, `LeadModal`, and the browse
 chrome (`SearchBar`, `SortControl`, `ViewToggle`, `ActiveFilters`,
 `EmptyState`, `MobileFilterSheet`).
+
+---
+
+## 31. The total-cost calculator (settled in PR-48)
+
+The question families actually ask is not "how much is the cuota" but "how much
+does this carrera cost me". Both halves were already in `prices`; nothing had
+added them up. `src/lib/prices/total-cost.ts` does, as pure arithmetic over
+verified columns — **no new data is collected and nothing is estimated.**
+
+### 31.1 The formula, and why matrícula is annual
+
+```
+total = (matrícula + cuota × cuotas_por_año) × años + derecho_de_examen
+      = annual_cost × años + admission_fee
+```
+
+Matrícula being an annual charge is not this module's invention: `data-model.md`
+defines the canonical annual figure as `matricula + monthly_fee ×
+installments_per_year`, and both the generated `annual_cost` column and
+`computeAnnualCost()` implement it. A total that treated matrícula as a one-off
+would disagree with the number the comparador already sorts on, and one of the
+two would be wrong. `total-cost.test.ts` pins the agreement.
+
+The derecho de examen is the one-off, added once.
+
+### 31.2 Every component, or no number at all
+
+A total renders only when **matrícula, cuota, cuotas por año, derecho de examen
+and duration** are all present. A missing derecho de examen is *unknown*, not
+zero — `data-model.md`: NULL means _sin datos_, 0 means _gratuita_ — so it
+produces a partial that names the gap and shows **no figure at all**.
+
+Not a lower bound and not a "desde". A floor reads as a total to anyone
+skimming, and this is the number a family budgets against. The test asserts the
+partial string contains no digit.
+
+### 31.3 A fractional year is a gap, not a rounding
+
+A 30-month carrera bills either three matrículas or two and a half, and the data
+does not say which. A duration that is not a whole number of years is reported
+as `duracion_parcial`, like any other gap. Careers in the index are
+overwhelmingly 48, 60 or 72 months, so this is the rare case — and the rare case
+is where an invented billing convention would do its damage unnoticed.
+
+### 31.4 Staleness travels, it never hides
+
+CLAUDE.md rule 3 and §23: a stale arancel still totals, and `freshness` and
+`verifiedAt` travel on the result. The programme block puts the PR-33 warning on
+the total itself, not only on the arancel above it — a stale cuota multiplied by
+five years is a stale number five times over. The comparador cell carries
+`· dato de <mes>` exactly as the arancel cell does.
+
+### 31.5 The comparador ordering
+
+`compareTotalCost` sorts cheapest first with **incomplete last**, and never
+compares across currencies — a USD total sorts after every guaraní one rather
+than being converted at a rate we would have to defend (§23, `data-model.md`).
+
+`cheapestTotalIndex` marks the winning column and returns `null` when there is
+no honest winner: fewer than two complete totals, a tie, or more than one
+currency in play. An incomplete column might well be the cheapest; we do not
+know, so nothing is marked.
+
+### 31.6 Where it renders
+
+`TotalCostBlock` in the programme page aside, under `PriceBlock` — it is the
+arancel composed, not a second source of it. And the `totalCost` row in the
+comparador, built from the same `PriceSummary` the arancel row reads so the two
+cells cannot disagree. Both are server components. No schema change, no new
+query, no new cron.
+
+Its scope is stated on the card rather than implied: the total covers matrícula,
+cuotas and the derecho de examen, and says in as many words that it excludes
+materials and travel.

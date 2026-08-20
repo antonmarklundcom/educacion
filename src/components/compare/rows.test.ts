@@ -142,6 +142,66 @@ describe('buildCompareRows', () => {
     expect(text).toMatch(/2024/);
   });
 
+  /* ---- PR-48: the total-cost row ------------------------------------- */
+
+  function priced(over: Partial<OfferingSummary['price']> = {}) {
+    return {
+      freshness: 'fresh' as const,
+      hasAmount: true,
+      isFree: false,
+      currency: 'PYG' as const,
+      matricula: 500_000,
+      monthlyFee: 400_000,
+      installmentsPerYear: 10,
+      admissionFee: 150_000,
+      annualCost: 4_500_000,
+      verifiedAt: new Date('2026-05-01T00:00:00Z'),
+      ...over,
+    };
+  }
+
+  it('shows the composed total in the comparador', () => {
+    const rows = buildCompareRows([offering(1, { price: priced(), durationMonths: 60 })]);
+    expect(row(rows, 'totalCost').cells[0]).toEqual({ text: 'Gs. 22.650.000', isGap: false });
+  });
+
+  it('dates a stale total inside the cell, like the arancel row does', () => {
+    const rows = buildCompareRows([
+      offering(1, { price: priced({ freshness: 'stale' }), durationMonths: 60 }),
+    ]);
+    expect(row(rows, 'totalCost').cells[0]!.text).toBe('Gs. 22.650.000 · dato de mayo de 2026');
+  });
+
+  it('renders an incomplete total as the honest gap, with no figure in it', () => {
+    const rows = buildCompareRows([
+      offering(1, { price: priced({ admissionFee: null }), durationMonths: 60 }),
+    ]);
+    const cell = row(rows, 'totalCost').cells[0]!;
+    expect(cell.isGap).toBe(true);
+    expect(cell.text).toBe('sin datos de derecho de examen — total incompleto');
+    expect(cell.text).not.toMatch(/\d/);
+  });
+
+  it('marks the cheapest column, and only that one', () => {
+    const rows = buildCompareRows([
+      offering(1, { price: priced(), durationMonths: 60 }),
+      offering(2, { price: priced({ monthlyFee: 100_000 }), durationMonths: 60 }),
+      offering(3, { price: priced({ admissionFee: null }), durationMonths: 60 }),
+    ]);
+    const cells = row(rows, 'totalCost').cells;
+    expect(cells.map((cell) => cell.note)).toEqual([undefined, 'el más barato', undefined]);
+  });
+
+  it('marks no cheapest column when an incomplete total would be the winner', () => {
+    // The incomplete column might well be the cheapest; we do not know, and
+    // guessing is the extrapolation PR-48 refuses to make.
+    const rows = buildCompareRows([
+      offering(1, { price: priced(), durationMonths: 60 }),
+      offering(2, { price: priced({ admissionFee: null }), durationMonths: 60 }),
+    ]);
+    expect(row(rows, 'totalCost').cells.every((cell) => cell.note === undefined)).toBe(true);
+  });
+
   it('says "Sin datos de acreditación" for an unknown status', () => {
     const rows = buildCompareRows([offering(1)]);
     const cell = row(rows, 'accreditation').cells[0]!;

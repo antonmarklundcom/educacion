@@ -1007,6 +1007,37 @@ enough to display; any gap renders the honest partial ("sin datos de matrícula 
 incompleto"), never an extrapolation; stale inputs carry the PR-33 warning on the total
 itself; comparador totals sort correctly with incomplete rows last.
 
+**Shipped as specified.** `architecture.md` §31 has the record. No schema change, no new
+query, no new cron: `total-cost.ts` is pure arithmetic over the `PriceSummary` the search
+layer already returns plus the offering's `durationMonths`.
+
+`total = annual_cost × años + derecho de examen`, and **matrícula is annual** — not this
+PR's invention but `data-model.md`'s existing definition of `annual_cost`, which the
+generated column and `computeAnnualCost()` both implement. A test pins the agreement,
+because a total that treated matrícula as a one-off would make one of the two numbers
+wrong and nothing would have said which.
+
+Three decisions the criteria implied rather than stated:
+
+- **A partial carries no figure at all** — not a lower bound, not a "desde". A floor reads
+  as a total to anyone skimming, and this is the number a family budgets against. The test
+  asserts the partial string contains no digit.
+- **A duration that is not whole years is a gap** (`duracion_parcial`), not a rounding. A
+  30-month carrera bills either three matrículas or two and a half and the data does not
+  say which; careers are overwhelmingly 48/60/72 months, so this is the rare case, which is
+  exactly where an invented convention would do its damage unnoticed.
+- **"Sort with incomplete last" landed as a cheapest-column marker**, since the comparador
+  orders columns by the URL and has no sort control. `compareTotalCost` (incomplete last,
+  USD after guaraníes, never converted) and `cheapestTotalIndex` are both pure and tested;
+  the marker is withheld — `null` — on a tie, on fewer than two complete totals, or on
+  mixed currencies. An incomplete column might well be the cheapest; we do not know.
+
+**Doc divergence fixed in passing** (rule 10, and the reviewer's standing instruction that
+prose overstating the code is a defect): `PriceSummary`'s doc comment, `prices.verified_at`'s
+schema comment and `data-model.md` §PR-07 all still described the pre-PR-33 rule — an
+`isDisplayable` flag that strips stale amounts. There is no such field and has not been one
+since PR-33. All three now say what the code does.
+
 ### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
 
 Two willingness-to-pay gaps in `/panel`. First: a lead sitting in `new` beyond 48 h is

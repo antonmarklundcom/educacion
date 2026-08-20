@@ -120,7 +120,11 @@ describe('the es-PY catalog', () => {
   const rendered = leaves(esPY);
 
   it('renders every migrated key exactly as the JSX did before PR-47', () => {
-    expect(Object.fromEntries(rendered)).toEqual(MIGRATED);
+    // Compared key by key rather than whole-object, so a later PR may add keys
+    // — but a migrated one that is deleted resolves to `undefined` and fails.
+    const actual = Object.fromEntries(rendered);
+    const pinned = Object.fromEntries(Object.keys(MIGRATED).map((key) => [key, actual[key]]));
+    expect(pinned).toEqual(MIGRATED);
   });
 
   it('carries the R-07 disclaimer verbatim — CLAUDE.md rule 9', () => {

@@ -74,7 +74,14 @@ export function CompareTable({ offerings }: { offerings: readonly OfferingSummar
                   {row.key === 'accreditation' ? (
                     <AccreditationBadge accreditation={offerings[index]!.accreditation} />
                   ) : (
-                    cell.text
+                    <>
+                      {cell.text}
+                      {cell.note && (
+                        <span className="text-ok mt-0.5 block font-sans text-xs font-medium">
+                          {cell.note}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -128,6 +135,11 @@ export function CompareTable({ offerings }: { offerings: readonly OfferingSummar
                     )}
                   >
                     {cell.text}
+                    {cell.note && (
+                      <span className="text-ok mt-0.5 block font-sans text-xs font-medium">
+                        {cell.note}
+                      </span>
+                    )}
                   </dd>
                 </div>
               ))}

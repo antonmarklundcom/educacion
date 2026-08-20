@@ -30,9 +30,12 @@ const SRC = resolve(__dirname, '../..');
  * every other (CLAUDE.md rule 9). Six short strings is the honest cost of that
  * requirement — the empty-state paragraphs in `browse.ts` are not.
  */
-const SERVER_ONLY = ['lib/copy/index.ts', 'lib/copy/es-py.ts', 'lib/copy/browse.ts'].map((p) =>
-  join(SRC, p),
-);
+const SERVER_ONLY = [
+  'lib/copy/index.ts',
+  'lib/copy/es-py.ts',
+  'lib/copy/browse.ts',
+  'lib/copy/total-cost.ts',
+].map((p) => join(SRC, p));
 
 function walkFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
