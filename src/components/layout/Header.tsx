@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui';
+import { brandCopy } from '@/lib/copy/brand';
+import { navCopy } from '@/lib/copy/nav';
 import { navLinks } from './nav-links';
 
 /** Client component: the mobile menu needs open/closed state. Nav links and the rest of the shell stay static. */
@@ -13,10 +15,11 @@ export function Header() {
     <header className="border-border bg-surface sticky top-0 z-40 border-b">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <Link href="/" className="text-ink text-lg font-bold" onClick={() => setOpen(false)}>
-          educacion<span className="text-accent">.com.py</span>
+          {brandCopy.name}
+          <span className="text-accent">{brandCopy.tld}</span>
         </Link>
 
-        <nav aria-label="Principal" className="hidden items-center gap-6 md:flex">
+        <nav aria-label={navCopy.primaryLabel} className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -30,7 +33,7 @@ export function Header() {
 
         <div className="hidden md:block">
           <Button variant="primary" href="/carreras" className="min-h-10 px-4">
-            Buscar carreras
+            {navCopy.searchCta}
           </Button>
         </div>
 
@@ -38,7 +41,7 @@ export function Header() {
           type="button"
           aria-expanded={open}
           aria-controls="mobile-nav"
-          aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+          aria-label={open ? navCopy.closeMenu : navCopy.openMenu}
           onClick={() => setOpen((value) => !value)}
           className="text-ink focus-visible:ring-ink inline-flex size-11 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none md:hidden"
         >
@@ -65,7 +68,7 @@ export function Header() {
       {open && (
         <nav
           id="mobile-nav"
-          aria-label="Principal, móvil"
+          aria-label={navCopy.mobileLabel}
           className="border-border flex flex-col gap-1 border-t px-4 py-3 md:hidden"
         >
           {navLinks.map((link) => (
@@ -84,7 +87,7 @@ export function Header() {
             onClick={() => setOpen(false)}
             className="mt-2"
           >
-            Buscar carreras
+            {navCopy.searchCta}
           </Button>
         </nav>
       )}

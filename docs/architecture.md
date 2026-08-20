@@ -1980,3 +1980,109 @@ Measured here instead — the numbers that do not need an account:
 Budget 150 kB (§9). The first two rows are reproducible with `npm run build &&
 npm run perf:budget`; the third needs a DSN and an auth token and is recorded
 from a local build with dummy values, so nothing in CI pins it.
+
+---
+
+## 30. The copy catalog (settled in PR-47)
+
+Not a language toggle. The seam that keeps one possible, built while there is
+still one locale — because the expensive version of this work is doing it
+during a translation, against a codebase where nobody knows which strings are
+copy and which are keys.
+
+`src/lib/copy/*.ts` holds the messages, one file per surface, composed by
+`es-py.ts`; `src/lib/copy/index.ts` exposes `copy`, the `Messages` shape and the
+`messages` record. **CLAUDE.md rule 12:
+new UI copy goes through the catalog, never inline in JSX.**
+
+### 30.1 Property access, not a lookup function
+
+`copy.nav.searchCta`, not `t('nav.searchCta')`. The difference is the whole
+typing claim: a string-keyed lookup needs a fallback for the miss, and a
+fallback is how `nav.searchCta` ends up rendered on a page. With property
+access **a missing key is a type error**, there is no fallback branch, and
+there is nothing to test at runtime because the failure cannot reach runtime.
+
+Values are strings, or small functions where the sentence interpolates
+(`copy.lead.sentBody(institutionName)`). A function is still a typed key — its
+arity and argument types are checked at the call site.
+
+### 30.2 The catalog is sliced, because a barrel would ship the whole thing
+
+The first version of this PR was one module and `perf:budget` rejected it:
+**+2.2 kB gzipped on every public route**, empty-state paragraphs included.
+`Footer` imported the composed barrel and `src/app/error.tsx` — a client
+boundary — imports `Footer`, so Turbopack pulled the entire catalog into the
+shared browser chunk. Nothing in the diff looked like a client component.
+
+So the catalog is one file per surface — `brand.ts`, `nav.ts`, `footer.ts`,
+`browse.ts`, `filter-sheet.ts`, `lead.ts` — and `es-py.ts` composes them.
+The rule that follows is about the **import graph, not the `'use client'`
+directive**:
+
+- Anything a client boundary can reach imports its slice: `@/lib/copy/lead`,
+  `@/lib/copy/nav`.
+- Everything else reads `copy` from `@/lib/copy`.
+
+`client-bundle.test.ts` walks the transitive closure of every `'use client'`
+file and fails if `index.ts`, `es-py.ts` or `browse.ts` is reachable. It is
+the guard, not the convention: delete the check and the leak comes back
+silently, which is exactly how it arrived the first time.
+
+`footer.ts` is deliberately allowed through — the error page renders the footer,
+and rule 9's disclaimer is required there like everywhere else.
+
+Measured, reproducible with `npm run build && npm run perf:budget`:
+
+| Build | `/carreras` First Load JS (gz) | every other public route |
+| --- | --- | --- |
+| Before PR-47 | 129.9 kB | 129.2 kB |
+| *Rejected:* one-module catalog | 132.2 kB | 131.5 kB |
+| PR-47 as shipped | **130.5 kB** | **129.8 kB** |
+
+Budget 150 kB (§9). The remaining +0.6 kB is module overhead for the five
+slices; the copy itself was already in those bundles as inline JSX.
+
+### 30.2.1 No i18n library, deliberately
+
+§1's excluded list applies: a message-format library, a loader and a runtime
+catalog lookup are three moving parts bought for a site with one locale. The
+seam costs a dependency the day a second locale exists and not before.
+
+### 30.3 How a second locale lands
+
+`student-engagement.md` §4 says it would be guaraní, on a handful of pages,
+with a translator. When that decision is made:
+
+1. `export const gn: Messages = { … }` — TypeScript refuses the file until
+   every key is present.
+2. Add it to `messages` and widen `Locale`.
+3. Replace `copy` at its call sites with a value the layout resolves per
+   request. Every consumer already reads through one binding, so this is a
+   mechanical change rather than a hunt through JSX.
+
+### 30.4 What is not in the catalog, and why
+
+- **The `copy.ts` generators under `src/lib`** (career and city intros, §20).
+  They are data-provenance sentences whose logic *is* Spanish grammar —
+  agreement, elision, pluralisation over a row's actual fields. Fragmenting
+  them into catalog keys makes them less translatable, not more. They move when
+  a real second locale forces the question, which is also when somebody can
+  answer it.
+- **Labels keyed by an enum the server also owns** — `LEAD_ERROR_MESSAGES` and
+  `MINOR_NOTICE` in `@/lib/leads/contract`, `SORT_LABELS` in `@/lib/search`.
+  They stay next to the union they are keyed by, where a new variant is a type
+  error in the same file. Splitting the label from its key is how the two
+  drift.
+
+### 30.5 The migration guard
+
+`copy.test.ts` pins every migrated key to the exact string that was inline in
+the JSX before this PR, so "extracted the copy" cannot quietly become "rewrote
+the copy while extracting it". It also scans every leaf — functions included,
+called with markers — for the tuteo forms CLAUDE.md rule 8 bans, and pins the
+R-07 disclaimer on its own, since one string now feeds every footer.
+
+Migrated in PR-47: `Header`, `Footer`, `nav-links`, `LeadModal`, and the browse
+chrome (`SearchBar`, `SortControl`, `ViewToggle`, `ActiveFilters`,
+`EmptyState`, `MobileFilterSheet`).

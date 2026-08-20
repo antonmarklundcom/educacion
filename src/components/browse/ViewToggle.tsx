@@ -7,6 +7,7 @@
  */
 
 import { cn } from '@/lib/cn';
+import { copy } from '@/lib/copy';
 import {
   DEFAULT_VIEW,
   VIEW_MODES,
@@ -15,11 +16,6 @@ import {
   type SearchFilters,
   type ViewMode,
 } from '@/lib/search';
-
-const LABELS: Record<ViewMode, string> = {
-  tarjetas: 'Tarjetas',
-  tabla: 'Tabla',
-};
 
 export interface ViewToggleProps {
   view: ViewMode;
@@ -33,7 +29,7 @@ export function ViewToggle({ view, filters, basePath, extra }: ViewToggleProps) 
   return (
     <div
       role="group"
-      aria-label="Cambiar vista"
+      aria-label={copy.browse.viewGroupLabel}
       className="border-border-strong bg-surface inline-flex rounded-md border p-0.5"
     >
       {VIEW_MODES.map((mode) => (
@@ -49,7 +45,7 @@ export function ViewToggle({ view, filters, basePath, extra }: ViewToggleProps) 
             mode === view ? 'bg-ink text-white' : 'text-body hover:bg-card-alt',
           )}
         >
-          {LABELS[mode]}
+          {copy.browse.views[mode]}
         </a>
       ))}
     </div>

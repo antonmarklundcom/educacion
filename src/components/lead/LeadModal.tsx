@@ -46,6 +46,7 @@ import {
   type LeadResponse,
 } from '@/lib/leads/contract';
 import { parseParaguayanPhone } from '@/lib/leads/phone';
+import { leadCopy } from '@/lib/copy/lead';
 
 export interface LeadModalProps {
   offeringId: number;
@@ -71,7 +72,7 @@ export function LeadModal({
   institutionName,
   variant = 'primary',
   className,
-  label = 'Solicitar info',
+  label = leadCopy.trigger,
 }: LeadModalProps) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
@@ -172,7 +173,7 @@ export function LeadModal({
               above (PR-34). */}
           <button
             type="button"
-            aria-label="Cerrar"
+            aria-label={leadCopy.close}
             tabIndex={-1}
             className="absolute inset-0 h-full w-full cursor-default"
             onClick={() => setOpen(false)}
@@ -185,13 +186,13 @@ export function LeadModal({
           >
             <div className="flex items-start justify-between gap-4">
               <h2 id={titleId} className="text-ink text-lg font-semibold">
-                {status === 'sent' ? 'Solicitud enviada' : 'Solicitar información'}
+                {status === 'sent' ? leadCopy.sentHeading : leadCopy.heading}
               </h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 className="text-muted hover:text-ink focus-visible:ring-ink rounded-sm p-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
-                aria-label="Cerrar"
+                aria-label={leadCopy.close}
               >
                 ✕
               </button>
@@ -199,25 +200,22 @@ export function LeadModal({
 
             {status === 'sent' ? (
               <div className="mt-4">
-                <p className="text-body text-sm">
-                  Enviamos tus datos a {institutionName}. Ellos te van a contactar por el número que
-                  dejaste. No los compartimos con nadie más.
-                </p>
+                <p className="text-body text-sm">{leadCopy.sentBody(institutionName)}</p>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className={`${BUTTON_BASE} border-border-strong bg-surface text-ink hover:bg-card-alt mt-5 border`}
                 >
-                  Cerrar
+                  {leadCopy.close}
                 </button>
               </div>
             ) : (
               <form id={formId} onSubmit={onSubmit} className="mt-4 flex flex-col gap-4" noValidate>
                 <p className="text-muted text-sm">
-                  {programName} — {institutionName}
+                  {leadCopy.subtitle(programName, institutionName)}
                 </p>
 
-                <Field label="Nombre y apellido" htmlFor={`${formId}-name`} required>
+                <Field label={leadCopy.fields.name} htmlFor={`${formId}-name`} required>
                   <input
                     ref={firstFieldRef}
                     id={`${formId}-name`}
@@ -231,10 +229,10 @@ export function LeadModal({
                 </Field>
 
                 <Field
-                  label="Teléfono (WhatsApp)"
+                  label={leadCopy.fields.phone}
                   htmlFor={`${formId}-phone`}
                   required
-                  hint="Ejemplo: 0981 123 456"
+                  hint={leadCopy.fields.phoneHint}
                   invalid={phoneError}
                 >
                   <input
@@ -248,7 +246,7 @@ export function LeadModal({
                   />
                 </Field>
 
-                <Field label="Email (opcional)" htmlFor={`${formId}-email`}>
+                <Field label={leadCopy.fields.email} htmlFor={`${formId}-email`}>
                   <input
                     id={`${formId}-email`}
                     name="email"
@@ -259,7 +257,7 @@ export function LeadModal({
                   />
                 </Field>
 
-                <Field label="Mensaje (opcional)" htmlFor={`${formId}-message`}>
+                <Field label={leadCopy.fields.message} htmlFor={`${formId}-message`}>
                   <textarea
                     id={`${formId}-message`}
                     name="message"
@@ -269,7 +267,7 @@ export function LeadModal({
                   />
                 </Field>
 
-                <Field label="Edad" htmlFor={`${formId}-age`}>
+                <Field label={leadCopy.fields.age} htmlFor={`${formId}-age`}>
                   <select
                     id={`${formId}-age`}
                     name="ageBracket"
@@ -287,7 +285,7 @@ export function LeadModal({
 
                 {/* Honeypot. Hidden from people, not from form-filling bots. */}
                 <div aria-hidden className="absolute h-px w-px overflow-hidden opacity-0">
-                  <label htmlFor={`${formId}-${HONEYPOT_FIELD}`}>Empresa</label>
+                  <label htmlFor={`${formId}-${HONEYPOT_FIELD}`}>{leadCopy.fields.honeypot}</label>
                   <input
                     id={`${formId}-${HONEYPOT_FIELD}`}
                     name={HONEYPOT_FIELD}
@@ -324,16 +322,15 @@ export function LeadModal({
                   disabled={status === 'sending'}
                   className={`${BUTTON_BASE} bg-accent hover:bg-accent-hover text-white disabled:pointer-events-none disabled:opacity-50`}
                 >
-                  {status === 'sending' ? 'Enviando…' : 'Enviar solicitud'}
+                  {status === 'sending' ? leadCopy.submitting : leadCopy.submit}
                 </button>
 
                 <p className="text-faint text-xs">
-                  Tus datos se envían únicamente a {institutionName}. Podés pedir que los borremos
-                  escribiéndonos — ver{' '}
+                  {leadCopy.privacyNoteBefore(institutionName)}
                   <a href="/legal/privacidad" className="underline underline-offset-2">
-                    política de privacidad
+                    {leadCopy.privacyNoteLink}
                   </a>
-                  .
+                  {leadCopy.privacyNoteAfter}
                 </p>
               </form>
             )}

@@ -34,6 +34,7 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
     never add an `on: push` trigger, a second job, or a matrix, and never remove
     `concurrency.cancel-in-progress`, `timeout-minutes` or `paths-ignore` from
     `.github/workflows/ci.yml`. Any new workflow file needs the owner's explicit yes.
+12. **New UI copy goes through the catalog in `src/lib/copy`, never inline in JSX.**
 
 ## Commands
 

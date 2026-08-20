@@ -6,6 +6,7 @@
  * the accent is allowed (design-system.md §2).
  */
 
+import { copy } from '@/lib/copy';
 import { FILTER_PARAMS, type SearchFilters } from '@/lib/search';
 
 import type { ExtraParams } from './FilterRail';
@@ -22,7 +23,7 @@ export function SearchBar({
   filters,
   basePath,
   extra,
-  label = 'Encontrá tu carrera',
+  label = copy.browse.searchLabel,
 }: SearchBarProps) {
   return (
     <form method="get" action={basePath} className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -43,7 +44,7 @@ export function SearchBar({
             name={FILTER_PARAMS.q}
             type="search"
             defaultValue={filters.q ?? ''}
-            placeholder="Ej. Medicina en Asunción"
+            placeholder={copy.browse.searchPlaceholder}
             maxLength={120}
             className="text-ink placeholder:text-faint min-h-11 w-full bg-transparent text-sm font-normal focus-visible:outline-none"
           />
@@ -53,7 +54,7 @@ export function SearchBar({
         type="submit"
         className="bg-accent hover:bg-accent-hover focus-visible:ring-ink min-h-12 w-full rounded-md px-6 text-sm font-medium text-white transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:w-auto"
       >
-        Buscar carreras
+        {copy.browse.searchSubmit}
       </button>
     </form>
   );
