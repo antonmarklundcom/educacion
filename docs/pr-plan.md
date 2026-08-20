@@ -963,6 +963,39 @@ migrated components render byte-identical Spanish; the CLAUDE.md rule is one sen
 present; no i18n library added yet — the seam must not cost a dependency before a second
 locale exists.
 
+**Shipped as specified.** `architecture.md` §30 has the record. The catalog is a plain
+object and lookup is property access (`copy.nav.searchCta`), which is what makes the
+typing claim true rather than aspirational: there is no `t('key')` string lookup, so
+there is no miss to fall back from and no way for a key to render as its own name. No
+dependency added. Migrated: `Header`, `Footer`, `nav-links`, `LeadModal` and the browse
+chrome — `SearchBar`, `SortControl`, `ViewToggle`, `ActiveFilters`, `EmptyState`,
+`MobileFilterSheet`.
+
+Byte-identical is a test, not a claim: `copy.test.ts` pins all 62 migrated keys to the
+literal Spanish that was inline before, so editing a character while extracting it goes
+red. The same test scans every leaf — functions included, called with markers — for the
+tuteo forms rule 8 bans, and pins the R-07 disclaimer separately now that one string
+feeds every footer. CLAUDE.md gains rule 12, one sentence.
+
+Two boundaries drawn rather than discovered later (§30.4): the `copy.ts` generators stay
+out, as the entry specified; and labels keyed by an enum the server also owns
+(`LEAD_ERROR_MESSAGES`, `SORT_LABELS`) stay beside that enum, where a new variant is a
+type error in the same file.
+
+**What the perf gate caught, and the deviation it forced.** The catalog started as one
+module and `perf:budget` rejected it at **+2.2 kB gzipped on every public route** — the
+whole catalog, empty-state paragraphs included, in the shared browser chunk. The cause was
+invisible in the diff: `Footer` imported the composed barrel, and `src/app/error.tsx` is a
+client boundary that imports `Footer`. So the catalog ships as **one file per surface**
+with `es-py.ts` composing them, and the rule is about the import graph rather than the
+`'use client'` directive — anything a client boundary can reach imports its slice,
+everything else reads `copy`. `client-bundle.test.ts` walks the transitive closure of every
+client entry and fails if the barrel, `es-py.ts` or the server-only `browse.ts` is
+reachable; `footer.ts` is allowed through, because the error page renders the footer and
+rule 9's disclaimer is required there too. Shipped cost: **130.5 kB** on `/carreras` and
+129.8 kB elsewhere against 129.9/129.2 before, all of it module overhead — the copy itself
+was already in those bundles as inline JSX. Budget 150 kB.
+
 ### PR-48 — Total-cost calculator · **Sonnet**
 
 On programme pages and the comparador: matrícula + cuotas + derecho de examen composed over

@@ -4,6 +4,7 @@
  * only place a user can see *why* they are looking at 12 results.
  */
 
+import { copy } from '@/lib/copy';
 import { formatGs } from '@/lib/format';
 import {
   ARRAY_FILTER_KEYS,
@@ -41,17 +42,19 @@ export function ActiveFilters({ filters, basePath, extra }: ActiveFiltersProps) 
   if (filters.isFree != null) {
     chips.push({
       key: 'isFree',
-      label: filters.isFree ? 'Solo gratuitas' : 'Solo con arancel',
+      label: filters.isFree ? copy.browse.freeOnly : copy.browse.paidOnly,
       href: href({ ...filters, isFree: undefined, page: undefined }),
     });
   }
 
   if (filters.annualCostMin != null || filters.annualCostMax != null) {
-    const from = filters.annualCostMin != null ? formatGs(filters.annualCostMin) : 'Gs. 0';
-    const to = filters.annualCostMax != null ? formatGs(filters.annualCostMax) : 'sin límite';
+    const from =
+      filters.annualCostMin != null ? formatGs(filters.annualCostMin) : copy.browse.zeroAmount;
+    const to =
+      filters.annualCostMax != null ? formatGs(filters.annualCostMax) : copy.browse.noUpperBound;
     chips.push({
       key: 'annualCost',
-      label: `Arancel anual ${from} – ${to}`,
+      label: copy.browse.annualCostChip(from, to),
       href: href({
         ...filters,
         annualCostMin: undefined,
@@ -71,14 +74,14 @@ export function ActiveFilters({ filters, basePath, extra }: ActiveFiltersProps) 
         >
           {chip.label}
           <span aria-hidden>✕</span>
-          <span className="sr-only">Quitar filtro</span>
+          <span className="sr-only">{copy.browse.removeFilter}</span>
         </a>
       ))}
       <a
         href={href(clearFilters(filters))}
         className="text-body hover:text-ink focus-visible:ring-ink rounded-sm text-sm font-medium underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
-        Limpiar filtros
+        {copy.browse.clearFilters}
       </a>
     </div>
   );

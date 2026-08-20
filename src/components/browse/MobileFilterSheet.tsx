@@ -15,6 +15,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { filterSheetCopy } from '@/lib/copy/filter-sheet';
+
 export interface MobileFilterSheetProps {
   activeCount: number;
   children: React.ReactNode;
@@ -55,14 +57,14 @@ export function MobileFilterSheet({ activeCount, children }: MobileFilterSheetPr
         <svg aria-hidden viewBox="0 0 24 24" className="size-4 fill-none stroke-current stroke-2">
           <path d="M3 5h18M6 12h12M10 19h4" strokeLinecap="round" />
         </svg>
-        Filtrar{activeCount > 0 ? ` (${activeCount})` : ''}
+        {activeCount > 0 ? filterSheetCopy.triggerWithCount(activeCount) : filterSheetCopy.trigger}
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <button
             type="button"
-            aria-label="Cerrar filtros"
+            aria-label={filterSheetCopy.closeBackdrop}
             onClick={() => setOpen(false)}
             className="bg-ink/40 absolute inset-0"
           />
@@ -70,11 +72,11 @@ export function MobileFilterSheet({ activeCount, children }: MobileFilterSheetPr
             id={panelId}
             role="dialog"
             aria-modal="true"
-            aria-label="Filtrar carreras"
+            aria-label={filterSheetCopy.dialogLabel}
             className="bg-surface relative max-h-[85vh] overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
           >
             <div className="border-border bg-surface sticky top-0 flex items-center justify-between border-b px-5 py-4">
-              <h2 className="text-ink text-base font-semibold">Filtrar</h2>
+              <h2 className="text-ink text-base font-semibold">{filterSheetCopy.heading}</h2>
               <button
                 ref={closeRef}
                 type="button"
@@ -82,7 +84,7 @@ export function MobileFilterSheet({ activeCount, children }: MobileFilterSheetPr
                 className="text-body hover:bg-card-alt focus-visible:ring-ink inline-flex min-h-10 min-w-10 items-center justify-center rounded-md text-sm font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               >
                 <span aria-hidden>✕</span>
-                <span className="sr-only">Cerrar</span>
+                <span className="sr-only">{filterSheetCopy.close}</span>
               </button>
             </div>
             <div className="px-5 py-5">{children}</div>

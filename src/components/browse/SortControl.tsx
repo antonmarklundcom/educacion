@@ -8,6 +8,7 @@
  * state. Selected state is ink, never the accent (design-system.md §2).
  */
 
+import { copy } from '@/lib/copy';
 import { SORT_LABELS, SORT_KEYS, searchHref, type SearchFilters, type SortKey } from '@/lib/search';
 
 import type { ExtraParams } from './FilterRail';
@@ -23,7 +24,7 @@ export function SortControl({ filters, sort, basePath, extra }: SortControlProps
   return (
     <details className="relative">
       <summary className="border-border-strong bg-surface text-ink focus-visible:ring-ink inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none">
-        <span className="text-muted">Ordenar:</span>
+        <span className="text-muted">{copy.browse.sortPrefix}</span>
         <span className="font-medium">{SORT_LABELS[sort]}</span>
         <svg aria-hidden viewBox="0 0 20 20" className="stroke-muted size-4 fill-none stroke-[1.5]">
           <path d="M5.5 7.5l4.5 4.5 4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
