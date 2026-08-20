@@ -201,4 +201,44 @@ data in it.
 [ ] The R-07 disclaimer is visible in the footer on every page
 [ ] Cron jobs registered and firing (check import_runs / activity_log)
 [ ] Slot recorded: account + remaining count
+[ ] Sentry: the §8.1 steps below (they cannot be done from a build machine)
 ```
+
+## 8.1 Sentry, once (PR-45)
+
+Everything about Sentry is optional and unset is a working state — with no
+`SENTRY_DSN` the SDK is never loaded and errors go to the console, which is what
+CI and local dev do (`architecture.md` §29.2). These are the steps to turn it on,
+and the two that **cannot** be done from a build machine and are therefore not
+verified by anything in the repo.
+
+1. **Project.** One shared free-tier organization covers this site and the
+   operator's others as separate projects. Create `educacion`, platform
+   *Next.js*.
+2. **Env vars, in hPanel — both places** (§5's two-copies gotcha applies):
+   `SENTRY_DSN` (Settings → Projects → educacion → Client Keys),
+   `SENTRY_ENVIRONMENT=production`, and for sourcemaps `SENTRY_AUTH_TOKEN`
+   (Settings → Auth Tokens, scope `project:releases`), `SENTRY_ORG`,
+   `SENTRY_PROJECT`. Then **redeploy** — env changes need one.
+3. **Set the per-key rate limit** — Settings → Projects → educacion → Client
+   Keys → *Rate Limit*. Suggested **500 events/hour**. This is the half of the
+   crash-loop protection the app cannot do: both in-process bounds (§29.4)
+   reset when Hostinger recycles the process, and a restart loop is exactly the
+   shape of outage that would.
+4. **Confirm the sourcemaps arrived** after the first production deploy —
+   Settings → Projects → educacion → Source Maps should list a release with
+   artifacts. A build with a wrong `SENTRY_AUTH_TOKEN` now **fails** rather than
+   deploying green with no maps, but a token with the wrong *scope* can still
+   upload nothing, and unsymbolicated stacks are the failure this whole section
+   exists to prevent.
+5. **Smoke-test the three capture paths.** This is PR-45's remaining acceptance
+   criterion and needs a live DSN:
+   - a **server component** — visit a data page with the database credentials
+     temporarily wrong; the error boundary should render and an event appear;
+   - a **Server Action** — submit the lead form with the same;
+   - a **client component** — an error inside a boundary posts to
+     `/api/client-error`; the event carries `origin: client` and the browser's
+     stack.
+   Check each event for a readable stack, and check that **none** carries a
+   cookie, a header, a form body or a query string (§29.3).
+

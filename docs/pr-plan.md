@@ -1,6 +1,6 @@
 # Pull Request Plan
 
-**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–44 are merged; the rest of Phases 6–7
+**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–45 are merged; the rest of Phases 6–7
 below are planned and not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
 left as-is rather than backfilled, so branch names in git history stay truthful.
 
@@ -751,6 +751,86 @@ each arrive in Sentry with a readable stack; events carry **no PII** — no lead
 emails, no session cookie contents (`beforeSend` scrubber, unit-tested); per-project rate
 limit configured so a crash loop cannot eat the shared quota; bundle budget (`perf:budget`)
 still passes on public routes.
+
+**Shipped as:** the server half as specified. The client half **without
+`@sentry/browser`**, which is the one deliberate deviation and the reason this
+entry is long. `architecture.md` §29 has the whole record.
+
+**Why no browser SDK.** Measured here, `import('@sentry/browser')` produces a
+**144.5 kB gzipped** chunk — Replay, Feedback and BrowserTracing included,
+because Turbopack does not tree-shake the package's index despite its
+`sideEffects: false`. The public page budget is 150 kB *in total* (§9). An error
+reporter larger than the application it reports on is not a trade this site
+makes, and the person who would pay for it is the student on 4G in October that
+§9 was written for. So the error boundaries post a **fixed five-string report to
+`POST /api/client-error`**, and the server hands it to the Node SDK. Client
+capture still works; the cost, stated in §29.1 rather than implied, is no
+`window.onerror`, no unhandled-rejection capture and no breadcrumb trail. What
+it buys besides the kilobytes is that the payload is an allowlist rather than
+whatever the SDK collected — there is no field through which a lead's form data
+could reach Sentry from a browser.
+
+Measured, all three reproducible with `npm run build && npm run perf:budget`:
+129.3 kB before, **129.9 kB** with no Sentry env (CI, local), 132.4 kB with a
+DSN and an auth token. Budget 150 kB.
+
+**Absent DSN = fully inert, in four places:** `serverDsn()` rejects a blank
+value, the config skips `init`, `capture.ts` does not `import` the SDK at all,
+and `next.config.ts` applies the build plugin only when a DSN *and* an auth
+token are both present — so CI's `next build` runs no plugin and attempts no
+upload.
+
+**Not verified from here, and not asserted:** "an error in a server component, a
+Server Action and a client component each arrive in Sentry with a readable
+stack" needs a real DSN and project. The smoke test is `deployment.md` §8.1
+step 5, next to the per-key rate limit the operator must set — which is also the
+only half of the crash-loop protection that survives a process restart.
+
+**Independent review** (`agent-workflow.md` §5, a session that wrote none of it)
+found **three blockers** and six lesser items, all fixed here.
+
+(a) **The new endpoint was an open tap on the shared Sentry quota.** The only
+bound was "rate limited per hashed IP", and `hashClientIp` reads
+`x-forwarded-for` — which the caller writes. `beforeSend`'s per-fingerprint
+throttle was no backstop either: the fingerprint is derived from the `name` and
+`stack` *in the report*. The reviewer demonstrated 300/300 forwards with a
+rotating header and a per-request fingerprint. Now: a same-origin check, a
+`content-length` gate, a byte cap (`Buffer.byteLength`, not `String.length` —
+8 000 emoji is 32 kB), and, the bound that actually holds, a **process-wide
+budget of 20 forwards a minute keyed on a constant**.
+
+(b) **Anyone could forge a server incident.** `name` and `stack` were copied
+verbatim onto a real `Error`, so a POST of
+`{name:'DatabaseError', message:'ECONNREFUSED 127.0.0.1:3306'}` produced a
+convincing "the database is down on /carreras" in the dashboard. The type is now
+prefixed `ClientReported:` and every such event is tagged `unverified: true`.
+
+(c) **The bridge to Sentry had no test at all** — wrapping its
+`captureException` in `if (false)`, so that PR-45 reported nothing ever, left
+the whole suite green. `capture.test.ts` now covers all of it.
+
+(d) **`scrub.ts` called itself an allowlist and was a five-key denylist.** Its
+own inline comment conceded it. That let `server_name` (`os.hostname()`, and
+*not* covered by `sendDefaultPii: false`), `modules`, `threads` and
+`attachments` through — and, worse, never looked at
+`exception.values[].value`, which is where PII on this site most plausibly
+appears: a mysql2 duplicate-key error is
+`Duplicate entry 'ana@example.com' for key 'leads.email'`. It is now a real
+top-level allowlist (keeping `debug_meta`, without which stacks are not
+readable), plus a named pattern-denylist that redacts addresses and phone
+numbers *inside* the message and keeps the sentence.
+
+(e) **A bad `SENTRY_AUTH_TOKEN` produced a green, silent deploy with no
+sourcemaps anywhere** — the plugin's failure handler is non-throwing by default,
+`silent: true` suppressed the error line, and the local `.map` files were
+deleted regardless. An `errorHandler` that throws makes it a failed build.
+
+Also fixed: the 8 kB cap that only avoided the *parse*, not the *read*;
+attacker-controlled strings reaching a console line unescaped (log-line forgery
+on the no-DSN path, which is the default locally and in CI); a module-level
+`NextResponse` singleton returned from every request; a throttle-eviction test
+whose fixture was satisfied without the code it was testing; and four doc
+sentences that claimed more than the code did.
 
 ### PR-46 — Review remediation: PR-23 / PR-27 / PR-29 · **Opus**
 

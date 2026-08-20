@@ -26,6 +26,7 @@
     "perf:lighthouse": "lhci autorun"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.70.0",
     "drizzle-orm": "^0.45.2",
     "iron-session": "^8.0.4",
     "mysql2": "^3.23.2",
