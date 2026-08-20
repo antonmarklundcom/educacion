@@ -1,6 +1,6 @@
 # Pull Request Plan
 
-**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–45 are merged; the rest of Phases 6–7
+**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–46 are merged; the rest of Phases 6–7
 below are planned and not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
 left as-is rather than backfilled, so branch names in git history stay truthful.
 
@@ -195,9 +195,38 @@ live "leads waiting right now" snapshot rather than "since last sent", because
 there is no persisted digest clock and this PR was told to ask before adding
 one (`architecture.md` §10.1). `lead_intent` counts are the existing
 `whatsapp_click` event aggregate (`architecture.md` §12), surfaced on
-`/panel/leads` rather than duplicated. **Flagged for the Opus review this PR is
-marked for:** nobody has reviewed this beyond CI passing — the PR was merged
-without a second reviewer, same caveat PR-27/29 will carry.
+`/panel/leads` rather than duplicated.
+
+**Reviewed 2026-08-20 (PR-46)**, by a session that wrote none of it, against
+`agent-workflow.md` §5. All four acceptance criteria hold. Scoping was checked
+by enumerating every surface that can reach a lead row — the list, the detail
+page, the status action, the CSV export and the two crons — and confirming each
+resolves the institution from the session rather than from the request;
+`listLeadsForInstitution` has no unscoped overload, so an unscoped inbox query
+cannot be written. The free-plan redaction was checked on all eight surfaces
+that could show a lead, including the digest mail and the analytics screens, and
+is decided from a **live** `getEntitlements` read, so a lapsed plan redacts on
+the next request with no cron involved. No fabricated data anywhere in the path.
+No cross-institution read was constructible.
+
+**What the review changed.** Two guards were correct and untested — deleting the
+redaction entirely, or downgrading `getPanelLead`'s ownership check so
+`/panel/leads/<A's id>` rendered A's lead to B, each left 1084/1084 green;
+`leads.access.test.ts` now pins both. `retryLeadDelivery` marked its whole batch
+in one `UPDATE` after the loop, so a single failed write re-sent every one of up
+to 200 students' contact details on the next tick, and the next; each lead is
+now marked the moment its mail is accepted. `MAX_KEYS` in the in-process rate
+limiter bounded nothing under a rotating-`x-forwarded-for` flood — the one case
+it exists for — because only stale keys were evictable; it now evicts live ones
+too. And the lead route logged raw mysql2 errors, which quote the student's own
+row (`Duplicate entry 'ana@example.com' …`), now redacted.
+
+**Filed, not fixed:** permanently undeliverable leads (an institution with no
+email on file) sit at the head of the retry queue forever and can starve it.
+Fixing it properly needs a `delivery_attempts` column, so it is a schema change
+and its own PR rather than a widening of this one. Overlapping cron invocations
+can still double-send; §10.1 now states that trade instead of claiming
+idempotency by construction.
 
 ### PR-24 — Dispute & right-of-reply · **Sonnet**
 
@@ -245,13 +274,21 @@ Two things the page states that are worth having in writing: the free tier still
 **Accept:** paid placement is always visibly labelled; default sort remains relevance-based with `plan_rank` as a tiebreaker only — never overriding a filter the user set; disclosure line present on results pages.
 **Shipped as:** the badge, the label and the disclosure, plus **one feature removed from the plan rather than faked**. `architecture.md` §17.1 has the detail.
 
-`plan_rank` orders; `getPlacementFlags(ids)` labels — live, one query per results page. A label is a claim about a commercial relationship at the moment the page renders, and `program_search.plan_rank` is a nightly-refreshed copy; nothing in the label path reads it, which `placement.test.ts` pins with a cancelled subscription that still carries rank 2. The ordering half needed no work: PR-07 built `plan_rank` as a trailing tiebreaker and `engine.test.ts` already asserts that a Destacado row never jumps ahead of a cheaper one and never enters a filtered set it does not belong in.
+`plan_rank` orders; `getPlacementFlags(ids)` labels — live, one query per results page. A label is a claim about a commercial relationship at the moment the page renders, and `program_search.plan_rank` is a nightly-refreshed copy; nothing in the label path reads it. (PR-46 verified that claim across every consumer and it holds — but `placement.test.ts`, cited here as the pin, varies `plans.rank` rather than the index column, so it was never the guard this sentence said it was.) The ordering half needed no work: PR-07 built `plan_rank` as a trailing tiebreaker and `engine.test.ts` asserts that a Destacado row never jumps ahead of a cheaper one and never enters a filtered set it does not belong in — **though PR-46 found both of those tests vacuous and rewrote them, and found the boost itself going to a plan that had not bought it.**
 
 **`enhanced_profile` is gone from the feature matrix.** PR-25 declared it for "logo, fotos, video y descripción larga"; there is no media schema, no upload path and no panel screen for any of that, and the logo and description are already shown for every institution — so the only ways to "gate" it were to hide public information from students or to tell an institution we would not display what it wrote. An empty row on a price table is a promise we cannot keep, so the key was removed and comes back with the migration that creates institution media (`monetization.md` §7, correction 0).
 
 **Area-page banner placements are not built**, and deliberately: they need a placement table (which institution, which área, which period) that no schema has, and building one would create a second way to sell placement alongside the subscription. Destacado is a labelled tiebreaker wherever results appear.
 
-**This PR is marked Sonnet → Opus review and had neither.** It was written by the same Opus session that wrote PR-25, which is also the only reviewer it got — so the review that is supposed to catch a money-and-presentation PR's mistakes was performed by its own author. Treat the entitlement→label path and the disclosure wording as unreviewed until a second pass happens.
+**Reviewed 2026-08-20 (PR-46)**, by a session that wrote none of it — the review this PR was labelled for and never got, having been written and reviewed by the same session that wrote PR-25.
+
+**It found a blocker, and it is the one this PR existed to prevent.** `plan_rank` was written from the entitlement's *rank*, so **Verificado** — which does not buy `priority_placement` (`monetization.md` §7) — was boosted on every default-sorted page, where §4.1 says every row ties on relevance and the tiebreaker decides the whole result. `placementFlags().destacado` is `false` for those rows, so they carried **no "Destacado" badge and triggered no `PlacementDisclosure`**: paid, unlabelled ranking, which §3 closes by naming as the one practice that "destroys the only asset you have". `planRanksByInstitution` now gates on the entitlement, and `rebuild-search.plan-rank.test.ts` asserts the equivalence directly — a row is boosted **iff** the label path would label it — so the two halves cannot drift apart again.
+
+**Three more surfaces were placing without labelling**, all now fixed: the programme page's "carreras relacionadas" block (chosen by `plan_rank` alone out of fifteen candidates — the highest-value internal link on the page), `/acreditacion`'s result list (ordered *and truncated* by it), and, in the opposite direction, the institution profile, which printed "Destacado" on every row of a single-institution list where no placement had occurred. §17.1's rule cuts both ways.
+
+**And the test that was supposed to pin the ordering criterion was vacuous.** Promoting `plan_rank` to the *primary* sort key — paid placement fully overriding the user's choice — left all 28 tests green, because the fixture has enough rank-2 rows to fill the page the test scanned. It is now a property over every cross-rank pair, plus a filtered-set test that names a boosted excluded row instead of re-checking the filter.
+
+**What holds, verified rather than assumed:** `plan_rank` is appended after the user's key for all seven sort keys (each `case` checked, not just the default), never enters `buildConditions`, and cannot promote a priceless Destacado row past a priced one under `arancel_asc`; `offering_id` closes both chains so pagination is stable. Nothing in the label path reads `program_search.plan_rank` — checked across every consumer in `src/components`, `src/lib/seo` and `src/app`. Band boundaries match §3 exactly. Rule 7 is not violated: `VerifiedBadge` uses `bg-accent-subtle`, which `design-system.md` prescribes for badges, never `#0d6e86` itself.
 
 ### PR-28 — Institution analytics dashboard · **Sonnet**
 
@@ -286,6 +323,12 @@ Manual invoice reference tracking, renewal reminders (90/30/7 days), past-due st
 **No cron cancels anything.** Grace expiry is reported and acted on by nobody: the subscription already grants nothing, and ending a commercial relationship is a person's decision.
 
 `/admin/facturacion` says **contratado**, never cobrado — the app does not know whether a transferencia arrived. `activity_log.user_id` became nullable in the type as well as the column, so the sweep's writes are distinguishable from a person's forever.
+
+**Reviewed 2026-08-20 (PR-46)**, by a session that wrote none of it. No blocker: no over-granting defect exists. `active` past `ends_on`, `past_due` inside and outside grace, `cancelled`, `past_due` with a null `ends_on`, an unstarted subscription and two overlapping subscriptions for one institution were each walked against a test, and the grace boundary is inclusive on the last day and null on the day after on both sides of the mirror (`resolveEntitlements` and `graceExpired`). `BILLING_GRACE_DAYS` was checked value by value — unset, blank, `"abc"`, `"-5"`, `"15.5"`, `"3650"`, `"0"` — and only unparseable or negative falls back, exactly as claimed. The reminder UNIQUE key exists in the schema **and** in the shipped migration, the insert cannot abort the sweep, and the row is written only after the mail is accepted, so a Resend outage delays a reminder and never loses one. No payment gateway anywhere.
+
+**What the review changed.** `dueReminders` fired the *next-widest* unsent threshold once the narrowest had been consumed, so a subscription first seen five days out got three mails on three consecutive days — "faltan 4 días" under the 30-day heading, then "faltan 3 días" under the 90-day one — which is exactly the catch-up case the design exists for. It now takes the narrowest applicable threshold and nothing else. The sweep wrote `before: { status: 'active_or_trial' }` into `activity_log` — a value the enum cannot hold, invented and recorded as fact in the one table whose purpose is saying what happened (rule 1), and rendered to an operator since PR-44; it now logs the row's real prior status. `/admin/facturacion` counted **trials at list price** in "USD/año contratado" and put every free-plan row permanently into "vigentes sin referencia de factura"; the money aggregates are now `active` rows on priced plans, with trials counted in their own labelled tile. The three `billing.ts` reads could all be downgraded to `['editor']` with the suite green — now pinned. And `defaultOptions` let an explicit `{ graceDays: undefined }` collapse the window to zero.
+
+**One correction reaches further back than PR-29:** every billing date was computed in UTC on a site whose day is `America/Asuncion`, so between 21:00 and midnight a subscription ending *today* already resolved to nothing — a paying institution losing its badge, its lead contacts and its placement three hours early on its last day. Always an under-grant, never an over-grant, which is why it survived. `asuncionToday()` (new here, beside PR-44's `parseAsuncionDay`/`nextAsuncionDay` and on the same stated offset) is now the single source, and `addDays` keeps its own UTC arithmetic — routing that through the new helper shifted every grace window a day and was caught by the boundary test.
 
 **Phase 3 exit:** first paid institution invoiced and live.
 
@@ -846,6 +889,57 @@ PR if small, split out if not.
 or filed as its own numbered PR; the going-forward rule lands in `agent-workflow.md`: a
 _Sonnet → Opus review_ PR does not merge until a session other than its author has reviewed
 it — CI green is not a reviewer.
+
+**Shipped as:** the review, performed by **three** sessions that wrote none of the code —
+one per PR, run in parallel — plus the fixes. Each PR's caveat paragraph above is replaced
+by a dated "reviewed 2026-08-20" note saying what was checked and what changed; the
+going-forward rule is `agent-workflow.md` §5.1.
+
+**One blocker, in PR-27's path.** `plan_rank` was written from the entitlement's *rank*, so
+**Verificado** — which does not buy `priority_placement` — was boosted on every
+default-sorted page, where `architecture.md` §4.1 says every row ties on relevance and the
+tiebreaker decides the whole result. `placementFlags().destacado` is false for those rows,
+so they carried no badge and triggered no disclosure: **paid, unlabelled ranking**, the one
+practice `monetization.md` §3 closes by naming as fatal. Fixed by gating on the entitlement,
+and pinned by an equivalence test — a row is boosted **iff** the label path would label it —
+so the two halves cannot drift apart again.
+
+**Nine guards were correct and untested**, each verified by deleting it and watching the
+whole suite stay green: the free-plan lead redaction, `getPanelLead`'s ownership check, the
+three `billing.ts` role checks, `plan_rank`'s subordination to the user's sort, the
+filtered-set guarantee **on the SQL path**, `MAX_KEYS`, and `defaultOptions`' grace window. That count is the argument for §5.1 existing —
+`agent-workflow.md` §5.1 quotes the same nine.
+
+**Six behavioural defects fixed.** A reminder cascade that mailed three notices for one
+renewal, each labelled with a threshold the period had already passed. A fabricated
+`'active_or_trial'` written into `activity_log` as if it were a real prior status (rule 1),
+now readable by an operator since PR-44. Trial subscriptions counted at list price as
+"USD/año contratado", and free-plan rows sitting permanently in the unpaid-invoice queue
+(rule 1 again). `retryLeadDelivery` re-sending up to 200 students' contact details on every
+tick after one failed write. `MAX_KEYS` bounding nothing under the rotating-IP flood it
+exists for. And every billing date computed in UTC on a site whose day is
+`America/Asuncion`, costing a paying institution its badge, its lead contacts and its
+placement three hours early on its last day.
+
+**Three surfaces were placing without labelling**, all fixed: the programme page's related
+block, `/acreditacion`'s result list, and — in the opposite direction — the institution
+profile, which printed "Destacado" on a single-institution list where nothing had been
+placed.
+
+**Filed, not fixed** (each needs more than this PR should contain): permanently undeliverable
+leads can starve the retry queue, which needs a `delivery_attempts` column and therefore a
+migration; and overlapping cron invocations can still double-send a lead, which is now
+stated as a trade in `architecture.md` §10.1 rather than papered over as idempotency.
+
+**Doc corrections in the same PR** (rule 10): `architecture.md` §10.1, §17.1 and §19 each
+claimed a property its test did not hold; `monetization.md` §7 said a plan buys the CSV
+export and the status workflow, which the code has never gated — the sentence moved to match
+the code, and a new Correction 3 flags that §3 still sells two Destacado extras that were
+never built and **must be edited before the next quote goes out**.
+
+**Operational note for the next multi-reviewer round:** the three reviewers shared one
+checkout and read each other's mutation-tests as their own. §5.1 says to give each its own
+copy.
 
 ---
 

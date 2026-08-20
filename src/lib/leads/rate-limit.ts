@@ -48,8 +48,19 @@ export interface RateLimitDecision {
 export const IP_BURST: RateLimitRule = { limit: 8, windowMs: 60_000 };
 export const IP_HOURLY: RateLimitRule = { limit: 30, windowMs: 3_600_000 };
 
-/** Bound on distinct keys held, so a rotating-IP flood cannot grow the heap. */
-const MAX_KEYS = 5_000;
+/**
+ * Bound on distinct keys held. Enforced by `sweep`, which evicts live keys once
+ * the stale ones are gone — see there for why that is the right trade.
+ */
+export const MAX_KEYS = 5_000;
+
+/**
+ * The cap actually enforced. A `let` only so a test can shrink it: bounding
+ * 5.000 keys costs a quadratic sweep and ~8s of suite time to demonstrate,
+ * which is long enough that the next reader deletes the test rather than waits
+ * for it. Application code never touches this.
+ */
+let maxKeys = MAX_KEYS;
 
 const hits = new Map<string, number[]>();
 
@@ -61,10 +72,30 @@ function prune(timestamps: number[], now: number, windowMs: number): number[] {
   return start === 0 ? timestamps : timestamps.slice(start);
 }
 
+/**
+ * Bring the map back under `MAX_KEYS`.
+ *
+ * Two passes, and the second one is the point. The first drops keys whose
+ * attempts have all aged out — free to lose. The independent review of PR-23
+ * (PR-46) demonstrated that the first pass **alone does not bound anything**
+ * under the flood this tier exists to absorb: with a rotating
+ * `x-forwarded-for`, every key is fresh, nothing is evictable, and the map
+ * grows without limit while the comment above `MAX_KEYS` claimed otherwise.
+ *
+ * So the second pass evicts the oldest-inserted keys until the cap holds, even
+ * though they are live. That gives an attacker their budget back — and it is
+ * strictly the better failure: a limiter that forgets is a nuisance, a limiter
+ * that exhausts the heap takes the site down. A `Map` iterates in insertion
+ * order, so "oldest inserted" costs nothing to find.
+ */
 function sweep(now: number): void {
   for (const [key, timestamps] of hits) {
     if (prune(timestamps, now, IP_HOURLY.windowMs).length === 0) hits.delete(key);
-    if (hits.size <= MAX_KEYS) return;
+  }
+  while (hits.size > maxKeys) {
+    const oldest = hits.keys().next();
+    if (oldest.done) return;
+    hits.delete(oldest.value);
   }
 }
 
@@ -86,7 +117,7 @@ export function checkRate(
   timestamps.push(now);
   hits.set(key, timestamps);
 
-  if (hits.size > MAX_KEYS) sweep(now);
+  if (hits.size > maxKeys) sweep(now);
 
   for (const rule of rules) {
     const inWindow = timestamps.filter((at) => at > now - rule.windowMs);
@@ -153,7 +184,7 @@ export function recordRate(
   timestamps.push(now);
   hits.set(key, timestamps);
 
-  if (hits.size > MAX_KEYS) sweep(now);
+  if (hits.size > maxKeys) sweep(now);
 }
 
 /**
@@ -189,7 +220,17 @@ export function refundRate(key: string, at: number): void {
   if (timestamps.length === 0) hits.delete(key);
 }
 
-/** Test seam. Never called by application code. */
+/** How many keys the map holds. Test seam; never called by application code. */
+export function keyCountForTests(): number {
+  return hits.size;
+}
+
+/** Shrinks the cap so the bound can be demonstrated cheaply. Test seam. */
+export function __setMaxKeysForTests(value: number = MAX_KEYS): void {
+  maxKeys = value;
+}
+
 export function __resetRateLimitForTests(): void {
   hits.clear();
+  maxKeys = MAX_KEYS;
 }

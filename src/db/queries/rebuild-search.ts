@@ -289,6 +289,24 @@ function resolveAdmissionCloses(
  * from any stored plan pointer (PR-25). Institutions with nothing counting
  * today are simply absent, and `buildIndexRow` reads an absent id as 0 —
  * `plan_rank` is never inherited from a subscription that has ended.
+ *
+ * ### The gate is `priority_placement`, not the rank (PR-46)
+ *
+ * This function used to write the entitlement's **rank** (1 for Verificado, 2
+ * for Destacado), and the independent review of PR-27 found what that meant:
+ * `plan_rank` is the tiebreaker on every default-sorted page, and on `/carreras`
+ * with no query every row ties on relevance (`architecture.md` §4.1) — so a
+ * **Verificado** institution was being ordered ahead of every free institution
+ * it tied with. Verificado does not buy `priority_placement`
+ * (`monetization.md` §7's matrix, `entitlements/contract.ts`), so
+ * `placementFlags().destacado` was `false` for those rows: **no "Destacado"
+ * badge, and no `PlacementDisclosure`, on a page whose order had been paid
+ * for.** `monetization.md` §3 closes by naming that exact thing as the one
+ * practice that "destroys the only asset you have".
+ *
+ * So the index now boosts exactly the institutions the label path will label.
+ * `plan_rank` is 2 or absent; a Verificado institution ranks 0 and sorts like
+ * anybody else, which is what it was sold.
  */
 export function planRanksByInstitution(
   facts: readonly SubscriptionFacts[],
@@ -301,7 +319,11 @@ export function planRanksByInstitution(
       facts.filter((fact) => fact.institutionId === institutionId),
       { now, graceDays: pastDueGraceDays() },
     );
-    if (entitlements.planRank > 0) ranks.set(institutionId, entitlements.planRank);
+    // The entitlement, never the rank: they are different questions and the
+    // answer diverges for exactly the plan that was going unlabelled.
+    if (entitlements.features.priority_placement) {
+      ranks.set(institutionId, entitlements.planRank);
+    }
   }
   return ranks;
 }

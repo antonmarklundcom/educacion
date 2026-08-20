@@ -12,7 +12,7 @@
  */
 
 import { getInstitutionContacts } from '@/db/queries/institutions';
-import { listUndeliveredLeads, markLeadsDelivered, type LeadRecord } from '@/db/queries/leads';
+import { listUndeliveredLeads, markLeadDelivered, type LeadRecord } from '@/db/queries/leads';
 import { getOfferingsByIds } from '@/lib/search';
 
 import { notifyInstitution } from './notify';
@@ -28,7 +28,33 @@ async function programNameFor(record: LeadRecord): Promise<string> {
   return offering?.programName ?? 'una carrera';
 }
 
-/** Never throws — a bad row must not stop the rest of the batch. */
+/**
+ * Never throws — a bad row must not stop the rest of the batch.
+ *
+ * ### Each lead is marked the moment it is sent
+ *
+ * This used to collect the delivered ids and write them in **one** `UPDATE`
+ * after the loop. The independent review of PR-23 (PR-46) named what that
+ * costs: if that single write fails — a connection recycled, the process
+ * killed mid-batch — up to `limit` institutions have already been emailed and
+ * every one of those leads is sent **again** on the next tick, and the tick
+ * after that, for as long as the write keeps failing. Nothing bounded the
+ * repeat. A student's phone number arriving in an inbox four times is not a
+ * cosmetic failure.
+ *
+ * Marking inside the loop, inside the `try`, bounds the damage to the one lead
+ * whose write failed — which is the same shape `submitLead` already uses on the
+ * first-attempt path. The batched helper is kept for callers that genuinely
+ * have a set in hand.
+ *
+ * ### What it still does not do
+ *
+ * Two overlapping cron invocations read the same `status='new'` set and both
+ * send: there is no claim step, and adding one would turn a send failure into a
+ * lost lead rather than a repeated one. At one hourly hPanel entry that
+ * overlap does not happen, and `architecture.md` §10.1 states the trade
+ * explicitly rather than calling this "idempotent by construction".
+ */
 export async function retryLeadDelivery(limit = 200): Promise<RetryRunResult> {
   const pending = await listUndeliveredLeads(limit);
   if (pending.length === 0) return { attempted: 0, delivered: 0 };
@@ -36,7 +62,7 @@ export async function retryLeadDelivery(limit = 200): Promise<RetryRunResult> {
   const institutionIds = [...new Set(pending.map((lead) => lead.institutionId))];
   const contacts = await getInstitutionContacts(institutionIds);
 
-  const delivered: number[] = [];
+  let delivered = 0;
   for (const lead of pending) {
     try {
       const contact = contacts.get(lead.institutionId);
@@ -51,12 +77,16 @@ export async function retryLeadDelivery(limit = 200): Promise<RetryRunResult> {
         message: lead.message,
         sourcePage: lead.sourcePage,
       });
-      if (ok) delivered.push(lead.id);
+      if (ok) {
+        // Immediately, and inside the try: the window between "the mail is
+        // gone" and "we know it is gone" is the whole bug.
+        await markLeadDelivered(lead.id);
+        delivered += 1;
+      }
     } catch (error) {
       console.error(`[leads] retry threw for lead ${lead.id}`, error);
     }
   }
 
-  await markLeadsDelivered(delivered);
-  return { attempted: pending.length, delivered: delivered.length };
+  return { attempted: pending.length, delivered };
 }

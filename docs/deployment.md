@@ -242,3 +242,22 @@ verified by anything in the repo.
    Check each event for a readable stack, and check that **none** carries a
    cookie, a header, a form body or a query string (§29.3).
 
+
+## 8.2 After PR-46: rebuild the search index once (PR-46)
+
+PR-46 fixed `plan_rank` being written for **Verificado**, which does not buy
+`priority_placement` — a paid, unlabelled ordering on every default-sorted page.
+
+The fix is in `planRanksByInstitution`, and it is **inert until the index is
+rebuilt**: `program_search.plan_rank` is a denormalised copy refreshed by the
+nightly cron, so until that runs the wrong ranks are still what MySQL orders by.
+Do not wait for the cron on the deploy that carries this PR — run it by hand:
+
+```
+npm run search:rebuild
+```
+
+Then spot-check `/carreras` with no query: an institution whose only
+subscription is Verificado must carry no **Destacado** badge and must not lead
+its tie group. If it does, the rebuild did not run against the deployed
+database — check `DATABASE_URL` in the shell you ran it from (§5).

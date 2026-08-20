@@ -44,3 +44,25 @@ export function parseAsuncionDay(value: string): Date | undefined {
 export function nextAsuncionDay(day: Date): Date {
   return new Date(day.getTime() + 24 * 60 * 60 * 1000);
 }
+
+/**
+ * Today's date **in Asunción**, as `YYYY-MM-DD`.
+ *
+ * The site stores timestamps in UTC and renders them `America/Asuncion`, so
+ * `new Date().toISOString().slice(0, 10)` is the wrong day for the last three
+ * hours of every Paraguayan evening. That matters wherever a *date column* is
+ * compared against "today": the independent review of PR-29 (PR-46) found a
+ * subscription losing its badge, its lead contacts and its placement at 21:00
+ * on its final day, because `ends_on` was being compared against tomorrow.
+ *
+ * Every comparison of a `date`-typed column against the present should come
+ * through here. Not every comparison of an *instant* should: `lib/analytics`
+ * deliberately buckets in UTC, because its numbers have to agree with a session
+ * hash that does.
+ */
+export function asuncionToday(now: Date = new Date()): string {
+  return new Date(now.getTime() + ASUNCION_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** −03:00 in milliseconds. See `ASUNCION_UTC_OFFSET`. */
+const ASUNCION_OFFSET_MS = -3 * 60 * 60 * 1000;

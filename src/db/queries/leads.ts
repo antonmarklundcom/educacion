@@ -283,9 +283,14 @@ export async function listInstitutionsWithNewLeads(
 }
 
 /**
- * `markLeadDelivered` at scale, for the retry cron: leads whose
- * `notifyInstitution` call finally succeeded. `since` bounds it defensively —
- * a cron job is not a place to run an unbounded `UPDATE`.
+ * `markLeadDelivered` at scale. `since` bounds it defensively — a cron job is
+ * not a place to run an unbounded `UPDATE`.
+ *
+ * **The retry cron no longer uses this**, and PR-46 says why: batching the
+ * marks meant one failed write re-sent the whole batch's worth of student
+ * contact details on the next tick, and again after that. `retryLeadDelivery`
+ * marks each lead the moment its mail is accepted. Kept for a caller that
+ * genuinely has a set in hand, of which there is currently none.
  */
 export async function markLeadsDelivered(
   ids: number[],

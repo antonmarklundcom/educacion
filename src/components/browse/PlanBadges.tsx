@@ -57,13 +57,29 @@ export function DestacadoBadge({ className }: { className?: string }) {
  * is actually on it**. A permanent notice about advertising on a page with no
  * advertising is noise that teaches people to skip the notice.
  */
-export function PlacementDisclosure({ className }: { className?: string }) {
+/**
+ * `truncated` is not cosmetic. "Solo desempatan" is a complete account of what a
+ * paid placement does only while the whole result set is on screen: on a list
+ * cut to its first N, winning a tie also decides who is inside the cut. The
+ * PR-27 review (PR-46) found `/acreditacion` showing the short form over a
+ * truncated list, which understated it.
+ */
+export function PlacementDisclosure({
+  className,
+  truncated = false,
+}: {
+  className?: string;
+  truncated?: boolean;
+}) {
   return (
     <p className={className ?? 'text-faint max-w-prose text-xs'}>
       Las carreras marcadas <span className="text-muted font-medium">Destacado</span> son de
       instituciones con una ubicación paga. Solo desempatan entre resultados que ya estaban
       empatados: no cambian el orden que elegiste ni agregan carreras que tus filtros dejaron
       afuera.
+      {truncated
+        ? ' Esta lista está recortada, así que un desempate también puede decidir quién entra en lo que ves: pedí más resultados si querés la lista completa.'
+        : ''}
     </p>
   );
 }

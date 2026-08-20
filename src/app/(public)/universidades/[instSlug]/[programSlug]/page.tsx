@@ -113,7 +113,7 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
   if (!primary) notFound();
 
-  const [related, institution, placements] = await Promise.all([
+  const [related, institution] = await Promise.all([
     findRelatedOfferings(primary),
     // The WhatsApp number lives on `institutions`, not on the index — one value
     // per institution against ~10k offerings, and a number corrected in the
@@ -121,9 +121,18 @@ export default async function ProgramPage({ params }: { params: Params }) {
     // (architecture.md §6.2). This page already reads one institution, so the
     // cost is one query and the number is always current.
     getInstitutionBySlug(instSlug),
-    // The badge is a claim about a commercial relationship *now*, so it is read
-    // live rather than from `primary.planRank` (architecture.md §17).
-    getPlacementFlags([primary.institutionId]),
+  ]);
+
+  // The badge is a claim about a commercial relationship *now*, so it is read
+  // live rather than from `primary.planRank` (architecture.md §17).
+  //
+  // One query, covering the related block as well (PR-46): that list is chosen
+  // by `plan_rank` alone, so every row in it needs a label and the block needs
+  // a disclosure. Sequenced after `related` rather than run beside it, because
+  // it needs the ids that query returns.
+  const placements = await getPlacementFlags([
+    primary.institutionId,
+    ...related.map((row) => row.institutionId),
   ]);
   const placement = placements.get(primary.institutionId);
 
@@ -239,7 +248,11 @@ export default async function ProgramPage({ params }: { params: Params }) {
           <KeyFacts offering={primary} />
           <OfferingsBlock offerings={offerings} />
           <AccreditationBlock accreditation={primary.accreditation} />
-          <RelatedPrograms offerings={related} careerName={primary.careerName} />
+          <RelatedPrograms
+            offerings={related}
+            careerName={primary.careerName}
+            placements={placements}
+          />
         </div>
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-6">

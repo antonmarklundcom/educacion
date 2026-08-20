@@ -90,6 +90,44 @@ For any _Sonnet → Opus review_ PR, check in this order:
 5. **Fabrication** — scan every string for invented numbers, ratings, counts, dates.
 6. Then, and only then, code quality.
 
+### 5.1 A _Sonnet → Opus review_ PR does not merge until somebody else has reviewed it
+
+The rule PR-46 exists to install, because three PRs shipped without it.
+
+**CI green is not a reviewer.** Nor is the session that wrote the code, however
+carefully it re-reads its own diff: PR-27 was reviewed by the same session that
+wrote it and PR-25 before it, and PR-23 and PR-29 were merged with a paragraph
+in `pr-plan.md` saying nobody had looked. What that cost is now measured — the
+retro-review found a blocker (paid, unlabelled ranking), a reminder cascade that
+mailed three notices for one renewal, a fabricated status written into
+`activity_log`, trial subscriptions counted as contracted revenue, and **nine
+load-bearing guards whose deletion left the entire suite green** (they are
+listed in `pr-plan.md`'s PR-46 entry).
+
+So, for any PR labelled _Sonnet → Opus review_:
+
+1. **A session other than the author reviews it, before it merges.** Fresh
+   context, not a re-read: the value is in not already believing the design.
+2. It reviews against §5's checklist, **in that order**.
+3. It **mutation-tests** the guards the PR claims: delete each one, run the
+   suite, and report any that stays green. A guard with no failing test is a
+   finding in its own right, whatever the coverage number says.
+4. It checks every "never", "cannot", "always" and "guaranteed" in the diff and
+   in the docs it touches against a test that fails without it. Prose that
+   overstates the code is the defect that recurred most often.
+5. The findings are fixed, or written into the PR body as a decision with its
+   reason. "Noted" is not a resolution.
+
+The reviewer's own limits are part of the report: what it could not verify from
+the build environment (a deployed p95, a live third-party integration) is stated
+as unverified rather than assumed, and lands in `deployment.md` as a step for
+the operator.
+
+**One session, one checkout.** Two reviewers mutation-testing the same working
+tree will restore each other's files and read each other's mutations as their
+own — PR-46's reviewers hit exactly that. Run them in parallel only if each has
+its own copy of the repository.
+
 ## 6. Rules that apply to both models
 
 - **One PR, one concern.** If the PR body needs "and also", split it.

@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   IP_BURST,
   __resetRateLimitForTests,
+  __setMaxKeysForTests,
   checkRate,
   clearRate,
   peekRate,
   recordRate,
   refundRate,
+  keyCountForTests,
 } from './rate-limit';
 
 beforeEach(() => __resetRateLimitForTests());
@@ -151,5 +153,63 @@ describe('refundRate / clearRate', () => {
     clearRate('a');
     expect(peekRate('a', NOW, [RULE]).allowed).toBe(true);
     expect(peekRate('b', NOW, [RULE]).allowed).toBe(false);
+  });
+});
+
+describe('the key map is bounded', () => {
+  /**
+   * The independent review of PR-23 (PR-46) found `MAX_KEYS` bounding nothing
+   * under the one flood this tier exists to absorb. `sweep` only dropped keys
+   * whose attempts had all aged out; with a rotating `x-forwarded-for` every
+   * key is fresh, so nothing was evictable and the map grew without limit while
+   * the comment claimed it could not.
+   *
+   * The cap is shrunk for these cases. Enforcing it costs a sweep per call once
+   * the map is over, so demonstrating the real 5.000 takes ~8s — long enough
+   * that the next reader deletes the test instead of waiting for it.
+   */
+  const CAP = 50;
+
+  beforeEach(() => {
+    __setMaxKeysForTests(CAP);
+  });
+
+  it('evicts live keys once the stale ones are gone', () => {
+    const now = 1_000_000;
+    // Every key is one millisecond old: nothing has aged out, so the
+    // aged-out-only pass has nothing to reclaim.
+    for (let i = 0; i < CAP * 4; i += 1) checkRate(`flood-${i}`, now);
+    expect(keyCountForTests()).toBeLessThanOrEqual(CAP + 1);
+  });
+
+  it('evicts oldest-inserted first, so the newest attacker keys are the survivors', () => {
+    // Not a property anybody wants, just the one that is cheap and terminating.
+    // Stated so the next reader does not assume LRU.
+    const now = 2_000_000;
+
+    // Spend `victim`'s whole burst budget, so "allowed" below can only mean the
+    // map forgot it — a key that was never charged is allowed either way, which
+    // is what made the first version of this case assert nothing.
+    for (let i = 0; i <= IP_BURST.limit; i += 1) checkRate('victim', now);
+    expect(checkRate('victim', now).allowed, 'victim starts over its burst limit').toBe(false);
+
+    for (let i = 0; i < CAP * 4; i += 1) checkRate(`ordered-${i}`, now);
+
+    expect(checkRate('victim', now).allowed, 'the oldest insertion was evicted').toBe(true);
+
+    // ...while a key inserted late in the flood is still counted. Same cap,
+    // same flood: the difference is insertion order alone.
+    const recent = `ordered-${CAP * 4 - 1}`;
+    const before = keyCountForTests();
+    checkRate(recent, now);
+    expect(keyCountForTests(), 'a survivor is updated, not re-inserted').toBeLessThanOrEqual(
+      before,
+    );
+  });
+
+  it('holds the real cap by default, so the seam is not the contract', () => {
+    __setMaxKeysForTests();
+    for (let i = 0; i < 200; i += 1) checkRate(`few-${i}`, 3_000_000);
+    expect(keyCountForTests(), 'nothing is evicted below MAX_KEYS').toBe(200);
   });
 });

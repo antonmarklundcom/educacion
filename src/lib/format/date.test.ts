@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ASUNCION_UTC_OFFSET, nextAsuncionDay, parseAsuncionDay } from './date';
+import { ASUNCION_UTC_OFFSET, asuncionToday, nextAsuncionDay, parseAsuncionDay } from './date';
 
 describe('parseAsuncionDay', () => {
   it('starts the day at 03:00 UTC, not at midnight UTC', () => {
@@ -50,5 +50,39 @@ describe('nextAsuncionDay', () => {
     // And the row they read as "19/08 22:30" stays out of it.
     const lateOnTheNineteenth = new Date('2026-08-20T01:30:00.000Z');
     expect(lateOnTheNineteenth.getTime()).toBeLessThan(start.getTime());
+  });
+});
+
+describe('asuncionToday', () => {
+  it('is still yesterday for the last three hours of UTC', () => {
+    // 21/08 01:30Z is 20/08 22:30 in Asunción. This is the whole reason the
+    // helper exists: `toISOString().slice(0, 10)` answers 2026-08-21 here, and
+    // the PR-29 review traced a subscription losing its features on its final
+    // evening to exactly that hour.
+    expect(asuncionToday(new Date('2026-08-21T01:30:00.000Z'))).toBe('2026-08-20');
+    expect(new Date('2026-08-21T01:30:00.000Z').toISOString().slice(0, 10)).toBe('2026-08-21');
+  });
+
+  it('rolls over at 03:00Z, not at midnight', () => {
+    expect(asuncionToday(new Date('2026-08-21T02:59:59.999Z'))).toBe('2026-08-20');
+    expect(asuncionToday(new Date('2026-08-21T03:00:00.000Z'))).toBe('2026-08-21');
+  });
+
+  it('agrees with UTC for the rest of the day', () => {
+    expect(asuncionToday(new Date('2026-08-20T12:00:00.000Z'))).toBe('2026-08-20');
+  });
+
+  it('crosses the month and the year at the same boundary', () => {
+    expect(asuncionToday(new Date('2027-01-01T01:00:00.000Z'))).toBe('2026-12-31');
+    expect(asuncionToday(new Date('2027-01-01T03:00:00.000Z'))).toBe('2027-01-01');
+  });
+
+  it('names the day `parseAsuncionDay` would round-trip', () => {
+    // The two helpers have to use the same offset or a filter built from
+    // "today" would exclude today.
+    const now = new Date('2026-08-21T01:30:00.000Z');
+    const day = parseAsuncionDay(asuncionToday(now))!;
+    expect(now.getTime()).toBeGreaterThanOrEqual(day.getTime());
+    expect(now.getTime()).toBeLessThan(nextAsuncionDay(day).getTime());
   });
 });

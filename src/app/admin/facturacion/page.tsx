@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui';
 import { listPastDue, listUpcomingRenewals, revenueSummary } from '@/db/queries/billing';
 import { pastDueGraceDays } from '@/lib/entitlements';
 import { daysUntil, type RenewalSubscription } from '@/lib/billing/renewals';
-import { formatGs } from '@/lib/format';
+import { asuncionToday, formatGs } from '@/lib/format';
+import { REMINDER_THRESHOLDS } from '@/lib/billing/config';
+import { CONTACT_EMAIL } from '@/lib/legal/contact';
 import { requireRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
@@ -56,7 +58,7 @@ export default async function AdminBillingPage() {
     notFound();
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = asuncionToday();
   const graceDays = pastDueGraceDays();
 
   const [summary, upcoming, pastDue] = await Promise.all([
@@ -72,12 +74,14 @@ export default async function AdminBillingPage() {
         <p className="text-muted max-w-prose text-sm">
           Lo que está vendido hoy, lo que vence pronto y lo que quedó sin pagar. Los importes en
           dólares son <strong>contratado</strong>, no cobrado: la factura se emite en FacturaPY y
-          acá queda su referencia.
+          acá queda su referencia. Los números de abajo cuentan solo suscripciones{' '}
+          <strong>activas a un plan con precio</strong> — una prueba no debe nada y un plan gratis
+          no se factura, así que ninguna de las dos suma acá.
         </p>
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-ink text-lg font-semibold">Vigente hoy</h2>
+        <h2 className="text-ink text-lg font-semibold">Contratado hoy</h2>
         <div className="border-border overflow-x-auto rounded-md border">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -92,7 +96,7 @@ export default async function AdminBillingPage() {
               {summary.rows.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-muted px-4 py-6">
-                    Todavía no hay ninguna suscripción vigente.
+                    Todavía no hay ninguna suscripción contratada.
                   </td>
                 </tr>
               ) : (
@@ -113,7 +117,7 @@ export default async function AdminBillingPage() {
           </table>
         </div>
 
-        <dl className="grid gap-3 sm:grid-cols-3">
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="border-border bg-surface flex flex-col gap-1 rounded-md border p-4">
             <dt className="text-muted text-xs">USD/año contratado</dt>
             <dd className="text-ink font-mono text-xl font-semibold">
@@ -127,7 +131,11 @@ export default async function AdminBillingPage() {
             </dd>
           </div>
           <div className="border-border bg-surface flex flex-col gap-1 rounded-md border p-4">
-            <dt className="text-muted text-xs">Vigentes sin referencia de factura</dt>
+            <dt className="text-muted text-xs">En prueba</dt>
+            <dd className="text-ink font-mono text-xl font-semibold">{summary.trials}</dd>
+          </div>
+          <div className="border-border bg-surface flex flex-col gap-1 rounded-md border p-4">
+            <dt className="text-muted text-xs">Contratadas sin referencia de factura</dt>
             <dd className="text-ink font-mono text-xl font-semibold">
               {summary.missingInvoiceRef}
             </dd>
@@ -140,9 +148,13 @@ export default async function AdminBillingPage() {
           Vencen en los próximos {HORIZON_DAYS} días
         </h2>
         <p className="text-muted max-w-prose text-sm">
-          El cron manda un aviso a {''}
-          <span className="font-mono">contacto@educacion.com.py</span> a los 90, 30 y 7 días. Cada
-          aviso se manda una sola vez por período; renovar vuelve a armarlos.
+          El cron manda un aviso a <span className="font-mono">{CONTACT_EMAIL}</span> a los{' '}
+          {new Intl.ListFormat('es-PY').format(
+            [...REMINDER_THRESHOLDS].sort((a, b) => b - a).map(String),
+          )}{' '}
+          días. Se manda{' '}
+          <strong>uno solo</strong> por período —el umbral más cercano que todavía sea cierto—; al
+          renovar se vuelven a armar.
         </p>
         {upcoming.length === 0 ? (
           <p className="border-border bg-card-alt text-muted rounded-md border px-4 py-6 text-sm">

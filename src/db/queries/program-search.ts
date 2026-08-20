@@ -102,7 +102,7 @@ interface ConditionOptions {
   query: ParsedQuery;
 }
 
-function buildConditions(filters: SearchFilters, options: ConditionOptions): SQL[] {
+export function buildConditions(filters: SearchFilters, options: ConditionOptions): SQL[] {
   const { except, query } = options;
   const conditions: SQL[] = [eq(ps.isPublished, true)];
 
@@ -148,14 +148,30 @@ function buildConditions(filters: SearchFilters, options: ConditionOptions): SQL
  * reorder rows that already tie and nothing else (pr-plan.md PR-27).
  * `offering_id` closes the chain so pagination is stable.
  */
-const TIEBREAKERS: SQL[] = [
+/**
+ * Appended after the user's sort key, always — this is the SQL half of
+ * `architecture.md` §17.1's promise that `plan_rank` only ever breaks a tie.
+ *
+ * `offering_id` closes the list so the order is total: two rows that tie on
+ * everything else still have a defined position, without which the same row can
+ * appear on two pages or on none.
+ */
+export const TIEBREAKERS: SQL[] = [
   desc(ps.planRank),
   asc(ps.institutionShort),
   asc(ps.programName),
   asc(ps.offeringId),
 ];
 
-function buildOrderBy(sort: SortKey, query: ParsedQuery): SQL[] {
+/**
+ * Exported for `order-by.test.ts`, which is the point rather than a
+ * convenience: the independent review of PR-46 found the ordering promise
+ * pinned only against `searchInMemory` — a parallel implementation whose sole
+ * non-test caller is `search:bench` — while **this** function is what serves
+ * every page. Promoting `plan_rank` to the front of the list here left the
+ * whole suite green.
+ */
+export function buildOrderBy(sort: SortKey, query: ParsedQuery): SQL[] {
   const cost = sortableCost();
   const primary: SQL[] = [];
 
