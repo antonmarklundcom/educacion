@@ -83,7 +83,11 @@ const GROUPS: readonly NavGroup[] = [
   },
   {
     title: 'Sistema',
-    items: [{ href: '/admin/usuarios', label: 'Cuentas', adminOnly: true }],
+    items: [
+      { href: '/admin/usuarios', label: 'Cuentas', adminOnly: true },
+      { href: '/admin/actividad', label: 'Actividad' },
+      { href: '/admin/privacidad', label: 'Datos personales', adminOnly: true },
+    ],
   },
 ] as const;
 
@@ -160,10 +164,7 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
       </details>
 
       <aside className="border-border hidden w-60 shrink-0 border-r md:block">
-        <nav
-          aria-label="Secciones del admin"
-          className="sticky top-0 max-h-screen overflow-y-auto"
-        >
+        <nav aria-label="Secciones del admin" className="sticky top-0 max-h-screen overflow-y-auto">
           <NavLinks pathname={pathname} isAdmin={isAdmin} />
         </nav>
       </aside>
