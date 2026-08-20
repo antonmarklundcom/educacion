@@ -70,4 +70,51 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sourcemaps for the server bundle (PR-45).
+ *
+ * `withSentryConfig` is applied **only when a DSN and an auth token are both
+ * present**, which on this repo means production and nowhere else. CI builds
+ * with neither, so its `next build` is byte-identical to the one before PR-45:
+ * no plugin in the pipeline, no upload attempted, no warning printed about a
+ * missing token. That is what "absent DSN = fully inert" has to mean for the
+ * build as well as for the runtime.
+ *
+ * `SENTRY_ORG` / `SENTRY_PROJECT` come from the shared free-tier organization
+ * (`docs/deployment.md` §8.1).
+ *
+ * **The upload failure is made fatal on purpose.** The plugin's default is
+ * `handleRecoverableError(e, false)` — non-throwing — and it deletes the local
+ * `.map` files afterwards regardless, with `silent: true` suppressing the error
+ * line as well. So a wrong `SENTRY_AUTH_TOKEN` would produce a green deploy
+ * with no maps uploaded *and* none on disk: every server stack unsymbolicated,
+ * silently, which is the one thing this PR exists to prevent. An `errorHandler`
+ * that throws turns that into a failed build, which is a bad afternoon instead
+ * of a bad quarter.
+ */
+function withSentry(config: NextConfig): NextConfig {
+  if (!process.env.SENTRY_DSN || !process.env.SENTRY_AUTH_TOKEN) return config;
+
+  // Required lazily, and that is the point rather than a style slip: importing
+  // `@sentry/nextjs` at the top of this file loads the Node SDK into the Next
+  // CLI process itself, where its OpenTelemetry hooks would instrument the
+  // *build*. CI, which has no DSN, must not pay for a package it will not use.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { withSentryConfig } = require('@sentry/nextjs') as typeof import('@sentry/nextjs');
+  return withSentryConfig(config, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: true,
+    // The map is uploaded and then deleted from the deploy: a public `.map`
+    // next to the bundle hands the reader the server source.
+    sourcemaps: { deleteSourcemapsAfterUpload: true },
+    telemetry: false,
+    disableLogger: true,
+    errorHandler: (error) => {
+      throw error;
+    },
+  });
+}
+
+export default withSentry(nextConfig);

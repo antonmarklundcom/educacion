@@ -13,11 +13,19 @@
  * file paths. Only `digest` — the opaque id Next.js also writes to the server
  * log — so an operator can match a screenshot to a log line without the page
  * carrying anything an attacker can read.
+ *
+ * PR-45 added the second half of that sentence: the error is not shown to the
+ * *reader*, and it **is** sent to the operator. It goes to
+ * `/api/client-error`, which hands it to the Node SDK — not to a browser SDK,
+ * which measures ~144 kB gzipped in this project against a 150 kB page budget
+ * (`src/lib/observability/client-report.ts`). The report is five short strings
+ * built here, so nothing about the person on the page can travel with it.
  */
 
 import { useEffect } from 'react';
 
 import { Button } from '@/components/ui';
+import { CLIENT_ERROR_ENDPOINT, toClientReport } from '@/lib/observability/client-report';
 
 export interface ShellErrorProps {
   error: Error & { digest?: string };
@@ -38,6 +46,19 @@ export function ShellError({ error, reset, title, description, id }: ShellErrorP
   useEffect(() => {
     // Server-side this is already logged by Next.js; this is the browser half.
     console.error(error);
+
+    // Fire and forget. `keepalive` so the report survives the reader closing
+    // the tab on a page that has just broken, and the rejection is swallowed
+    // because a failed report must never become a second error inside an error
+    // boundary — that is how a boundary loops.
+    void fetch(CLIENT_ERROR_ENDPOINT, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(
+        toClientReport(error, typeof window === 'undefined' ? undefined : window.location.pathname),
+      ),
+    }).catch(() => {});
   }, [error]);
 
   return (

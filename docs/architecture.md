@@ -1757,3 +1757,176 @@ a full scan plus filesort on a table that gains a row on every admin and panel
 write and is never purged. Migration `0010` adds `(created_at)` and
 `(entity_type, created_at)`; it has **not** been applied (`deployment.md`
 §3.1).
+
+---
+
+## 29. Observability (settled in PR-45)
+
+Before this, a production error was a line in Hostinger's console retention and
+nothing else: no aggregation, no stack after the log rolled, and no way to know
+that `/carreras` had been throwing since Tuesday. `@sentry/nextjs` closes that
+for the server. What it does **not** do here is ship a browser SDK, and that is
+the decision this section exists to record.
+
+### 29.1 The browser does not load the SDK
+
+PR-45's brief asks for server **and** client capture. Client capture shipped;
+`@sentry/browser` did not.
+
+Measured in this project, `import('@sentry/browser')` produced a
+**144.5 kB gzipped** chunk — Replay, Feedback and BrowserTracing included,
+because Turbopack does not tree-shake the package's index even though it is
+marked `sideEffects: false`. The public page budget is **150 kB total** (§9).
+The measurement is reproducible: install `@sentry/browser`, `import` it from a
+client entry, `npm run build`, then gzip the chunks the app build manifest does
+*not* reference. It is recorded here rather than kept because the package is not
+a dependency any more — nothing in CI re-checks it, so treat the number as of
+2026-08-20 and `@sentry/browser` 10.70.
+An error reporter larger than the application it reports on is not a trade this
+site makes; §9's budget was written for a student on 4G in October, and that is
+precisely the person who would pay for it.
+
+So the browser sends a **small fixed report to our own server**, which hands it
+to the Node SDK:
+
+- `src/lib/observability/client-report.ts` — the contract. Five short strings:
+  `name`, `message`, `stack`, `digest`, `path`. Every field truncated; the path
+  has its query stripped **in the browser**, so a person's search is never even
+  in the request body.
+- `ShellError` (the body of all four `error.tsx` boundaries) posts it,
+  `keepalive`, and swallows any failure — a failed report inside an error
+  boundary is how a boundary loops.
+- `POST /api/client-error` — public and unauthenticated, so written as one. It
+  answers `204` to everything, because a reporter that says "accepted" is a
+  reporter somebody can probe.
+
+**The bounds on that endpoint, in the order they apply and with what each one
+is actually worth.** An independent review's first finding was that an earlier
+version presented "rate limited per hashed IP" as *the* control, and it is not
+one:
+
+  1. **Same origin** — the check the lead endpoint already uses. A missing
+     `Origin` on a POST means the caller is not a browser. Forgeable by a
+     script, which is why it is first and not last.
+  2. **`content-length`, then bytes** — refused before the body is read when the
+     caller declares a big one, and after, on `Buffer.byteLength` rather than
+     `String.length` (8 000 emoji is 8 000 "characters" and 32 kB on the wire).
+  3. **Per hashed IP**, 5/min. This stops an ordinary crash loop in one browser,
+     which is the common case. It is **not** a bound on an attacker:
+     `hashClientIp` reads `x-forwarded-for`, which the caller writes, so
+     rotating it buys a fresh bucket. §6.1 says the same thing about the lead
+     limiter, which is why that one has a second, durable tier.
+  4. **A process-wide budget** in `capture.ts` — 20 forwards a minute, keyed on
+     a constant. This is the bound that holds. `beforeSend`'s per-fingerprint
+     throttle cannot substitute for it: the fingerprint is derived from the
+     `name` and `stack` in the report, which the caller also writes.
+
+**And the payload is treated as a forgery until proven otherwise.** Anyone can
+POST `{name:'DatabaseError', message:'ECONNREFUSED 127.0.0.1:3306'}`, so the
+exception type is prefixed `ClientReported:` and the event is tagged
+`unverified: true`. A browser-supplied string cannot sit in a list of server
+exceptions looking like one.
+
+**What that costs, stated rather than implied.** There is no automatic
+`window.onerror`, no unhandled-rejection capture and no breadcrumb trail: what
+is captured is what a React error boundary catches, which on a site this
+server-rendered is nearly all of it. What it buys, besides 144 kB, is that the
+payload is an allowlist rather than whatever the SDK decided to collect — there
+is no field through which a lead's form data could reach Sentry from a browser.
+
+### 29.2 Absent DSN = fully inert, checked in four places
+
+1. `serverDsn()` returns `undefined` for an unset **or blank** value. hPanel
+   stores empty strings happily, and an empty DSN is not the same as no DSN —
+   the SDK would initialise, warn and sit there disabled, which is a running SDK
+   we did not want and a warning nobody reads.
+2. `sentry.server.config.ts` skips `init` entirely.
+3. `capture.ts` does not `import` the SDK at all: the import is dynamic and
+   behind the check. On a Hostinger slot the app process is also the web server,
+   and 75 MB of SDK that will never send anything is 75 MB taken from the pool.
+4. `next.config.ts` applies `withSentryConfig` only when a DSN **and** an auth
+   token are both present, so CI's `next build` runs no plugin, attempts no
+   upload and prints no warning.
+
+### 29.3 What may leave the process
+
+`src/lib/observability/scrub.ts` is an **allowlist at both levels**:
+`ALLOWED_EVENT_KEYS` names the top-level keys an event may keep, and `request`
+is narrowed to its path and method. A denylist would have to be updated every
+time the SDK gains a field, and the cost of forgetting is a student's phone
+number in a SaaS dashboard forever — which the independent review demonstrated
+against the first version of this file, a five-key denylist that called itself
+an allowlist and let `server_name` (`os.hostname()`, **not** covered by
+`sendDefaultPii: false`), `modules`, `threads` and `attachments` through.
+
+Kept: the envelope (`event_id`, `timestamp`, `platform`, `level`, `logger`,
+`environment`, `release`, `dist`, `type`, `sdk`), the error (`exception`,
+`message`), `transaction`, `tags`, `fingerprint`, `contexts` minus `user` and
+`response`, `breadcrumbs` minus every `data`, `request` narrowed — and
+**`debug_meta`**, which carries the ids that map a stack frame to an uploaded
+sourcemap. Dropping that one would quietly cost the readable stacks this whole
+section exists to get.
+
+Dropped: everything else, including cookies (one of which is the whole
+`iron-session` session), all headers (`x-forwarded-for` is an IP, which §6.4
+says we store only hashed; `x-cron-secret` is `CRON_SECRET` in plaintext), the
+request body (a Server Action body is the lead form, or `/admin/privacidad`'s
+lookup) and the query string.
+
+**One half is honestly a denylist, and is named one.** `exception.values[].value`
+and `event.message` are the error's own text, and on this site that text quotes
+data: a mysql2 duplicate-key error is `Duplicate entry 'ana@example.com' for key
+'leads.email'`. Deleting the message would make the report worthless, so
+`redactSecrets` replaces what looks like an address or a phone number and leaves
+the sentence. Blunt on purpose: a false positive costs a `[correo]` in an error
+message, a false negative is an address in a third-party dashboard.
+
+`scrub.test.ts` asserts all of it against events shaped like the three requests
+on this site whose bodies are somebody's data, checks the serialized event for
+each secret string by name, and fails if any key outside `ALLOWED_EVENT_KEYS`
+survives.
+
+### 29.4 A crash loop must not eat a shared quota
+
+The free tier is one quota across this site and the operator's others, so a
+route throwing on every request can spend a month of events in an afternoon —
+and take the other sites' visibility with it. `EventThrottle` caps **5 events
+per minute per fingerprint**, where the fingerprint is the exception type plus
+the top stack frame. Deliberately not the message: a message routinely carries
+an id (`No se encontró la oferta 4821`), so keying on it would give every
+iteration its own bucket and the throttle would never engage.
+
+Per fingerprint rather than globally, so one loud error cannot starve a quiet
+one — the failure a global cap would reintroduce. The last event before
+suppression is **sent** carrying `throttled=true` and the count, because a
+limiter that suppresses silently hides the outage it was installed to reveal.
+
+There are two of these, and they answer different questions. The
+per-fingerprint one above bounds a *server* crash loop, where the fingerprint is
+ours and trustworthy. `capture.ts`'s process-wide budget bounds *browser*
+reports, where it is not (§29.1). Both are in-process and both reset when
+Hostinger recycles the app, which is why `deployment.md` §8.1 also sets a
+**per-key rate limit in the Sentry project** — that is the half that survives a
+restart, and the only half that holds against a restart loop.
+
+### 29.5 What is not verified from here
+
+"An error thrown in a server component, a Server Action and a client component
+each arrive in Sentry with a readable stack" needs a real DSN and a real
+project. This environment has neither, so it is **not verified**, and nothing
+has been asserted in its place. The three-error smoke test is in
+`deployment.md` §8 as a post-deploy step, next to the rate limit the operator
+has to set.
+
+Measured here instead — the numbers that do not need an account:
+
+| Build | `/carreras` First Load JS (gz) |
+| --- | --- |
+| Before PR-45 | 129.3 kB |
+| PR-45, no Sentry env (CI, local dev) | 129.9 kB |
+| PR-45, DSN + auth token (production) | 132.4 kB |
+| *Rejected:* `@sentry/browser` in the client | +144.5 kB, deferred chunk |
+
+Budget 150 kB (§9). The first two rows are reproducible with `npm run build &&
+npm run perf:budget`; the third needs a DSN and an auth token and is recorded
+from a local build with dummy values, so nothing in CI pins it.
