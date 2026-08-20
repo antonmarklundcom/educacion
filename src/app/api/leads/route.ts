@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 
 import { submitLead } from '@/lib/leads';
 import type { LeadResponse } from '@/lib/leads/contract';
+import { redactSecrets } from '@/lib/observability/scrub';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,17 @@ export async function POST(request: Request): Promise<NextResponse<LeadResponse>
   try {
     result = await submitLead(request, payload);
   } catch (error) {
-    console.error('[leads] submission failed', error);
+    // Redacted: this is the one path where a mysql2 error quotes the
+    // student's own row — `Duplicate entry 'ana@example.com' for key
+    // 'leads.email'` is the literal example `observability/scrub.ts` cites.
+    // Hostinger's console is a durable place for an address to sit.
+    console.error(
+      '[leads] submission failed',
+      // The stack, not just the message: without it the console says a lead
+      // failed and nothing about where, and `redactSecrets` scrubs a stack the
+      // same way it scrubs a message.
+      redactSecrets(error instanceof Error ? (error.stack ?? error.message) : String(error)),
+    );
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
 

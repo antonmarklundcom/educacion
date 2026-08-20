@@ -75,15 +75,26 @@ export function dueReminders(
     // "renová en -12 días" is not a sentence anybody should receive.
     if (daysLeft < 0) continue;
 
-    const candidates = [...REMINDER_THRESHOLDS]
-      .filter((threshold) => daysLeft <= threshold)
-      .sort((a, b) => a - b);
+    // **The narrowest applicable threshold, and only that one.** Not "the
+    // narrowest unsent one": the independent review of PR-29 (PR-46) found that
+    // walking the candidate list produced a *widening* sequence on consecutive
+    // days — a subscription first seen five days out got the 7-day notice, then
+    // "faltan 4 días" under the 30-day heading, then "faltan 3 días" under the
+    // 90-day one. Three mails for one renewal, each labelled nonsensically, and
+    // exactly in the situation the catch-up design exists for: a plan sold or
+    // renewed inside 90 days, or a cron that slept through a threshold.
+    //
+    // Once a period is inside 7 days, the 7-day notice is the only one that
+    // still means anything, so a threshold that has already been overtaken is
+    // not a reminder waiting to be sent — it is a reminder that no longer
+    // applies.
+    const threshold = [...REMINDER_THRESHOLDS]
+      .filter((candidate) => daysLeft <= candidate)
+      .sort((a, b) => a - b)[0];
+    if (threshold == null) continue;
+    if (alreadySent.has(reminderKey(subscription.id, subscription.endsOn, threshold))) continue;
 
-    for (const threshold of candidates) {
-      if (alreadySent.has(reminderKey(subscription.id, subscription.endsOn, threshold))) continue;
-      due.push({ subscription, threshold, daysLeft });
-      break;
-    }
+    due.push({ subscription, threshold, daysLeft });
   }
 
   return due.sort((a, b) => a.daysLeft - b.daysLeft);

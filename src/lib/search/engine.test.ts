@@ -14,12 +14,16 @@ import { describe, expect, it } from 'vitest';
 
 import { makeSyntheticRows, SYNTHETIC_AREA_OPTIONS } from './__fixtures__/synthetic';
 import type { SearchFilters } from './contract';
-import { isPriceFilterable, searchInMemory, sortableAnnualCost } from './engine';
+import { compareRows, isPriceFilterable, searchInMemory, sortableAnnualCost } from './engine';
+import { parseQuery } from './normalize';
 import type { ProgramSearchRow } from './row';
 
 const NOW = new Date('2026-08-02T12:00:00Z');
 const ROWS = makeSyntheticRows(2_000, { now: NOW });
 const PUBLISHED = ROWS.filter((row) => row.isPublished);
+
+/** No free text — the state in which every row ties on relevance (§4.1). */
+const EMPTY_QUERY = parseQuery(undefined);
 
 const run = (filters: SearchFilters) =>
   searchInMemory(ROWS, filters, { now: NOW, areas: SYNTHETIC_AREA_OPTIONS });
@@ -271,24 +275,69 @@ describe('sorting', () => {
     expect(byInstitution).toEqual([...byInstitution].sort((a, b) => a.localeCompare(b, 'es')));
   });
 
+  /**
+   * PR-27's headline promise, asserted as a **property of the comparator**
+   * rather than by scanning a page.
+   *
+   * The previous version of this test read the first 100 results of
+   * `arancel_asc` and checked they were monotonic. The independent review of
+   * PR-27 (PR-46) showed it was vacuous: promoting `plan_rank` to the *primary*
+   * sort key — paid placement fully overriding the user's choice, the single
+   * thing PR-27 exists to prevent — left all 28 tests green, because the
+   * fixture has enough rank-2 rows to fill page one and no adjacent pair ever
+   * crossed a rank boundary.
+   *
+   * Comparing every cross-rank pair directly cannot be satisfied that way.
+   */
   it('uses plan_rank only as a tiebreaker, never to override the chosen sort', () => {
-    const { results } = run({ sort: 'arancel_asc', pageSize: 100 });
-    for (let i = 1; i < results.length; i += 1) {
-      const previous = results[i - 1];
-      const current = results[i];
-      if (previous.price.annualCost == null || current.price.annualCost == null) continue;
-      // A destacado row never jumps ahead of a cheaper one.
-      expect(previous.price.annualCost).toBeLessThanOrEqual(current.price.annualCost);
-      if (previous.price.annualCost === current.price.annualCost) {
-        expect(previous.planRank).toBeGreaterThanOrEqual(current.planRank);
+    const cheaperButFree = PUBLISHED.filter((row) => sortableAnnualCost(row) != null);
+    let pairs = 0;
+
+    for (const low of cheaperButFree) {
+      for (const high of cheaperButFree) {
+        const lowCost = sortableAnnualCost(low)!;
+        const highCost = sortableAnnualCost(high)!;
+        // The dangerous shape: the cheaper row is the one WITHOUT the placement.
+        if (!(lowCost < highCost && low.planRank < high.planRank)) continue;
+        pairs += 1;
+        expect(
+          compareRows(low, high, 'arancel_asc', EMPTY_QUERY),
+          `${low.offeringId} (${lowCost}, rank ${low.planRank}) must precede ${high.offeringId} (${highCost}, rank ${high.planRank})`,
+        ).toBeLessThan(0);
+        if (pairs > 500) return; // The property holds pairwise; 500 is plenty.
       }
     }
+
+    expect(pairs, 'the fixture must contain the shape being tested').toBeGreaterThan(0);
+  });
+
+  it('applies plan_rank only after every user-chosen key, for every sort', () => {
+    // The same property across the whole sort vocabulary, not just `arancel_asc`.
+    const ranked = PUBLISHED.find((row) => row.planRank > 0)!;
+    const unranked = PUBLISHED.find((row) => row.planRank === 0)!;
+    expect(ranked && unranked).toBeTruthy();
+
+    // Two rows that differ on the sort key AND on rank: the sort key decides.
+    const byName = [ranked, unranked].sort((a, b) => a.programName.localeCompare(b.programName));
+    expect(compareRows(byName[0], byName[1], 'nombre_asc', EMPTY_QUERY)).toBeLessThan(0);
+
+    // Two rows identical on the sort key: now, and only now, rank decides.
+    const twin = { ...unranked, programName: ranked.programName };
+    expect(compareRows(ranked, twin, 'nombre_asc', EMPTY_QUERY)).toBeLessThan(0);
   });
 
   it('does not let plan_rank pull an excluded row into a filtered result set', () => {
-    const { results } = run({ levels: ['doctorado'], pageSize: 100 });
+    // The old version asserted only that every row matched the filter, which a
+    // filter test already does — it stayed green with the tiebreaker deleted.
+    // This one names a rank-2 row the filter excludes and looks for it.
+    const { results, total } = run({ levels: ['doctorado'], pageSize: 100 });
     expect(results.length).toBeGreaterThan(0);
     expect(results.every((result) => result.level === 'doctorado')).toBe(true);
+
+    const boostedOutsider = PUBLISHED.find((row) => row.planRank > 0 && row.level !== 'doctorado');
+    expect(boostedOutsider, 'the fixture must contain a boosted excluded row').toBeDefined();
+    expect(results.map((r) => r.offeringId)).not.toContain(boostedOutsider!.offeringId);
+    expect(total).toBe(PUBLISHED.filter((row) => row.level === 'doctorado').length);
   });
 
   it('ranks the better free-text match first', () => {

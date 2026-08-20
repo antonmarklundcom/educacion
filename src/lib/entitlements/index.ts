@@ -90,7 +90,11 @@ export function pastDueGraceDays(): number {
 }
 
 function defaultOptions(options?: ResolveOptions): ResolveOptions {
-  return { graceDays: billingGraceDays(), ...options };
+  // `graceDays` is read off `options` rather than spread over the default: a
+  // caller passing an explicit `{ graceDays: undefined }` — type-legal without
+  // `exactOptionalPropertyTypes` — would otherwise spread the default away, and
+  // `resolve.ts`'s `?? 0` would revoke every `past_due` account instantly.
+  return { ...options, graceDays: options?.graceDays ?? billingGraceDays() };
 }
 
 /** What this institution may have, right now. */

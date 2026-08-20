@@ -175,9 +175,16 @@ export default async function InstitutionPage({
                 <ResultCard
                   key={offering.offeringId}
                   offering={offering}
-                  /* Every card here belongs to this institution, so the one
-                     lookup above answers for all of them. */
-                  placement={placement}
+                  // Every row here belongs to this one institution, so the
+                  // one lookup above answers for all of them, they all share a
+                  // `plan_rank`, and no placement has taken place.
+                  // Passing the flags through printed "Destacado" — "ubicación
+                  // paga, siempre etiquetada" — on a list nothing was paid to
+                  // order, which the independent review of PR-27 (PR-46) called
+                  // over-claiming, and it is: §17.1's rule cuts both ways. The
+                  // `verified` half is a fact about the institution and stays,
+                  // in the header where it belongs.
+                  placement={placement ? { ...placement, destacado: false } : placement}
                   /* This page already loaded the profile, so the number is in
                      hand — no extra query, and no card here missing the CTA
                      its twin on /carreras has. */

@@ -387,16 +387,20 @@ Hostinger managed Node has no built-in scheduler you should rely on. Use hPanel 
 
 | Job                                                          | Cadence           | Route                          |
 | ------------------------------------------------------------ | ----------------- | ------------------------------ |
-| Search index rebuild                                         | nightly 03:00 -04 | `/api/cron/rebuild-search`     |
+| Search index rebuild                                         | nightly 03:00 -03 | `/api/cron/rebuild-search`     |
 | Data-staleness scan → admin digest                           | weekly Mon        | `/api/cron/staleness`          |
 | Convocatoria status transitions (abiertas/cerradas by date)  | daily 05:00       | `/api/cron/admissions`         |
 | Lead-delivery retry for failed notifications                 | hourly            | `/api/cron/lead-retry`         |
-| Lead email digest, per institution with `status='new'` leads | daily 08:00 -04   | `/api/cron/lead-digest`        |
+| Lead email digest, per institution with `status='new'` leads | daily 08:00 -03   | `/api/cron/lead-digest`        |
 | Sitemap regeneration                                         | nightly           | `/api/cron/sitemap`            |
-| Past-due sweep (ended subscriptions → `past_due`)            | daily 06:00 -04   | `/api/cron/subscription-sweep` |
-| Renewal reminders (90/30/7 days), one digest to the operator | daily 06:15 -04   | `/api/cron/renewal-reminders`  |
+| Past-due sweep (ended subscriptions → `past_due`)            | daily 06:00 -03   | `/api/cron/subscription-sweep` |
+| Renewal reminders (90/30/7 days), one digest to the operator | daily 06:15 -03   | `/api/cron/renewal-reminders`  |
 
 All guarded by `CRON_SECRET`, sent as the `x-cron-secret` header (`src/lib/cron/auth.ts`, PR-23). All idempotent.
+
+The offset is **−03:00, permanently**: Paraguay abolished DST in 2024, so the
+old `-04` in this table was wrong for every month of the year. `asuncionToday()`
+(`src/lib/format/date.ts`) is the code-side statement of the same fact.
 
 ### 10.1 What PR-23 settled — `lead-retry` and `lead-digest`
 
@@ -407,6 +411,20 @@ All guarded by `CRON_SECRET`, sent as the `x-cron-secret` header (`src/lib/cron/
 `lead-digest` (`src/lib/leads/digest.ts`) is deliberately **not** "leads since the last digest" — there is no persisted "last sent" clock, and PR-23 was told to stop and ask before adding a schema change rather than add one for this. It reports a live count instead ("tenés N solicitudes sin responder"), which is both true and safe to re-send: a double-fire repeats the same honest sentence rather than duplicating or dropping a lead. Read "all jobs are idempotent" above that way for this job specifically — no double-counted data, not "never sent twice".
 
 ---
+
+**PR-46 correction.** "Idempotent by construction" was true only of the case
+this section considered — a second cron firing *after* a completed run, since a
+lead marked `sent` no longer matches `listUndeliveredLeads`. It was not true of
+a failed final write, and it is not true of two overlapping invocations.
+
+The first is fixed: `retryLeadDelivery` marks each lead the moment its mail is
+accepted, so a failed write costs one repeat rather than the whole batch's. The
+second is not, and is a trade rather than an oversight: a claim step
+(`UPDATE … WHERE status='new'`, send only if one row was affected) would turn
+every send failure into a **lost** lead instead of a repeated one, and at one
+hourly hPanel entry the overlap does not happen. At-least-once is the right side
+to err on for a lead; the sentence now says so instead of implying at-most-once.
+
 
 ## 11. The institution directory (settled in PR-11)
 
@@ -901,14 +919,37 @@ decides **labels**, live, one query per page keyed by the institution ids the
 rows already carry (the §6.2 shape). The split is the point: a few hours of
 staleness in a tiebreaker is invisible, while a stale label would tell a
 student a placement is paid when it is not — or hide that it is. Nothing in
-the label path reads `planRank`, which `placement.test.ts` pins with a
-subscription that is cancelled but still carries rank 2.
+the label path reads `program_search.plan_rank` — PR-46 verified that across
+every consumer in `src/components`, `src/lib/seo` and `src/app`, and it holds.
+What `placement.test.ts` pins is narrower than its name suggests: it varies
+`SubscriptionFacts.planRank` (a `plans.rank` value), not the index column, so
+it is a second cancelled-subscription case rather than a guard on the index.
+The property that *is* enforced by a test is the one in
+`rebuild-search.plan-rank.test.ts` — the index boosts exactly what the label
+path labels.
 
-**The ordering guarantees were already built and tested in PR-07** (§4.1:
-`plan_rank` is appended after the user's sort key, always) and PR-27 changed
-none of it. `engine.test.ts` asserts both halves — a Destacado row never jumps
-ahead of a cheaper one under `arancel_asc`, and `plan_rank` never pulls a row
-into a filtered set it does not belong in.
+**The ordering guarantees were already built in PR-07** (§4.1: `plan_rank` is
+appended after the user's sort key, always) and PR-27 changed none of it.
+`engine.test.ts` asserts both halves — a Destacado row never jumps ahead of a
+cheaper one under `arancel_asc`, and `plan_rank` never pulls a row into a
+filtered set it does not belong in.
+
+**PR-46 correction — those two tests did not, until PR-46.** The independent
+review promoted `plan_rank` to the *primary* sort key, i.e. paid placement
+fully overriding the user's choice, and all 28 tests passed: the first test
+scanned one page of results, and the fixture holds enough rank-2 rows to fill
+it, so no adjacent pair ever crossed a rank boundary. The second asserted only
+that every row matched the filter, which a filter test already does. They are
+now a property over every cross-rank pair, and a check that a named boosted
+excluded row is absent.
+
+**And PR-46 fixed what neither was ever going to catch**: `plan_rank` was
+written from the entitlement's *rank*, so **Verificado** — which does not buy
+`priority_placement` — was boosted on every default-sorted page while
+`placementFlags().destacado` stayed `false` for it. No badge, no disclosure,
+paid ordering. `planRanksByInstitution` now gates on the entitlement, and
+`rebuild-search.plan-rank.test.ts` asserts the equivalence directly: a row is
+boosted **iff** the label path would label it.
 
 **"Perfil verificado" says something narrow and true**: somebody at the
 institution has an account here and maintains this profile. It deliberately
@@ -1008,8 +1049,17 @@ row, and a second run inserts nothing. `period_ends_on` is in the key so that
 **renewing re-arms the notices**: a new period is a new 90/30/7. The row is
 written _after_ the mail leaves, because a notice marked sent that never went
 is the failure the table exists to prevent, and a duplicate is the cheaper
-mistake. Only the **narrowest unsent** threshold fires per run, so an account
-first seen five days out gets one mail, not three.
+mistake. Only the **narrowest applicable** threshold fires per run, so an account first
+seen five days out gets one mail, not three.
+
+**PR-46 correction: "applicable", not "unsent".** The shipped code took the
+narrowest *unsent* one, which meant that once the 7-day notice had gone, the
+next run fired the next-widest — "faltan 4 días" under the 30-day heading, then
+"faltan 3 días" under the 90-day one. Three mails, spread over three days,
+each labelled with a threshold the period had already passed. A threshold that
+has been overtaken is not a reminder waiting to be sent; it is one that no
+longer applies. `renewals.test.ts` now walks consecutive days rather than
+asserting a single run.
 
 **The digest goes to the operator, not to the institution.** The sales motion
 is a WhatsApp thread, a meeting and a factura issued by hand (§5); the useful

@@ -56,6 +56,8 @@ import {
   type PlanRank,
 } from './contract';
 
+import { asuncionToday } from '@/lib/format';
+
 export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'cancelled';
 
 /** One subscription joined to its plan — exactly what the resolver needs, no more. */
@@ -78,15 +80,36 @@ export interface ResolveOptions {
   graceDays?: number;
 }
 
-/** `YYYY-MM-DD` in UTC. Dates are compared as strings — same rule as `program_search`. */
+/**
+ * `YYYY-MM-DD` **in Asunción**. Dates are compared as strings — the same rule
+ * `program_search` uses.
+ *
+ * Asunción and not UTC, since PR-46. `subscriptions.start_on`/`ends_on` are
+ * `date` columns holding a Paraguayan calendar day, and comparing them against
+ * the UTC day meant that between 21:00 and midnight local a subscription
+ * ending *today* already resolved to nothing: a paying institution lost its
+ * badge, its lead contacts and its placement three hours early on its last day.
+ * The independent review of PR-29 measured it. The error was always an
+ * under-grant, never an over-grant, which is why it survived this long.
+ */
 export function dateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return asuncionToday(date);
 }
 
+/**
+ * Calendar arithmetic on a `YYYY-MM-DD` string.
+ *
+ * Formats with `toISOString()` rather than `dateOnly()`, and the difference
+ * matters: `dateOnly` converts an *instant* to the day it is in Asunción, while
+ * this builds a UTC midnight it chose itself and only wants the date back out
+ * of it. Routing it through `dateOnly` shifts every grace window a day earlier —
+ * which is exactly what happened when `dateOnly` moved to Asunción, and what
+ * `resolve.test.ts`'s grace-boundary case caught.
+ */
 function addDays(dateString: string, days: number): string {
   const date = new Date(`${dateString}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
-  return dateOnly(date);
+  return date.toISOString().slice(0, 10);
 }
 
 /**

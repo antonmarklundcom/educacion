@@ -2,21 +2,29 @@
  * Billing operations: the renewal pipeline, the past-due sweep and the revenue
  * view (PR-29). Rule 5.
  *
- * The reads here have **no `requireRole`**, on purpose and with one condition:
- * their only callers are the cron jobs, which authenticate with `CRON_SECRET`
- * before the route reaches them (`architecture.md` §10), and
- * `/admin/facturacion`, which calls `requireRole(user, ['admin'])` itself and
- * then reads through `revenueSummary` — the one function here that a page
- * calls. Mutations still assert the role themselves, as everywhere else.
+ * Two kinds of read live here and they are authorised differently.
+ *
+ * - **The cron reads** — `listRenewalSubscriptions`, `sentReminderKeys` — take
+ *   no `SessionUser` and assert no role: their only callers are the cron
+ *   routes, which authenticate with `CRON_SECRET` before the handler runs
+ *   (`architecture.md` §10). A page must never call them.
+ * - **The admin reads** — `revenueSummary`, `listUpcomingRenewals`,
+ *   `listPastDue` — take an actor and call `requireRole(actor, ['admin'])`
+ *   themselves. `/admin/facturacion` calling `requireRole` too is defence in
+ *   depth, not the guard: rule 4 puts the check server-side, in the query.
+ *
+ * Mutations assert the role themselves as well, except `markPastDue`, which is
+ * the cron's and documents its own reason.
  */
 
-import { and, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { institutions, plans, subscriptionReminders, subscriptions } from '@/db/schema';
 import { logActivity } from '@/db/queries/admin/activity-log';
 import { requireRole } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
+import type { SubscriptionStatusValue } from '@/lib/admin/validation';
 import { reminderKey, type RenewalSubscription } from '@/lib/billing/renewals';
 
 /** Every subscription with an end date, joined to what a notice needs to name. */
@@ -88,6 +96,12 @@ export async function recordReminderSent(
     .onDuplicateKeyUpdate({ set: { subscriptionId: sql`subscription_id` } });
 }
 
+/** What the sweep found: the id, and the status it is moving away from. */
+export interface SweptSubscription {
+  id: number;
+  status: SubscriptionStatusValue;
+}
+
 /**
  * Moves ended `active`/`trial` subscriptions to `past_due`, which is what
  * starts the grace window (`lib/billing/renewals.ts`).
@@ -97,30 +111,40 @@ export async function recordReminderSent(
  * an automated write is distinguishable from a person's forever.
  */
 export async function markPastDue(
-  subscriptionIds: readonly number[],
+  swept: readonly SweptSubscription[],
   database: Db = defaultDb,
 ): Promise<number> {
-  if (subscriptionIds.length === 0) return 0;
+  if (swept.length === 0) return 0;
 
   await database.transaction(async (tx) => {
     await tx
       .update(subscriptions)
       .set({ status: 'past_due' })
-      .where(inArray(subscriptions.id, [...subscriptionIds]));
+      .where(
+        inArray(
+          subscriptions.id,
+          swept.map((row) => row.id),
+        ),
+      );
 
-    for (const id of subscriptionIds) {
+    for (const row of swept) {
       await logActivity(tx, {
         userId: null,
         entityType: 'subscription',
-        entityId: id,
+        entityId: row.id,
         action: 'update',
-        before: { status: 'active_or_trial' },
+        // The row's **real** prior status. This used to write the literal
+        // `'active_or_trial'` — not a value the enum can hold, and a guess
+        // recorded as fact in the one table whose whole purpose is saying what
+        // actually happened (CLAUDE.md rule 1). PR-44 gave `activity_log` a
+        // reader, so an operator now sees it. The caller already has the row.
+        before: { status: row.status },
         after: { status: 'past_due', by: 'cron:subscription-sweep' },
       });
     }
   });
 
-  return subscriptionIds.length;
+  return swept.length;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -146,16 +170,33 @@ export interface RevenueSummary {
   /** Subscriptions in force with no invoice reference recorded yet. */
   missingInvoiceRef: number;
   pastDue: number;
+  /** Counted, never priced: a trial owes nothing (see below). */
+  trials: number;
 }
 
 /**
  * What is currently sold, by plan.
  *
- * "In force" here is `status in (active, trial)` **and** the dates covering
- * today — the same predicate `resolveEntitlements` applies, expressed in SQL.
- * A number on a revenue page that counts a subscription the site is no longer
- * honouring would be the worst kind of wrong: right in the spreadsheet and
- * wrong on the site.
+ * "In force" is `status = 'active'` **and** the dates covering today.
+ *
+ * ### Why `trial` is not in force, and `gratis` is not contracted
+ *
+ * Both used to be. The independent review of PR-29 (PR-46) found the
+ * consequence: a `trial` row was multiplied by the plan's list price and added
+ * to the headline "USD/año contratado" — money nobody has agreed to pay,
+ * presented as money that was — and every `gratis` row (price 0) sat
+ * permanently in **"Vigentes sin referencia de factura"**, which is a queue of
+ * problems to chase, reading as an unpaid invoice forever.
+ *
+ * Neither is a rounding error on a screen whose entire job is telling the
+ * operator what is owed, and inventing a figure the database cannot know is
+ * CLAUDE.md rule 1. So the money aggregates count `active`, paid plans only.
+ * Trials are still visible — as their own labelled row, counted and never
+ * priced.
+ *
+ * This deliberately no longer matches `resolveEntitlements`, and should not: a
+ * trial grants features and owes nothing, which is exactly the difference
+ * between what the site honours and what the operator can invoice.
  *
  * `contracted_usd_year` is the plan's list price × count. It is **not**
  * collected revenue and the page says so: what was actually invoiced is
@@ -168,13 +209,23 @@ export async function revenueSummary(
 ): Promise<RevenueSummary> {
   requireRole(actor, ['admin']);
 
-  const inForce = and(
-    inArray(subscriptions.status, ['active', 'trial']),
+  const covering = and(
     lte(subscriptions.startsOn, today),
     sql`(${subscriptions.endsOn} is null or ${subscriptions.endsOn} >= ${today})`,
   );
+  /**
+   * Contracted: an active subscription to a plan that has a price. The
+   * predicate is the **price**, not the rank — "has a price" is the thing
+   * being asked, and a future free-but-ranked plan would otherwise be summed
+   * into a revenue figure at zero and inflate the institution count.
+   */
+  const contracted = and(
+    eq(subscriptions.status, 'active'),
+    gt(plans.priceUsdYear, 0),
+    covering,
+  );
 
-  const [byPlan, totals, pastDueRows] = await Promise.all([
+  const [byPlan, totals, pastDueRows, trialRows] = await Promise.all([
     database
       .select({
         planCode: plans.code,
@@ -184,7 +235,7 @@ export async function revenueSummary(
       })
       .from(subscriptions)
       .innerJoin(plans, eq(plans.id, subscriptions.planId))
-      .where(inForce)
+      .where(contracted)
       .groupBy(plans.code, plans.name, plans.priceUsdYear)
       .orderBy(plans.rank, plans.priceUsdYear),
     database
@@ -193,11 +244,16 @@ export async function revenueSummary(
         missing: sql<number>`sum(case when ${subscriptions.invoiceRef} is null then 1 else 0 end)`,
       })
       .from(subscriptions)
-      .where(inForce),
+      .innerJoin(plans, eq(plans.id, subscriptions.planId))
+      .where(contracted),
     database
       .select({ count: sql<number>`count(*)` })
       .from(subscriptions)
       .where(eq(subscriptions.status, 'past_due')),
+    database
+      .select({ count: sql<number>`count(*)` })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.status, 'trial'), covering)),
   ]);
 
   const rows: RevenueRow[] = byPlan.map((row) => ({
@@ -215,6 +271,7 @@ export async function revenueSummary(
     invoicedPyg: Number(totals[0]?.invoiced ?? 0),
     missingInvoiceRef: Number(totals[0]?.missing ?? 0),
     pastDue: Number(pastDueRows[0]?.count ?? 0),
+    trials: Number(trialRows[0]?.count ?? 0),
   };
 }
 

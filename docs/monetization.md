@@ -49,7 +49,7 @@ Everything listed, everything free, no ads. The only goals are index completenes
 | **Verificado** — hasta 25 programas | **490**            | Claimed profile, edit own data, logo + photos + video, full lead delivery (email + WhatsApp), "Perfil verificado" badge, basic stats.                                 |
 | **Verificado** — 26–75 programas    | **890**            | idem                                                                                                                                                                  |
 | **Verificado** — 76+ programas      | **1.490**          | idem                                                                                                                                                                  |
-| **Destacado** (add-on)              | **+1.200 – 3.000** | Priority placement in up to N career hubs (clearly labelled "Destacado"), banner on the relevant `/areas/*` page, featured in the comparador sidebar, monthly report. |
+| **Destacado** (add-on)              | **+1.200 – 3.000** | Priority placement, clearly labelled "Destacado", across the search and hub surfaces the institution's programmes appear on. See Correction 3: the `/areas/*` banner, the comparador sidebar and the monthly report are **not built** and must not be quoted. |
 
 Effective per-program price: **USD 20–60/year.** Same instinct, better packaging.
 
@@ -172,6 +172,22 @@ charging for the right to correct a wrong price buys a little revenue by making
 the index worse, which is the one trade this product cannot make. What is sold
 is **presentation, reach and lead access**; factual correction is free.
 
+### Correction 3 — the Destacado extras in §3 are not built (PR-46)
+
+§3's price list sold Destacado with a "banner on the relevant `/areas/*` page",
+"featured in the comparador sidebar" and a "monthly report". None of the three
+exists, and none is planned: `architecture.md` §17.1 records the reason — the
+two placement surfaces need a placement table (which institution, which área,
+which period) that no schema has, and building one would create a second way to
+sell placement alongside the subscription. What Destacado actually buys is the **labelled tiebreaker**
+wherever results appear, plus everything Verificado buys.
+
+**§3's Destacado row was edited in this PR** to say so — it was the page a
+customer is quoted from, and leaving the correction to be read down here was
+how the gap survived. PR-27 recorded the non-build honestly in `pr-plan.md` and in
+§17.1 and did not carry it back to §3; the independent review of PR-27 found the
+gap.
+
 ### Correction 2 — the lead **delivery email** is never gated
 
 §3's Gratis row said "no lead delivery (leads visible as count only)". Half of
@@ -179,8 +195,17 @@ that shipped. The student's consent text says in so many words that their data
 is sent to the institution they chose (`risks.md` §R-06) — withholding it would
 make our own consent text false, and the person harmed would be the 17-year-old,
 not the institution we are trying to sell to. So the email always goes out, and
-what a plan buys is the **inbox**: contact details in `/panel/leads`, the CSV
-export and the status workflow. A free institution sees counts and can still be
+what a plan buys is the **contact details**: the name, phone, email and message
+on a lead, wherever they appear — `/panel/leads`, the detail page and the CSV
+export alike.
+
+*(Corrected 2026-08-20, PR-46. This said the plan buys "the inbox: contact
+details, the CSV export and the status workflow", and the code has never gated
+the last two: a free institution gets a real CSV and a working status workflow,
+with the four contact columns empty. That is the better product — the workflow
+costs nothing to serve and a redacted export is still useful — so the sentence
+moved to match the code rather than the other way round. PR-23's acceptance
+criterion, "counts but not contact details", was always satisfied.)* A free institution sees counts and can still be
 reached; a paying one gets the working surface.
 
 The commercial consequence is stated rather than hidden: an institution that

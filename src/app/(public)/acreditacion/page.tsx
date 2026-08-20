@@ -22,10 +22,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { AccreditationBadge } from '@/components/browse';
+import {
+  AccreditationBadge,
+  DestacadoBadge,
+  PlacementDisclosure,
+  type PlacementFlags,
+} from '@/components/browse';
 import { offeringHref } from '@/components/browse/hrefs';
 import { Button, Card, Input } from '@/components/ui';
 import { searchPrograms } from '@/lib/search';
+import { getPlacementFlags } from '@/lib/entitlements';
 import { JsonLd, breadcrumbSchema, faqSchema } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +83,17 @@ export default async function AcreditacionPage({ searchParams }: { searchParams:
   const query = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
 
   const results = query ? (await searchPrograms({ q: query, pageSize: MAX_RESULTS })).results : [];
+
+  // This list is ordered — and, at twelve rows, *truncated* — by `plan_rank`
+  // among rows that tie on the text score. The independent review of PR-27
+  // (PR-46) found it doing that unlabelled, on the one page whose whole subject
+  // is only claiming what we can cite. Live flags, like everywhere else.
+  const placements = results.length
+    ? await getPlacementFlags(results.map((offering) => offering.institutionId))
+    : new Map<number, PlacementFlags>();
+  const hasPaidPlacement = results.some(
+    (offering) => placements.get(offering.institutionId)?.destacado,
+  );
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
@@ -151,14 +168,20 @@ export default async function AcreditacionPage({ searchParams }: { searchParams:
                         >
                           {offering.programName}
                         </Link>
-                        <p className="text-muted text-xs">
-                          {offering.institutionShort} · {offering.cityName}
+                        <p className="text-muted flex items-center gap-1.5 text-xs">
+                          <span className="truncate">
+                            {offering.institutionShort} · {offering.cityName}
+                          </span>
+                          {placements.get(offering.institutionId)?.destacado && (
+                            <DestacadoBadge className="shrink-0" />
+                          )}
                         </p>
                       </div>
                       <AccreditationBadge accreditation={offering.accreditation} />
                     </li>
                   ))}
                 </ul>
+                {hasPaidPlacement && <PlacementDisclosure truncated={results.length === MAX_RESULTS} />}
                 <p className="text-faint max-w-prose text-xs">
                   “Sin datos de acreditación” significa que no encontramos un registro que podamos
                   citar, no que la carrera no esté acreditada. Si sos la institución y esto está

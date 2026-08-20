@@ -76,6 +76,52 @@ describe('dueReminders', () => {
     expect(dueReminders([subscription], TODAY, sent)).toHaveLength(0);
   });
 
+  /**
+   * The defect the independent review of PR-29 (PR-46) found. `dueReminders`
+   * used to walk *every* threshold the subscription was at or inside and fire
+   * the first unsent one — so once the narrowest had been consumed, the next
+   * run fired the next-widest. A subscription first seen five days out got
+   * three mails on three consecutive days: "faltan 4 días" under the 30-day
+   * heading, then "faltan 3 días" under the 90-day one.
+   *
+   * Normal operation (90 → 30 → 7 on schedule) never hits it, which is why the
+   * single-run test above passed. This one walks the days.
+   */
+  it('sends ONE notice to a subscription first seen inside the narrowest window', () => {
+    const subscription = sub({ endsOn: '2026-08-17' });
+    const sent = new Set<string>();
+    const fired: { day: string; threshold: number; daysLeft: number }[] = [];
+
+    for (const day of ['2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16']) {
+      for (const due of dueReminders([subscription], day, sent)) {
+        fired.push({ day, threshold: due.threshold, daysLeft: due.daysLeft });
+        sent.add(reminderKey(due.subscription.id, '2026-08-17', due.threshold));
+      }
+    }
+
+    expect(fired).toEqual([{ day: '2026-08-12', threshold: 7, daysLeft: 5 }]);
+  });
+
+  it('never labels a notice with a threshold the period has already passed', () => {
+    // The general form: whatever fires, its heading must still be true, on
+    // every day of a full 90-day run.
+    const subscription = sub({ endsOn: '2026-11-18' });
+    const sent = new Set<string>();
+
+    for (let offset = 0; offset < 100; offset += 1) {
+      const day = new Date(Date.UTC(2026, 7, 12) + offset * 86_400_000).toISOString().slice(0, 10);
+      for (const due of dueReminders([subscription], day, sent)) {
+        expect(
+          due.daysLeft,
+          `${day}: "faltan ${due.daysLeft}" under a ${due.threshold}-day notice`,
+        ).toBeLessThanOrEqual(due.threshold);
+        sent.add(reminderKey(due.subscription.id, '2026-11-18', due.threshold));
+      }
+    }
+
+    expect(sent.size, 'exactly the three thresholds, once each').toBe(3);
+  });
+
   it('re-arms after a renewal, because the period end is part of the key', () => {
     const sent = new Set([reminderKey(1, '2026-10-31', 90)]);
     // Renewed: the row now ends a year later, and 90 days out from *that*.

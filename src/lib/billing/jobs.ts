@@ -20,6 +20,8 @@ import {
   recordReminderSent,
   sentReminderKeys,
 } from '@/db/queries/billing';
+import { asuncionToday } from '@/lib/format';
+
 import { billingGraceDays } from './config';
 import { sendRenewalDigest } from './notify';
 import { dueReminders, graceExpired, newlyPastDue } from './renewals';
@@ -32,12 +34,14 @@ export interface BillingSweepResult {
 
 /** `GET /api/cron/subscription-sweep`. */
 export async function runSubscriptionSweep(now: Date = new Date()): Promise<BillingSweepResult> {
-  const today = now.toISOString().slice(0, 10);
+  const today = asuncionToday(now);
   const graceDays = billingGraceDays();
   const subscriptions = await listRenewalSubscriptions();
 
   const toMark = newlyPastDue(subscriptions, today);
-  const marked = await markPastDue(toMark.map((subscription) => subscription.id));
+  const marked = await markPastDue(
+    toMark.map((subscription) => ({ id: subscription.id, status: subscription.status })),
+  );
 
   return {
     markedPastDue: marked,
@@ -59,7 +63,7 @@ export interface ReminderResult {
 
 /** `GET /api/cron/renewal-reminders`. */
 export async function runRenewalReminders(now: Date = new Date()): Promise<ReminderResult> {
-  const today = now.toISOString().slice(0, 10);
+  const today = asuncionToday(now);
 
   const [subscriptions, alreadySent] = await Promise.all([
     listRenewalSubscriptions(),
