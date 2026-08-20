@@ -219,11 +219,7 @@ export async function revenueSummary(
    * being asked, and a future free-but-ranked plan would otherwise be summed
    * into a revenue figure at zero and inflate the institution count.
    */
-  const contracted = and(
-    eq(subscriptions.status, 'active'),
-    gt(plans.priceUsdYear, 0),
-    covering,
-  );
+  const contracted = and(eq(subscriptions.status, 'active'), gt(plans.priceUsdYear, 0), covering);
 
   const [byPlan, totals, pastDueRows, trialRows] = await Promise.all([
     database

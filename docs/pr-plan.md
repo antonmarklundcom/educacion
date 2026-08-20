@@ -1007,6 +1007,79 @@ enough to display; any gap renders the honest partial ("sin datos de matrícula 
 incompleto"), never an extrapolation; stale inputs carry the PR-33 warning on the total
 itself; comparador totals sort correctly with incomplete rows last.
 
+**Shipped as specified**, with the per-option requirement taken literally after review.
+`architecture.md` §31 has the record. No schema change, no new query, no new cron:
+`total-cost.ts` is arithmetic over the `PriceSummary` the search layer already returns plus
+the offering's `durationMonths`.
+
+`total = annual_cost × años + derecho de examen`, and the per-year half is
+**`computeAnnualCost()` itself**, imported — `data-model.md` says that function and the
+generated column must stay in lockstep, and a third copy here is how that stops being true.
+
+Three decisions the criteria implied rather than stated:
+
+- **A partial carries no figure at all** — not a lower bound, not a "desde", and not a
+  component it does happen to hold. A floor reads as a total to anyone skimming, and this is
+  the number a family budgets against.
+- **A fractional year is undetermined, not missing.** It is reported, but worded as our
+  limitation ("la carrera no dura un número entero de años, así que no sabemos cuántas
+  matrículas se pagan") rather than as absent data. How often it fires is **not measured**:
+  18- and 30-month programmes are ordinary at `tecnicatura` and `maestria` level and this
+  environment has no database to count against.
+- **"Sort with incomplete last" landed as a cheapest-column marker**, since the comparador
+  orders columns by the URL and has no sort control. `cheapestTotalIndex` is built on
+  `compareTotalCost` so the ordering has one definition, and the marker is withheld on a
+  tie, on fewer than two complete totals, or on mixed currencies.
+
+**What the independent review caught** (a session that wrote none of it, per §5.1 — this PR
+is not in the review lane, but the arithmetic is money-adjacent enough to warrant one, and
+it found ten things):
+
+1. **`TotalCostBlock` had no test at all.** Replacing its stale-warning condition with
+   `false` left all 1190 tests green — on the highest-stakes new surface in the PR. Fixed
+   with `TotalCostBlock.test.ts`, rendering the component through
+   `renderToStaticMarkup` (no new dependency; one line of vitest config for the JSX
+   transform). Both guards now go red when removed.
+2. **"A test pins the agreement with `computeAnnualCost()`" was false** — the test asserted
+   against a fixture literal, and gutting `computeAnnualCost` left it green. The module now
+   calls that function instead of restating the formula, and the test compares the two.
+3. **`duracion_parcial` said "sin datos de duración" about rows that have a duration.**
+   Reworded; the "overwhelmingly 48/60/72 months" claim in the docs was unmeasured and is
+   withdrawn rather than defended.
+4. §31.2's "only when matrícula, cuota, cuotas por año … are all present" contradicted the
+   free branch. Corrected.
+5. **The comparador showed a stale total as `· dato de mayo de 2026`** — provenance, not the
+   warning rule 3 asks for. Now `· Dato desactualizado (mayo de 2026)`, and **the arancel
+   cell was changed to match**: the two sit in one column and must not warn differently.
+6. **The total was `offerings[0]`'s, on a page listing several sedes with different
+   aranceles** — so not "per option" as this entry requires. `OfferingsBlock` now carries a
+   total per sede, and the aside block names its sede when there is more than one.
+7. **Four guards had no failing test** (`duration <= 0`, `currency == null`, the gap
+   ordering, staleness on a partial). All four now do. The currency one mattered: without it
+   the comparador emitted a bare "total incompleto" as a *non-gap* cell, eligible for the
+   "el más barato" marker with no number in it.
+8. **The free branch trusted `is_free` over the amounts.** `program_search` carries no
+   `prices_free_has_no_fees` CHECK, so `is_free = 1` beside a matrícula turned a
+   Gs. 22.650.000 carrera into a Gs. 150.000 one. Now refused as `incoherente`.
+9. **A total of Gs. 0 with `is_free = 0`** stated a free carrera without saying so. It now
+   says the amounts on file are all zero.
+10. **`compareTotalCost` was dead code** documented as if it were live. `cheapestTotalIndex`
+    is built on it.
+
+Smaller, all applied: the cheapest marker used `text-ok`, which `globals.css` reserves for
+status; the scope note now admits that some institutions charge differentiated aranceles
+(`prices.notes_md` holds those and the calculator cannot read them); and `copy.test.ts` went
+back to whole-object equality, with the PR-48 keys pinned in their own map, after the review
+noted the subset comparison was a pre-existing guard loosened by an additive PR.
+
+**Doc divergence fixed in passing** (rule 10, and the standing instruction that prose
+overstating the code is a defect): five places still described the pre-PR-33 rule where a
+stale arancel is hidden — `PriceSummary`'s doc comment, `prices.verified_at`'s schema
+comment, `data-model.md` §PR-07, `PRICE_MAX_AGE_MONTHS`' comment, `/admin/frescura`'s header
+— and one of them, `src/lib/legal/sources.ts`, is **user-facing copy on
+`/legal/fuentes`** telling readers the opposite of what the site does. All six now say what
+the code does.
+
 ### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
 
 Two willingness-to-pay gaps in `/panel`. First: a lead sitting in `new` beyond 48 h is

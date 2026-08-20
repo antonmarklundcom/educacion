@@ -2086,3 +2086,130 @@ R-07 disclaimer on its own, since one string now feeds every footer.
 Migrated in PR-47: `Header`, `Footer`, `nav-links`, `LeadModal`, and the browse
 chrome (`SearchBar`, `SortControl`, `ViewToggle`, `ActiveFilters`,
 `EmptyState`, `MobileFilterSheet`).
+
+---
+
+## 31. The total-cost calculator (settled in PR-48)
+
+The question families actually ask is not "how much is the cuota" but "how much
+does this carrera cost me". Both halves were already in `prices`; nothing had
+added them up. `src/lib/prices/total-cost.ts` does, as pure arithmetic over
+verified columns — **no new data is collected and nothing is estimated.**
+
+### 31.1 The formula, and why matrícula is annual
+
+```
+total = annual_cost × años + derecho_de_examen
+```
+
+The per-year half is **`computeAnnualCost()` itself**, imported, not restated.
+`data-model.md` says the generated `annual_cost` column and `computeAnnualCost()`
+"must stay in lockstep"; a third implementation here is exactly how that stops
+being true, and the first version of this PR had one. `total-cost.test.ts`
+asserts `totalCost(p, …).annualCost === computeAnnualCost(p)` across several
+shapes, so the claim is a test rather than a comment.
+
+That import reaches the schema module, so `total-cost.ts` is server-only and
+`client-bundle.test.ts` holds that boundary (§30.2, §5.1).
+
+Matrícula being an annual charge is not this module's invention — it is what
+`annual_cost` means. The derecho de examen is the one-off, added once.
+
+### 31.2 Every component, or no number at all
+
+A total renders only when every component the row needs is present:
+**derecho de examen and duration always, plus matrícula, cuota and cuotas por
+año unless the arancel is free** — a free carrera has no matrícula and no cuota
+by construction (`prices_free_has_no_fees`), so its total is the exam fee and
+nothing else. A missing derecho de examen is *unknown*, not zero
+(`data-model.md`: NULL means _sin datos_, 0 means _gratuita_).
+
+Not a lower bound and not a "desde". A floor reads as a total to anyone
+skimming, and this is the number a family budgets against, so a partial carries
+**no figure at all** — not even a component it does happen to hold.
+`total-cost.test.ts` asserts the partial string contains no digit, and
+`TotalCostBlock.test.ts` asserts the rendered card contains no `Gs.`
+
+Three inputs are refused for reasons that are not absence, because
+`program_search` is denormalized and carries fewer CHECKs than `prices`:
+
+| input | why |
+| --- | --- |
+| amounts with `price_currency = NULL` | a total whose units we cannot name is not a total |
+| `duration_months = 0` | `0 % 12 === 0`, so without the guard a zero-length carrera totals to its exam fee |
+| `is_free = 1` with a matrícula on the row | trusting the flag would silently drop a fee that is sitting right there |
+
+Each has a test. The third is reported as `incoherente` and worded as a
+contradiction in our data, not as a gap in the institution's.
+
+### 31.3 A fractional year is undetermined, not missing
+
+A 30-month carrera bills either three matrículas or two and a half, and the data
+does not say which. So `duracion_parcial` is reported — but **worded as our
+limitation, not as their gap**: "la carrera no dura un número entero de años,
+así que no sabemos cuántas matrículas se pagan", never "sin datos de duración".
+The row is complete; saying otherwise is a false statement about the
+institution's record, and a test asserts the string contains no "sin datos".
+
+How often this fires is **not measured here** — an 18-month maestría and a
+30-month tecnicatura are both ordinary in Paraguay, and this environment has no
+database to count against. The honest statement is that the case is handled
+correctly, not that it is rare. If the operator finds it common, the fix is to
+capture a billing period rather than to guess one.
+
+### 31.4 Staleness travels, it never hides
+
+CLAUDE.md rule 3 and §23: a stale arancel still totals, and `freshness` and
+`verifiedAt` travel on the result — on partials too, so a later consumer cannot
+read one as fresh. The programme block puts the PR-33 warning on the total
+itself, not only on the arancel above it: a stale cuota multiplied by five years
+is a stale number five times over.
+
+The comparador cell carries the **words**, not just a date:
+`Gs. 22.650.000 · Dato desactualizado (mayo de 2026)`. "dato de mayo de 2026"
+reads as provenance and a reader cannot tell it from a fresh date — rule 3 asks
+for a visible warning. PR-48 changed the arancel cell to the same wording, since
+the two cells sit in one column and must not warn differently.
+
+### 31.5 The comparador ordering
+
+`compareTotalCost` sorts cheapest first with **incomplete last**, and never
+compares across currencies — a USD total sorts after every guaraní one rather
+than being converted at a rate we would have to defend (§23, `data-model.md`).
+
+`cheapestTotalIndex` marks the winning column and returns `null` when there is
+no honest winner: fewer than two complete totals, a tie, or more than one
+currency in play. An incomplete column might well be the cheapest; we do not
+know, so nothing is marked.
+
+### 31.6 Where it renders, and per which option
+
+`pr-plan.md` asks for the calculator **per option**, and the programme page's
+aside is built from `offerings[0]` — an arbitrary sede. Two sedes of one carrera
+can charge different aranceles, and over five years the difference is larger
+than either one's annual figure. So:
+
+- **`OfferingsBlock`** carries a total per sede, beside the arancel it already
+  lists per sede. That is the per-option requirement.
+- **`TotalCostBlock`** in the aside names its sede whenever there is more than
+  one, so a single headline figure cannot read as the carrera's.
+- **The `totalCost` row in the comparador**, built from the same `PriceSummary`
+  the arancel row reads, so the two cells of one column cannot disagree.
+
+All three are server components. No schema change, no new query, no new cron.
+
+### 31.7 What the render tests hold
+
+`TotalCostBlock` had no test in the first version of this PR, and replacing its
+stale-warning condition with `false` left the entire suite green. A pure-function
+test cannot catch that: the defect lives in the JSX.
+
+`TotalCostBlock.test.ts` renders the component with
+`react-dom/server`'s `renderToStaticMarkup` — no new dependency, no DOM, one
+line of vitest config for the JSX transform — and asserts against the HTML that
+a stale figure never appears without the words rule 3 requires, and that a
+partial card contains no `Gs.` at all. Both go red when their guard is removed.
+
+Its scope is stated on the card rather than implied: the total covers matrícula,
+cuotas and the derecho de examen, and says in as many words that it excludes
+materials and travel.

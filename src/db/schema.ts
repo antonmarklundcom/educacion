@@ -474,7 +474,12 @@ export const prices = mysqlTable(
     sourceUrl: varchar('source_url', { length: 512 }),
     validFrom: date('valid_from', { mode: 'string' }),
     validTo: date('valid_to', { mode: 'string' }),
-    /** The staleness clock. Older than 12 months → the number is not displayed. */
+    /**
+     * The staleness clock. Older than 12 months → the number is **still
+     * displayed**, under a visible "dato desactualizado" warning carrying this
+     * date (CLAUDE.md rule 3, reversed in PR-33). Null means we never verified
+     * it, which is a third state and not a synonym for stale.
+     */
     verifiedAt: timestamp('verified_at'),
     verifiedByUserId: int('verified_by_user_id', { unsigned: true }).references(() => users.id),
     createdAt: createdAt(),

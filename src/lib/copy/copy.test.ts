@@ -116,11 +116,46 @@ const MIGRATED: Record<string, string> = {
   'lead.privacyNoteAfter': '.',
 };
 
+/**
+ * Keys added after PR-47, pinned the same way. A catalog key with no line here
+ * fails the equality test above — which is the point: every string on the site
+ * is either migrated verbatim or deliberately written.
+ */
+const ADDED: Record<string, string> = {
+  'totalCost.heading': 'Costo total de la carrera',
+  'totalCost.scopeNote':
+    'Suma de la matrícula y las cuotas de cada año, más el derecho de examen. No incluye materiales ni traslados, y algunas instituciones cobran aranceles diferenciados.',
+  'totalCost.incompleteSuffix': 'total incompleto',
+  'totalCost.missingPrefix': 'sin datos de',
+  'totalCost.freeNote': 'La carrera es gratuita: el total es el derecho de examen.',
+  'totalCost.zeroNote': 'Todos los montos cargados son cero.',
+  'totalCost.scopeLabel': 'Sede «arg0»',
+  'totalCost.breakdown.annual': 'Costo por año',
+  'totalCost.breakdown.duration': 'Duración',
+  'totalCost.breakdown.installments': 'Cuotas en total',
+  'totalCost.breakdown.admissionFee': 'Derecho de examen',
+  'totalCost.gaps.arancel': 'arancel',
+  'totalCost.gaps.matricula': 'matrícula',
+  'totalCost.gaps.cuota': 'cuota',
+  'totalCost.gaps.cuotas_por_ano': 'cuántas cuotas se pagan por año',
+  'totalCost.gaps.derecho_examen': 'derecho de examen',
+  'totalCost.gaps.duracion': 'duración',
+  'totalCost.undetermined.duracion_parcial':
+    'la carrera no dura un número entero de años, así que no sabemos cuántas matrículas se pagan',
+  'totalCost.undetermined.incoherente':
+    'el arancel figura como gratuito y a la vez tiene montos cargados',
+  'totalCost.compareLabel': 'Costo total',
+  'totalCost.cheapest': 'el más barato',
+};
+
 describe('the es-PY catalog', () => {
   const rendered = leaves(esPY);
 
-  it('renders every migrated key exactly as the JSX did before PR-47', () => {
-    expect(Object.fromEntries(rendered)).toEqual(MIGRATED);
+  it('renders every catalog key exactly, and holds no key nobody pinned', () => {
+    // Whole-object equality, deliberately: a key added without a line in one of
+    // these two maps is a string nobody read in review, and this is the only
+    // place that would have caught it.
+    expect(Object.fromEntries(rendered)).toEqual({ ...MIGRATED, ...ADDED });
   });
 
   it('carries the R-07 disclaimer verbatim — CLAUDE.md rule 9', () => {
@@ -132,7 +167,8 @@ describe('the es-PY catalog', () => {
   it('has no empty or placeholder value', () => {
     for (const [key, value] of rendered) {
       expect(value.trim(), key).not.toBe('');
-      expect(value, key).not.toMatch(/TODO|FIXME|Lorem/i);
+      // Word-bounded: "Todos los montos…" is real copy, not a placeholder.
+      expect(value, key).not.toMatch(/\b(TODO|FIXME|Lorem ipsum)\b/i);
     }
   });
 });

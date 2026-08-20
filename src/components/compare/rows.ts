@@ -14,8 +14,11 @@
  */
 
 import { accreditationLabel } from '@/components/browse/accreditation-display';
-import { priceDisplay } from '@/components/browse/price';
+import { STALE_LABEL, STALE_UNKNOWN_LABEL, priceDisplay } from '@/components/browse/price';
+import { copy } from '@/lib/copy';
 import { formatDurationMonths } from '@/lib/format';
+import { cheapestTotalIndex, totalCost } from '@/lib/prices/total-cost';
+import { compareCellLabel } from '@/lib/prices/total-cost-display';
 import {
   ENROLLMENT_STATUS_LABELS,
   LEVEL_LABELS,
@@ -32,6 +35,8 @@ export interface CompareCell {
   text: string;
   /** True when the cell is an honest gap rather than a value. */
   isGap: boolean;
+  /** A small aside under the value — currently only "el más barato". */
+  note?: string;
 }
 
 export interface CompareRow {
@@ -85,11 +90,27 @@ const EXTRACTORS: readonly Extractor[] = [
       const display = priceDisplay(o.price);
       if (display.isGap) return { text: display.label, isGap: true };
       const amount = `${display.label}${display.unit ?? ''}`;
+      // "dato de mayo de 2026" alone reads as provenance; rule 3 asks for the
+      // words. PR-48 fixed the wording here as well as on the total below, so
+      // the two cells of the same column cannot warn differently.
       return value(
         display.isStale
-          ? `${amount} · ${display.verifiedLabel ? `dato de ${display.verifiedLabel}` : 'sin fecha'}`
+          ? `${amount} · ${display.verifiedLabel ? `${STALE_LABEL} (${display.verifiedLabel})` : STALE_UNKNOWN_LABEL}`
           : amount,
       );
+    },
+  },
+  {
+    key: 'totalCost',
+    label: copy.totalCost.compareLabel,
+    isNumeric: true,
+    of: (o) => {
+      // Composed here from the same PriceSummary the arancel row reads, so the
+      // two cells cannot disagree. A stale total keeps its date for the same
+      // reason the arancel cell does (PR-33).
+      const total = totalCost(o.price, o.durationMonths);
+      const text = compareCellLabel(total);
+      return total.kind === 'partial' ? { text, isGap: true } : value(text);
     },
   },
   {
@@ -116,8 +137,17 @@ const EXTRACTORS: readonly Extractor[] = [
 ];
 
 export function buildCompareRows(offerings: readonly OfferingSummary[]): CompareRow[] {
+  const cheapest = cheapestTotalIndex(
+    offerings.map((offering) => totalCost(offering.price, offering.durationMonths)),
+  );
+
   return EXTRACTORS.map((extractor) => {
-    const cells = offerings.map((offering) => extractor.of(offering));
+    const cells = offerings.map((offering, index) => {
+      const cell = extractor.of(offering);
+      return extractor.key === 'totalCost' && index === cheapest
+        ? { ...cell, note: copy.totalCost.cheapest }
+        : cell;
+    });
     return {
       key: extractor.key,
       label: extractor.label,

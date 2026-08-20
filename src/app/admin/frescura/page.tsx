@@ -42,10 +42,12 @@ function Stat({
  * What has gone stale, and the one action that fixes it.
  *
  * The numbers here are the honest state of the dataset — the thing `plan.md` §6
- * calls the actual bottleneck. Two of them are not opinions but consequences:
- * an arancel past 12 months **is already hidden** from the comparador, the
- * JSON-LD and the OG images, so `pricesExpired` is a count of carreras
- * currently showing "Consultá el arancel" where we used to have a number.
+ * calls the actual bottleneck. `pricesExpired` is not an opinion but a
+ * consequence: an arancel past 12 months is **shown with a visible "dato
+ * desactualizado" warning** on every public surface and dropped from the
+ * `Offer` JSON-LD (CLAUDE.md rule 3, PR-33 — this comment described the
+ * hide-everything rule that PR-33 reversed). So it counts carreras whose
+ * number a student is being told not to trust.
  *
  * PR-33 owns the automated half of this (the weekly digest, the cron, the
  * public "última actualización" surfaces). This is the manual half, which has

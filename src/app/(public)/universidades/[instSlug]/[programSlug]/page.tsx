@@ -35,6 +35,7 @@ import { AccreditationBlock } from '@/components/program/AccreditationBlock';
 import { AdmissionBlock } from '@/components/program/AdmissionBlock';
 import { OfferingsBlock } from '@/components/program/OfferingsBlock';
 import { PriceBlock } from '@/components/program/PriceBlock';
+import { TotalCostBlock } from '@/components/program/TotalCostBlock';
 import { EventBeacon } from '@/components/analytics';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
@@ -257,6 +258,11 @@ export default async function ProgramPage({ params }: { params: Params }) {
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-6">
           <PriceBlock price={primary.price} />
+          <TotalCostBlock
+            price={primary.price}
+            durationMonths={primary.durationMonths}
+            campusName={offerings.length > 1 ? primary.campusName : undefined}
+          />
           <AdmissionBlock offering={primary} />
         </aside>
       </div>

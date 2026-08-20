@@ -194,10 +194,11 @@ export interface OfferingSummary {
 /**
  * The price as the UI is allowed to see it.
  *
- * `isDisplayable` has already applied the 12-month rule. When it is false the
- * amounts are `null` — the query layer strips them rather than trusting every
- * consumer to remember the rule. A component cannot accidentally render a
- * stale arancel because it never receives one.
+ * There is no `isDisplayable` and nothing is stripped: PR-33 reversed that
+ * rule (CLAUDE.md rule 3). Every amount travels, and `freshness` travels with
+ * it, so a component renders the number **and** the warning from one object
+ * rather than choosing between them. `priceDisplay()` and `staleNotice()` are
+ * where that pairing is enforced.
  */
 export interface PriceSummary {
   /**
