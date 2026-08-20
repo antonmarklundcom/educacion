@@ -7,10 +7,10 @@
  *
  * - **Carreras sin arancel publicado.** The gap the institution can close in
  *   five minutes and nobody else can (`risks.md` §R-03).
- * - **Aranceles vencidos.** Not a warning — a statement of what is *currently
- *   not showing* on their own pages, because a price past 12 months is hidden
- *   everywhere (`data-model.md` §2). This is the sentence that gets a price
- *   updated.
+ * - **Aranceles vencidos.** A statement of what their own pages are *currently
+ *   hedging on*: a price past 12 months is shown with a visible "dato
+ *   desactualizado" beside it (`data-model.md` §2, PR-33) and withheld from
+ *   `Offer` JSON-LD. This is the sentence that gets a price updated.
  *
  * The engagement counts come from `events` through the same aggregate PR-17
  * fixed with an optional `institutionId` (`architecture.md` §12), so PR-28's

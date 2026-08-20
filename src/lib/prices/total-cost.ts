@@ -46,6 +46,19 @@
  * as a total to anyone skimming, and this is the number families budget
  * against.
  *
+ * ### The CHECKs `program_search` does not carry are mirrored here
+ *
+ * `prices` constrains `is_free` against the fee columns and `installments_per_year`
+ * to 1–24. `program_search` is a denormalized copy with neither CHECK, and this
+ * module reads that copy, so both are re-asserted before the arithmetic runs.
+ * `computeAnnualCost` itself is deliberately **not** the place for them: it is
+ * documented and tested as an exact mirror of the `annual_cost` STORED GENERATED
+ * column, a column that cannot refuse a value its table's CHECK already rejects.
+ * A guard added to the TypeScript copy alone would break the lockstep that is
+ * that function's entire reason to exist, and would make the two disagree on
+ * rows the database can hold. The guard belongs at the boundary where
+ * unconstrained data enters, which is here (PR-48b; `architecture.md` §31.8).
+ *
  * Staleness is carried, never used to hide (CLAUDE.md rule 3, PR-33): a stale
  * arancel still totals, and `freshness` travels with the result so the block
  * and the comparador cell can put the warning on the total itself.
@@ -55,17 +68,18 @@ import { computeAnnualCost } from '@/db/invariants';
 import type { Currency, PriceFreshness, PriceSummary } from '@/lib/search';
 
 /**
- * What is missing, in the order a reader should hear about it.
+ * What stops a total being composable.
  *
- * `duracion_parcial` and `incoherente` are **not** absent data — they are cases
- * where the numbers we hold do not determine a total. They are reported
- * separately for that reason; see `total-cost-display.ts`.
+ * `duracion_parcial`, `incoherente` and `cuotas_invalidas` are **not** absent
+ * data — they are cases where the numbers we hold do not determine a total.
+ * They are reported separately for that reason; see `total-cost-display.ts`.
  */
 export type TotalCostGap =
   | 'arancel'
   | 'matricula'
   | 'cuota'
   | 'cuotas_por_ano'
+  | 'cuotas_invalidas'
   | 'derecho_examen'
   | 'duracion'
   | 'duracion_parcial'
@@ -93,8 +107,20 @@ export interface TotalCost {
   verifiedAt: Date | null;
 }
 
+/**
+ * The canonical order of the gaps. `TotalCost.missing` is always sorted into
+ * it, so two rows missing the same things list them in the same order.
+ *
+ * It orders the gaps **within** each of the two clause groups
+ * `partialLabel()` builds, and nothing more: absent data is always worded
+ * before the undetermined cases whatever this list says, because that split is
+ * made in `total-cost-display.ts`. `incoherente` leading here buys determinism,
+ * not primacy — the claim that this is "the order the reader hears about it"
+ * was more than the constant controls (PR-48b).
+ */
 const GAP_ORDER: readonly TotalCostGap[] = [
   'incoherente',
+  'cuotas_invalidas',
   'arancel',
   'matricula',
   'cuota',
@@ -147,6 +173,22 @@ export function totalCost(price: PriceSummary, durationMonths: number | null): T
     // independently), and a total whose units we cannot name is not a total.
     missing.push('arancel');
     return partial(price, missing, years);
+  }
+
+  // `prices_installments_range` (1–24) is the second CHECK `program_search`
+  // does not carry, and the one that costs money: `computeAnnualCost` multiplies
+  // by `coalesce(installments_per_year, 0)`, so a 0 does not fail — it deletes
+  // every cuota and returns the bare matrícula. The total then renders as
+  // `complete`, with no gap and no warning, and can win the cheapest marker
+  // while being an order of magnitude below the real figure. Mirrored here for
+  // the same reason `prices_free_has_no_fees` is, and before the free branch
+  // because the value is impossible whatever `is_free` says.
+  const installments = price.installmentsPerYear;
+  if (
+    installments != null &&
+    (!Number.isInteger(installments) || installments < 1 || installments > 24)
+  ) {
+    missing.push('cuotas_invalidas');
   }
 
   if (price.isFree) {

@@ -204,11 +204,11 @@ export function buildCareerCityIntro(
     sentences.push(
       min === max
         ? `El arancel anual publicado es de ${formatGs(min)}.`
-        : `El arancel anual publicado va de ${formatGs(min)} a ${formatGs(max)}, con datos verificados en el último año.`,
+        : `El arancel anual publicado va de ${formatGs(min)} a ${formatGs(max)}.`,
     );
   } else {
     sentences.push(
-      `Ninguna de estas ofertas tiene, por ahora, un arancel verificado en los últimos 12 meses que podamos mostrar.`,
+      `Ninguna de estas ofertas tiene, por ahora, un arancel en guaraníes que podamos mostrar.`,
     );
   }
 

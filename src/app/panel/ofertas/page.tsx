@@ -41,9 +41,9 @@ export default async function PanelOfferingsPage() {
         <div>
           <h1 className="text-ink text-2xl font-bold">Sedes y aranceles</h1>
           <p className="text-muted max-w-prose text-sm">
-            Un arancel se muestra durante 12 meses desde que lo cargás. Pasado ese plazo lo
-            ocultamos y el estudiante ve “Consultá el arancel”, porque un precio viejo es peor que
-            ninguno.
+            Un arancel se muestra desde que lo cargás. Pasados 12 meses lo seguimos mostrando, pero
+            con un aviso de “dato desactualizado” y la fecha en que lo confirmaste, porque un precio
+            viejo y fechado le sirve más al estudiante que ninguno.
           </p>
         </div>
 

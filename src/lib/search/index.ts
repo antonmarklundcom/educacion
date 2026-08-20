@@ -8,9 +8,11 @@
  *
  * Everything returned is already resolved: hrefs can be built from the slugs
  * on the row, the accreditation badge carries its own source link, and the
- * price has the 12-month rule applied with the amounts stripped when it fails.
- * A component that receives an `OfferingSummary` cannot render a stale arancel
- * and cannot need a second query.
+ * price carries its `freshness` beside its amounts, classified once by
+ * `priceFreshness()`. A component that receives an `OfferingSummary` cannot
+ * render a stale arancel *without its warning* — `priceDisplay()` produces the
+ * number and the warning in one call (PR-33 reversed the strip-the-amounts
+ * rule) — and cannot need a second query.
  */
 
 import { getOfferingRowsByIds, searchProgramSearchRows } from '@/db/queries/program-search';

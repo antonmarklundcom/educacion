@@ -17,19 +17,19 @@ import { AccreditationBadge, InstitutionMonogram, offeringHref } from '@/compone
 import { cn } from '@/lib/cn';
 import type { OfferingSummary } from '@/lib/search';
 
-import { buildCompareRows, countDifferences } from './rows';
+import { buildCompareRows, differenceSummary } from './rows';
 
 export function CompareTable({ offerings }: { offerings: readonly OfferingSummary[] }) {
   const rows = buildCompareRows(offerings);
-  const differences = countDifferences(rows);
+  const { differing, counted } = differenceSummary(rows);
   const columns = offerings.length;
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted text-sm">
-        {differences === 0
+        {differing === 0
           ? 'Estas carreras coinciden en todos los datos que tenemos.'
-          : `${differences} de ${rows.length} datos difieren. Los iguales están atenuados.`}
+          : `${differing} de ${counted} datos difieren. Los iguales están atenuados.`}
       </p>
 
       {/* Desktop: one column per program */}

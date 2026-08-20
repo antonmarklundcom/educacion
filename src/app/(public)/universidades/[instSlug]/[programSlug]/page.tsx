@@ -35,7 +35,7 @@ import { AccreditationBlock } from '@/components/program/AccreditationBlock';
 import { AdmissionBlock } from '@/components/program/AdmissionBlock';
 import { OfferingsBlock } from '@/components/program/OfferingsBlock';
 import { PriceBlock } from '@/components/program/PriceBlock';
-import { TotalCostBlock } from '@/components/program/TotalCostBlock';
+import { TotalCostBlock, totalCostScope } from '@/components/program/TotalCostBlock';
 import { EventBeacon } from '@/components/analytics';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
@@ -261,7 +261,7 @@ export default async function ProgramPage({ params }: { params: Params }) {
           <TotalCostBlock
             price={primary.price}
             durationMonths={primary.durationMonths}
-            campusName={offerings.length > 1 ? primary.campusName : undefined}
+            campusName={totalCostScope(offerings)}
           />
           <AdmissionBlock offering={primary} />
         </aside>

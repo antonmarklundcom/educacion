@@ -282,11 +282,11 @@ Two things the page states that are worth having in writing: the free tier still
 
 **Reviewed 2026-08-20 (PR-46)**, by a session that wrote none of it — the review this PR was labelled for and never got, having been written and reviewed by the same session that wrote PR-25.
 
-**It found a blocker, and it is the one this PR existed to prevent.** `plan_rank` was written from the entitlement's *rank*, so **Verificado** — which does not buy `priority_placement` (`monetization.md` §7) — was boosted on every default-sorted page, where §4.1 says every row ties on relevance and the tiebreaker decides the whole result. `placementFlags().destacado` is `false` for those rows, so they carried **no "Destacado" badge and triggered no `PlacementDisclosure`**: paid, unlabelled ranking, which §3 closes by naming as the one practice that "destroys the only asset you have". `planRanksByInstitution` now gates on the entitlement, and `rebuild-search.plan-rank.test.ts` asserts the equivalence directly — a row is boosted **iff** the label path would label it — so the two halves cannot drift apart again.
+**It found a blocker, and it is the one this PR existed to prevent.** `plan_rank` was written from the entitlement's _rank_, so **Verificado** — which does not buy `priority_placement` (`monetization.md` §7) — was boosted on every default-sorted page, where §4.1 says every row ties on relevance and the tiebreaker decides the whole result. `placementFlags().destacado` is `false` for those rows, so they carried **no "Destacado" badge and triggered no `PlacementDisclosure`**: paid, unlabelled ranking, which §3 closes by naming as the one practice that "destroys the only asset you have". `planRanksByInstitution` now gates on the entitlement, and `rebuild-search.plan-rank.test.ts` asserts the equivalence directly — a row is boosted **iff** the label path would label it — so the two halves cannot drift apart again.
 
-**Three more surfaces were placing without labelling**, all now fixed: the programme page's "carreras relacionadas" block (chosen by `plan_rank` alone out of fifteen candidates — the highest-value internal link on the page), `/acreditacion`'s result list (ordered *and truncated* by it), and, in the opposite direction, the institution profile, which printed "Destacado" on every row of a single-institution list where no placement had occurred. §17.1's rule cuts both ways.
+**Three more surfaces were placing without labelling**, all now fixed: the programme page's "carreras relacionadas" block (chosen by `plan_rank` alone out of fifteen candidates — the highest-value internal link on the page), `/acreditacion`'s result list (ordered _and truncated_ by it), and, in the opposite direction, the institution profile, which printed "Destacado" on every row of a single-institution list where no placement had occurred. §17.1's rule cuts both ways.
 
-**And the test that was supposed to pin the ordering criterion was vacuous.** Promoting `plan_rank` to the *primary* sort key — paid placement fully overriding the user's choice — left all 28 tests green, because the fixture has enough rank-2 rows to fill the page the test scanned. It is now a property over every cross-rank pair, plus a filtered-set test that names a boosted excluded row instead of re-checking the filter.
+**And the test that was supposed to pin the ordering criterion was vacuous.** Promoting `plan_rank` to the _primary_ sort key — paid placement fully overriding the user's choice — left all 28 tests green, because the fixture has enough rank-2 rows to fill the page the test scanned. It is now a property over every cross-rank pair, plus a filtered-set test that names a boosted excluded row instead of re-checking the filter.
 
 **What holds, verified rather than assumed:** `plan_rank` is appended after the user's key for all seven sort keys (each `case` checked, not just the default), never enters `buildConditions`, and cannot promote a priceless Destacado row past a priced one under `arancel_asc`; `offering_id` closes both chains so pagination is stable. Nothing in the label path reads `program_search.plan_rank` — checked across every consumer in `src/components`, `src/lib/seo` and `src/app`. Band boundaries match §3 exactly. Rule 7 is not violated: `VerifiedBadge` uses `bg-accent-subtle`, which `design-system.md` prescribes for badges, never `#0d6e86` itself.
 
@@ -326,9 +326,9 @@ Manual invoice reference tracking, renewal reminders (90/30/7 days), past-due st
 
 **Reviewed 2026-08-20 (PR-46)**, by a session that wrote none of it. No blocker: no over-granting defect exists. `active` past `ends_on`, `past_due` inside and outside grace, `cancelled`, `past_due` with a null `ends_on`, an unstarted subscription and two overlapping subscriptions for one institution were each walked against a test, and the grace boundary is inclusive on the last day and null on the day after on both sides of the mirror (`resolveEntitlements` and `graceExpired`). `BILLING_GRACE_DAYS` was checked value by value — unset, blank, `"abc"`, `"-5"`, `"15.5"`, `"3650"`, `"0"` — and only unparseable or negative falls back, exactly as claimed. The reminder UNIQUE key exists in the schema **and** in the shipped migration, the insert cannot abort the sweep, and the row is written only after the mail is accepted, so a Resend outage delays a reminder and never loses one. No payment gateway anywhere.
 
-**What the review changed.** `dueReminders` fired the *next-widest* unsent threshold once the narrowest had been consumed, so a subscription first seen five days out got three mails on three consecutive days — "faltan 4 días" under the 30-day heading, then "faltan 3 días" under the 90-day one — which is exactly the catch-up case the design exists for. It now takes the narrowest applicable threshold and nothing else. The sweep wrote `before: { status: 'active_or_trial' }` into `activity_log` — a value the enum cannot hold, invented and recorded as fact in the one table whose purpose is saying what happened (rule 1), and rendered to an operator since PR-44; it now logs the row's real prior status. `/admin/facturacion` counted **trials at list price** in "USD/año contratado" and put every free-plan row permanently into "vigentes sin referencia de factura"; the money aggregates are now `active` rows on priced plans, with trials counted in their own labelled tile. The three `billing.ts` reads could all be downgraded to `['editor']` with the suite green — now pinned. And `defaultOptions` let an explicit `{ graceDays: undefined }` collapse the window to zero.
+**What the review changed.** `dueReminders` fired the _next-widest_ unsent threshold once the narrowest had been consumed, so a subscription first seen five days out got three mails on three consecutive days — "faltan 4 días" under the 30-day heading, then "faltan 3 días" under the 90-day one — which is exactly the catch-up case the design exists for. It now takes the narrowest applicable threshold and nothing else. The sweep wrote `before: { status: 'active_or_trial' }` into `activity_log` — a value the enum cannot hold, invented and recorded as fact in the one table whose purpose is saying what happened (rule 1), and rendered to an operator since PR-44; it now logs the row's real prior status. `/admin/facturacion` counted **trials at list price** in "USD/año contratado" and put every free-plan row permanently into "vigentes sin referencia de factura"; the money aggregates are now `active` rows on priced plans, with trials counted in their own labelled tile. The three `billing.ts` reads could all be downgraded to `['editor']` with the suite green — now pinned. And `defaultOptions` let an explicit `{ graceDays: undefined }` collapse the window to zero.
 
-**One correction reaches further back than PR-29:** every billing date was computed in UTC on a site whose day is `America/Asuncion`, so between 21:00 and midnight a subscription ending *today* already resolved to nothing — a paying institution losing its badge, its lead contacts and its placement three hours early on its last day. Always an under-grant, never an over-grant, which is why it survived. `asuncionToday()` (new here, beside PR-44's `parseAsuncionDay`/`nextAsuncionDay` and on the same stated offset) is now the single source, and `addDays` keeps its own UTC arithmetic — routing that through the new helper shifted every grace window a day and was caught by the boundary test.
+**One correction reaches further back than PR-29:** every billing date was computed in UTC on a site whose day is `America/Asuncion`, so between 21:00 and midnight a subscription ending _today_ already resolved to nothing — a paying institution losing its badge, its lead contacts and its placement three hours early on its last day. Always an under-grant, never an over-grant, which is why it survived. `asuncionToday()` (new here, beside PR-44's `parseAsuncionDay`/`nextAsuncionDay` and on the same stated offset) is now the single source, and `addDays` keeps its own UTC arithmetic — routing that through the new helper shifted every grace window a day and was caught by the boundary test.
 
 **Phase 3 exit:** first paid institution invoiced and live.
 
@@ -564,7 +564,7 @@ so ~21 requests an hour from one ordinary IP — no header spoofing — holds an
 blocked indefinitely, with the victim's own retries topping the window up. Online guessing is
 already bounded by the KDF's cost; locking a paying institution out of its panel during
 admissions is not. Keying on the pair keeps the realistic protection and raises a
-lockout's price from "know the address" to "know the address *and* the IP it will be used
+lockout's price from "know the address" to "know the address _and_ the IP it will be used
 from" — a higher bar, not an impossibility, since `x-forwarded-for` is forgeable. Full reasoning in `architecture.md` §6.1.1.
 
 Second deviation, same kind: **a success costs nothing.** `checkRate` records every attempt
@@ -573,7 +573,7 @@ out by signing in — the exact case §6.1 says the limits must tolerate. The fi
 this peeked and charged the failure afterwards, which the review measured as a total bypass:
 three `await`s sit between peek and charge, so 50 concurrent requests against a cap of 5 all
 reached `authenticate()`. The attempt is now charged at decision time (atomic, both calls
-synchronous and adjacent) and *refunded* on success — the pair key cleared, the single IP
+synchronous and adjacent) and _refunded_ on success — the pair key cleared, the single IP
 timestamp given back — and refunded again if the lookup or the hash comparison throws, so a
 database blip does not spend a waiting user's quota. The cost of charging first is that the
 per-minute rules become concurrency caps as well; `LOGIN_IP_RULES`' burst limit is 30 rather
@@ -601,7 +601,7 @@ layouts already render that id and the boundary renders inside it.
 
 31 tests: 11 on the limiter, 14 on `loginAction` itself and 6 on the new shared primitives.
 The action-level suite exists because a test that calls a helper twice and compares answers
-is a tautology over its own fixture — it would pass unchanged if the limiter moved *below*
+is a tautology over its own fixture — it would pass unchanged if the limiter moved _below_
 `findAccountByEmail`, which is what the "no enumeration oracle" claim actually rests on. Two
 of its cases were written specifically to fail against earlier revisions of this PR: a
 50-request concurrent burst, and a full run of failures after a success (a single trailing
@@ -652,7 +652,7 @@ those two are read live, and an hour is still a refresh clock.
 (2) **One tag, not one per entity**, because one `program_search` row carries
 the institution, the career, the city, the arancel, the badge and the
 `plan_rank`, so for nearly any write the honest answer to "which entries could
-this have changed?" is *any of them*. The expiry lives inside
+this have changed?" is _any of them_. The expiry lives inside
 `rebuildProgramSearch()`, which almost every catalog write already funnels
 through, rather than at ~40 call sites.
 (3) **The cache holds rows, never derived facts.** `toOfferingSummary(row, now)`
@@ -802,7 +802,7 @@ entry is long. `architecture.md` §29 has the whole record.
 **Why no browser SDK.** Measured here, `import('@sentry/browser')` produces a
 **144.5 kB gzipped** chunk — Replay, Feedback and BrowserTracing included,
 because Turbopack does not tree-shake the package's index despite its
-`sideEffects: false`. The public page budget is 150 kB *in total* (§9). An error
+`sideEffects: false`. The public page budget is 150 kB _in total_ (§9). An error
 reporter larger than the application it reports on is not a trade this site
 makes, and the person who would pay for it is the student on 4G in October that
 §9 was written for. So the error boundaries post a **fixed five-string report to
@@ -819,7 +819,7 @@ DSN and an auth token. Budget 150 kB.
 
 **Absent DSN = fully inert, in four places:** `serverDsn()` rejects a blank
 value, the config skips `init`, `capture.ts` does not `import` the SDK at all,
-and `next.config.ts` applies the build plugin only when a DSN *and* an auth
+and `next.config.ts` applies the build plugin only when a DSN _and_ an auth
 token are both present — so CI's `next build` runs no plugin and attempts no
 upload.
 
@@ -836,7 +836,7 @@ found **three blockers** and six lesser items, all fixed here.
 bound was "rate limited per hashed IP", and `hashClientIp` reads
 `x-forwarded-for` — which the caller writes. `beforeSend`'s per-fingerprint
 throttle was no backstop either: the fingerprint is derived from the `name` and
-`stack` *in the report*. The reviewer demonstrated 300/300 forwards with a
+`stack` _in the report_. The reviewer demonstrated 300/300 forwards with a
 rotating header and a per-request fingerprint. Now: a same-origin check, a
 `content-length` gate, a byte cap (`Buffer.byteLength`, not `String.length` —
 8 000 emoji is 32 kB), and, the bound that actually holds, a **process-wide
@@ -854,21 +854,21 @@ the whole suite green. `capture.test.ts` now covers all of it.
 
 (d) **`scrub.ts` called itself an allowlist and was a five-key denylist.** Its
 own inline comment conceded it. That let `server_name` (`os.hostname()`, and
-*not* covered by `sendDefaultPii: false`), `modules`, `threads` and
+_not_ covered by `sendDefaultPii: false`), `modules`, `threads` and
 `attachments` through — and, worse, never looked at
 `exception.values[].value`, which is where PII on this site most plausibly
 appears: a mysql2 duplicate-key error is
 `Duplicate entry 'ana@example.com' for key 'leads.email'`. It is now a real
 top-level allowlist (keeping `debug_meta`, without which stacks are not
 readable), plus a named pattern-denylist that redacts addresses and phone
-numbers *inside* the message and keeps the sentence.
+numbers _inside_ the message and keeps the sentence.
 
 (e) **A bad `SENTRY_AUTH_TOKEN` produced a green, silent deploy with no
 sourcemaps anywhere** — the plugin's failure handler is non-throwing by default,
 `silent: true` suppressed the error line, and the local `.map` files were
 deleted regardless. An `errorHandler` that throws makes it a failed build.
 
-Also fixed: the 8 kB cap that only avoided the *parse*, not the *read*;
+Also fixed: the 8 kB cap that only avoided the _parse_, not the _read_;
 attacker-controlled strings reaching a console line unescaped (log-line forgery
 on the no-DSN path, which is the default locally and in CI); a module-level
 `NextResponse` singleton returned from every request; a throttle-eviction test
@@ -895,7 +895,7 @@ one per PR, run in parallel — plus the fixes. Each PR's caveat paragraph above
 by a dated "reviewed 2026-08-20" note saying what was checked and what changed; the
 going-forward rule is `agent-workflow.md` §5.1.
 
-**One blocker, in PR-27's path.** `plan_rank` was written from the entitlement's *rank*, so
+**One blocker, in PR-27's path.** `plan_rank` was written from the entitlement's _rank_, so
 **Verificado** — which does not buy `priority_placement` — was boosted on every
 default-sorted page, where `architecture.md` §4.1 says every row ties on relevance and the
 tiebreaker decides the whole result. `placementFlags().destacado` is false for those rows,
@@ -1056,7 +1056,7 @@ it found ten things):
    total per sede, and the aside block names its sede when there is more than one.
 7. **Four guards had no failing test** (`duration <= 0`, `currency == null`, the gap
    ordering, staleness on a partial). All four now do. The currency one mattered: without it
-   the comparador emitted a bare "total incompleto" as a *non-gap* cell, eligible for the
+   the comparador emitted a bare "total incompleto" as a _non-gap_ cell, eligible for the
    "el más barato" marker with no number in it.
 8. **The free branch trusted `is_free` over the amounts.** `program_search` carries no
    `prices_free_has_no_fees` CHECK, so `is_free = 1` beside a matrícula turned a
@@ -1073,12 +1073,61 @@ back to whole-object equality, with the PR-48 keys pinned in their own map, afte
 noted the subset comparison was a pre-existing guard loosened by an additive PR.
 
 **Doc divergence fixed in passing** (rule 10, and the standing instruction that prose
-overstating the code is a defect): five places still described the pre-PR-33 rule where a
+overstating the code is a defect): six places still described the pre-PR-33 rule where a
 stale arancel is hidden — `PriceSummary`'s doc comment, `prices.verified_at`'s schema
 comment, `data-model.md` §PR-07, `PRICE_MAX_AGE_MONTHS`' comment, `/admin/frescura`'s header
 — and one of them, `src/lib/legal/sources.ts`, is **user-facing copy on
-`/legal/fuentes`** telling readers the opposite of what the site does. All six now say what
-the code does.
+`/legal/fuentes`** telling readers the opposite of what the site does. Those six now say
+what the code does; **the sweep was under-scoped and eight more were found in PR-48b**,
+which is why that entry exists.
+
+### PR-48b — the second review pass on PR-48 · **Opus**
+
+PR-48's second review landed after it merged, so its findings are a follow-up PR rather
+than more commits on the same branch. Four real defects, one of them money:
+
+1. **`installments_per_year = 0` produced a complete total with every cuota deleted.**
+   Gs. 22.650.000 rendered as Gs. 2.650.000 — no gap, no warning, eligible for "el más
+   barato". `prices_installments_range` (1–24) is the second CHECK `program_search` does
+   not carry, and PR-48 mirrored only the first. Now mirrored in `total-cost.ts` beside
+   `prices_free_has_no_fees`, and reported as **undetermined**, not "sin datos": there is a
+   number on file. `computeAnnualCost` is deliberately left alone — it is a mirror of a
+   generated column and cannot refuse what the column cannot (`architecture.md` §31.8).
+2. **Rule 3 again, in the branch PR-48 did not fix.** The comparador's arancel cell warned
+   `Dato desactualizado (mayo de 2026)` when it had a date and only `Sin fecha de
+verificación` when it did not — a price shown with no warning at all. One
+   `staleWarning()` in `components/browse/price.ts` now words all three surfaces, which
+   also caught `PriceLabel`'s badge saying `Dato de mayo de 2026`: provenance, not a
+   warning, on every card and table row on the site.
+3. **The PR-48 doc sweep was under-scoped.** Eight further statements of the hide rule,
+   four of them user-facing — `/legal/fuentes` (contradicting `sources.ts` on the same
+   page), `/para-instituciones`, `/panel`, `/panel/ofertas`, plus the price-range filter's
+   help text and the área-page summary, which additionally claimed a freshness gate the
+   query does not apply — and in `architecture.md` §14.2, `data-sources.md` §6,
+   `design-system.md` §11, `search/index.ts`, `admin/staleness.ts` and `panel/dashboard.ts`.
+4. **The per-option fix from PR-48 was untested.** Deleting the per-sede total from
+   `OfferingsBlock`, or the sede-name gate in the programme page, left all 1212 tests
+   green. Both now have render tests; the gate moved into `totalCostScope()` because a
+   condition inline in an async server component is one no test in this suite reaches.
+
+Smaller, all applied: the `computeAnnualCost` agreement test was a tautology (both sides
+were the same call) and now asserts against literals; the comparador's "N de M datos
+difieren" counted a differing arancel twice by counting its total as a second datum, so
+derived rows no longer vote; `cuotas_por_ano`'s gap copy was a clause, making "sin datos de
+matrícula y cuántas cuotas se pagan por año"; `GAP_ORDER`'s comment claimed an ordering it
+does not control; three comments described files or pipelines inaccurately
+(`TotalCostBlock.tsx` naming a `.tsx` test that is `.ts`, `TotalCostBlock.test.ts` calling
+the transform pipeline unchanged when the PR added the `oxc` JSX line, `vitest.config.mts`
+saying it matches `tsconfig.json` when tsconfig sets `jsx: preserve`). And
+`architecture.md` §31.7 no longer implies more than `renderToStaticMarkup` proves: a
+substring in one component's HTML, in PYG, with no RSC pipeline and nothing said about
+visibility.
+
+**Deps:** PR-48 (merged).
+**Accept:** an impossible `installments_per_year` never reaches the arithmetic and never
+renders a figure; no price renders anywhere without rule 3's words once it is stale;
+`OfferingsBlock` and the sede gate both have tests that go red when the code is removed; no
+statement of the pre-PR-33 hide rule survives anywhere in `src/` or `docs/`.
 
 ### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
 
@@ -1136,19 +1185,19 @@ storage decision and return only with the migration that creates institution med
 
 ## Summary
 
-| Phase                            | PRs   | Count  | Opus   | Sonnet | Sonnet → Opus review |
-| -------------------------------- | ----- | ------ | ------ | ------ | -------------------- |
-| 0 — Foundation                   | 01–07 | 7      | 4      | 3      | 0                    |
-| 1 — Public MVP                   | 08–17 | 10     | 1      | 6      | 3                    |
-| 2 — Backend & portal             | 18–24 | 7      | 3      | 1      | 3                    |
-| 3 — Monetization                 | 25–29 | 5      | 1      | 2      | 2                    |
-| 4 — Depth & growth               | 30–34 | 5      | 2      | 3      | 0                    |
-| 5 — Closing PR-18                | 35–36 | 2      | 2      | 0      | 0                    |
-| — OG images (backfilled)         | 39    | 1      | 0      | 1      | 0                    |
-| **Shipped**                      |       | **37** | **13** | **16** | **8**                |
-| 6 — Hardening & SEO debt (plan)  | 40–46 | 7      | 2      | 2      | 3                    |
-| 7 — Growth & polish (plan)       | 47–51 | 5      | 0      | 3      | 2                    |
-| **Total incl. planned**          |       | **49** | **15** | **21** | **13**               |
+| Phase                           | PRs   | Count  | Opus   | Sonnet | Sonnet → Opus review |
+| ------------------------------- | ----- | ------ | ------ | ------ | -------------------- |
+| 0 — Foundation                  | 01–07 | 7      | 4      | 3      | 0                    |
+| 1 — Public MVP                  | 08–17 | 10     | 1      | 6      | 3                    |
+| 2 — Backend & portal            | 18–24 | 7      | 3      | 1      | 3                    |
+| 3 — Monetization                | 25–29 | 5      | 1      | 2      | 2                    |
+| 4 — Depth & growth              | 30–34 | 5      | 2      | 3      | 0                    |
+| 5 — Closing PR-18               | 35–36 | 2      | 2      | 0      | 0                    |
+| — OG images (backfilled)        | 39    | 1      | 0      | 1      | 0                    |
+| **Shipped**                     |       | **37** | **13** | **16** | **8**                |
+| 6 — Hardening & SEO debt (plan) | 40–46 | 7      | 2      | 2      | 3                    |
+| 7 — Growth & polish (plan)      | 47–51 | 5      | 0      | 3      | 2                    |
+| **Total incl. planned**         |       | **49** | **15** | **21** | **13**               |
 
 Across the 37 shipped PRs Sonnet wrote **24 (65%)** and, weighted by lines of code, closer
 to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's.

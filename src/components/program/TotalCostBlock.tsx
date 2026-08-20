@@ -13,7 +13,7 @@
  *    over, and it is the number a family will budget against.
  * 2. **A partial shows no figure at all.**
  *
- * Neither is a comment: `TotalCostBlock.test.tsx` renders this component with
+ * Neither is a comment: `TotalCostBlock.test.ts` renders this component with
  * `renderToStaticMarkup` and asserts both against the emitted HTML. That is
  * why the block reads its warning from `staleSuffix()` rather than deciding it
  * inline — the decision is testable, the JSX is not.
@@ -30,7 +30,22 @@ import { copy } from '@/lib/copy';
 import { formatMoney } from '@/lib/format';
 import { totalCost } from '@/lib/prices/total-cost';
 import { staleSuffix, totalCostLabel, yearsLabel } from '@/lib/prices/total-cost-display';
-import type { PriceSummary } from '@/lib/search';
+import type { OfferingSummary, PriceSummary } from '@/lib/search';
+
+/**
+ * Which sede this block should name, given the carrera's offerings.
+ *
+ * The aside shows `offerings[0]`, so with more than one sede the figure belongs
+ * to a particular one and has to say which; with a single sede the label would
+ * be noise. It lives here rather than inline in the page because a gate written
+ * inline in an async server component is a gate no test can reach — deleting it
+ * left the whole suite green (PR-48b).
+ */
+export function totalCostScope(
+  offerings: readonly Pick<OfferingSummary, 'campusName'>[],
+): string | undefined {
+  return offerings.length > 1 ? offerings[0]?.campusName : undefined;
+}
 
 export function TotalCostBlock({
   price,

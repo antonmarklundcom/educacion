@@ -223,7 +223,8 @@ function ArancelSection({
           </label>
         </div>
         <p className="text-faint text-xs">
-          En guaraníes por año. Solo se consideran aranceles verificados en los últimos 12 meses.
+          En guaraníes por año. Se comparan todos los aranceles cargados en guaraníes, incluidos los
+          que tienen más de 12 meses y salen con el aviso de dato desactualizado.
         </p>
         <button
           type="submit"

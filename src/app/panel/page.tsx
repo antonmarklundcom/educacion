@@ -142,7 +142,7 @@ export default async function PanelPage() {
           <Stat
             value={stats.pricesExpired}
             label="Aranceles vencidos"
-            detail="Con más de 12 meses: hoy no se muestran."
+            detail="Con más de 12 meses: se muestran con el aviso de dato desactualizado."
             href="/panel/ofertas"
             tone={stats.pricesExpired > 0 ? 'danger' : 'neutral'}
           />

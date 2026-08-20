@@ -260,12 +260,12 @@ Per record capture: matrícula, cuota, number of cuotas per year, admission fee,
 
 ## 6. Freshness contract (shown publicly)
 
-| Data                            | Target freshness       | Displayed                             |
-| ------------------------------- | ---------------------- | ------------------------------------- |
-| Institution / program existence | 30 days                | —                                     |
-| Accreditation status            | 30 days                | "Fuente: ANEAES, Res. N° ... (fecha)" |
-| Arancel                         | 12 months, else hidden | "Arancel actualizado: {mes año}"      |
-| Convocatoria / inscripciones    | 7 days in season       | "Verificado: {fecha}"                 |
+| Data                            | Target freshness       | Displayed                                                                                              |
+| ------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| Institution / program existence | 30 days                | —                                                                                                      |
+| Accreditation status            | 30 days                | "Fuente: ANEAES, Res. N° ... (fecha)"                                                                  |
+| Arancel                         | 12 months, else warned | "Arancel actualizado: {mes año}", and past 12 months the amount plus "Dato desactualizado ({mes año})" |
+| Convocatoria / inscripciones    | 7 days in season       | "Verificado: {fecha}"                                                                                  |
 
 Publishing the freshness date is a feature, not an admission of weakness — it is precisely what the incumbent does not do.
 

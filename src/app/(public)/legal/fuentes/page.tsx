@@ -119,9 +119,11 @@ export default function FuentesPage() {
           </li>
           <li>
             <strong className="text-ink font-medium">
-              Un arancel verificado hace más de 12 meses deja de mostrarse.
+              Un arancel verificado hace más de 12 meses se sigue mostrando, con un aviso de dato
+              desactualizado y la fecha en que lo confirmamos.
             </strong>{' '}
-            Preferimos un dato faltante a un precio viejo presentado como actual.
+            Preferimos un dato viejo y fechado a ninguno: esconderlo no hacía desaparecer el precio
+            de la web de la institución, solo nos quitaba la única forma de avisarte de cuándo es.
           </li>
           <li>
             <strong className="text-ink font-medium">No republicamos los PDF oficiales</strong>:

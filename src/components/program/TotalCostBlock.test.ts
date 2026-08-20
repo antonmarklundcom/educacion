@@ -12,8 +12,11 @@
  * it to a string in Node is the whole harness.
  *
  * The file is `.ts` and builds its element with `createElement` rather than
- * JSX: vitest's include list and transform pipeline are unchanged by this PR,
- * which is one fewer thing between a failing assertion and a red CI run.
+ * JSX, so vitest's `include` list needs no new glob. The transform pipeline is
+ * **not** untouched — PR-48 added the `oxc.jsx` line to `vitest.config.mts` so
+ * that the JSX inside the component under test compiles; what this file avoids
+ * is a second change, to which files vitest picks up (PR-48b corrected the
+ * claim that nothing in the pipeline moved).
  */
 
 import { createElement } from 'react';
@@ -22,7 +25,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PriceSummary } from '@/lib/search';
 
-import { TotalCostBlock } from './TotalCostBlock';
+import { TotalCostBlock, totalCostScope } from './TotalCostBlock';
 
 const VERIFIED = new Date('2026-05-01T00:00:00Z');
 
@@ -111,6 +114,33 @@ describe('TotalCostBlock', () => {
   it('names the sede when it is given one, since two sedes can cost different amounts', () => {
     expect(render(price(), 60, 'Central')).toContain('Sede Central');
     expect(render(price(), 60)).not.toContain('Sede ');
+  });
+
+  /**
+   * The gate that decides whether it is given one. It lived inline in the
+   * programme page — an async server component nothing renders in this suite —
+   * so deleting it left all 1212 tests green while every single-sede carrera
+   * grew a redundant sede label. `totalCostScope` is exported for that reason
+   * and is asserted here through the rendered card, not only as a return value.
+   */
+  describe('totalCostScope', () => {
+    // It reads only `campusName`, so the fixture is that field and no more.
+    const one = [{ campusName: 'Central' }];
+    const two = [{ campusName: 'Central' }, { campusName: 'Sur' }];
+
+    it('names the sede when the carrera has more than one', () => {
+      expect(totalCostScope(two)).toBe('Central');
+      expect(render(price(), 60, totalCostScope(two))).toContain('Sede Central');
+    });
+
+    it('says nothing when there is only one sede to attribute the total to', () => {
+      expect(totalCostScope(one)).toBeUndefined();
+      expect(render(price(), 60, totalCostScope(one))).not.toContain('Sede ');
+    });
+
+    it('says nothing rather than throwing on an empty list', () => {
+      expect(totalCostScope([])).toBeUndefined();
+    });
   });
 
   it('always states what the total covers', () => {

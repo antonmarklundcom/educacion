@@ -160,6 +160,15 @@ export interface PriceInput {
  * make a university with no captured price look free.
  *
  * Must stay identical to the `annual_cost` generated column in `schema.ts`.
+ * That is also why it does **not** validate: it multiplies by
+ * `installments_per_year` exactly as the column's CASE does, including an
+ * out-of-range value the column would never have been given, because
+ * `prices_installments_range` rejects one before it can be stored. Adding a
+ * refusal here that the column cannot make would break the lockstep this
+ * function exists to keep. Callers reading a table without that CHECK —
+ * `program_search`, via `lib/prices/total-cost.ts` — re-assert it themselves
+ * (`architecture.md` §31.8); `assertPriceIsCoherent` below is the same rule for
+ * the write path.
  */
 export function computeAnnualCost(price: PriceInput): number | null {
   if (price.isFree) return 0;

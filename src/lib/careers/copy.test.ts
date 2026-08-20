@@ -198,7 +198,8 @@ describe('buildCareerCityIntro', () => {
     expect(paragraph.text).toContain('presencial');
     expect(paragraph.text).toContain('semipresencial');
     expect(paragraph.text).toContain('60 a 66 meses');
-    // Price range drawn only from the two displayable prices, never the third.
+    // Price range drawn only from the two priced offerings; the third has no
+    // number at all. Age is not a filter here — PR-33 shows stale aranceles.
     expect(paragraph.text).toMatch(/Gs\. 8\.500\.000 a Gs\. 9\.400\.000/);
     expect(paragraph.text).toContain('1 de 3');
   });
@@ -206,7 +207,7 @@ describe('buildCareerCityIntro', () => {
   it('is honest about a missing price and a missing accreditation', () => {
     const offerings = [offering(1), offering(2)];
     const [paragraph] = buildCareerCityIntro(career, 'Villarrica', offerings);
-    expect(paragraph.text).toContain('tiene, por ahora, un arancel verificado');
+    expect(paragraph.text).toContain('tiene, por ahora, un arancel en guaraníes');
     expect(paragraph.text).toContain('no registramos acreditación vigente');
   });
 

@@ -4,11 +4,13 @@
  * ### What "stale" means here
  *
  * For an **arancel** it is not an opinion: `PRICE_MAX_AGE_MONTHS` is 12 and a
- * price past it is not displayed anywhere (`invariants.ts`,
- * `data-model.md` §2). So this page has two populations that matter and they
- * are different problems — *already hidden* (the number is gone from the site
- * right now) and *about to be* (still showing, expires within 60 days). The
- * second is the work queue; the first is the backlog.
+ * price past it is displayed **with a visible "dato desactualizado" warning**
+ * (`invariants.ts`, `data-model.md` §2, CLAUDE.md rule 3 — PR-33 reversed the
+ * hide rule). So this page has two populations that matter and they are
+ * different problems — *already warned* (the site is publicly hedging on that
+ * number right now, and dropping it from `Offer` JSON-LD) and *about to be*
+ * (clean, expires within 60 days). The second is the work queue; the first is
+ * the backlog.
  *
  * For **accreditations** and **admissions** there is no display rule, so
  * "stale" is a review interval rather than a boundary: 12 months for an
@@ -66,7 +68,7 @@ function daysFromNow(days: number, now: Date): Date {
 }
 
 export interface StalenessCounts {
-  /** Current prices whose 12 months have already passed — hidden on the site now. */
+  /** Current prices whose 12 months have already passed — warned on the site now. */
   pricesExpired: number;
   /** Current prices expiring within `PRICE_WARNING_DAYS`. */
   pricesExpiringSoon: number;

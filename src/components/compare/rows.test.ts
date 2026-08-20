@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { OfferingSummary } from '@/lib/search';
 
-import { NO_DATA, buildCompareRows, countDifferences } from './rows';
+import { NO_DATA, buildCompareRows, differenceSummary } from './rows';
 
 function offering(index: number, over: Partial<OfferingSummary> = {}): OfferingSummary {
   const n = String(index).padStart(3, '0');
@@ -145,6 +145,31 @@ describe('buildCompareRows', () => {
     expect(text).toContain('Dato desactualizado');
   });
 
+  /**
+   * The undated branch of the same cell, which PR-48 left emitting only "Sin
+   * fecha de verificación" — a price shown with no warning on it at all, which
+   * is precisely what rule 3 forbids. `freshness: 'unknown'` with no
+   * `verified_at` is a real row: `prices.verified_at` is nullable and never
+   * having verified a number is a third state, not a synonym for fresh.
+   */
+  it('warns on an undated stale arancel, not merely that the date is missing', () => {
+    const rows = buildCompareRows([
+      offering(1, {
+        price: {
+          ...offering(1).price,
+          freshness: 'unknown',
+          hasAmount: true,
+          currency: 'PYG',
+          monthlyFee: 1_200_000,
+          verifiedAt: null,
+        },
+      }),
+    ]);
+    expect(row(rows, 'price').cells[0]!.text).toBe(
+      'Gs. 1.200.000/mes · Dato desactualizado (sin fecha de verificación)',
+    );
+  });
+
   /* ---- PR-48: the total-cost row ------------------------------------- */
 
   function priced(over: Partial<OfferingSummary['price']> = {}) {
@@ -220,6 +245,20 @@ describe('buildCompareRows', () => {
       offering(2, { durationMonths: 48, management: 'privada' }),
     ]);
     // institución, sede, ciudad, gestión and duración all differ by construction.
-    expect(countDifferences(rows)).toBe(5);
+    const { differing, counted } = differenceSummary(rows);
+    expect(differing).toBe(5);
+    expect(counted).toBe(rows.length - 1);
+  });
+
+  it('does not count a differing arancel twice by counting its total as well', () => {
+    const rows = buildCompareRows([
+      offering(1, { price: priced(), durationMonths: 60 }),
+      offering(2, { price: priced({ monthlyFee: 900_000 }), durationMonths: 60 }),
+    ]);
+    // Both the arancel row and the total-cost row differ; they are one fact.
+    expect(row(rows, 'price').isDifferent).toBe(true);
+    expect(row(rows, 'totalCost').isDifferent).toBe(true);
+    // institución, sede, ciudad and arancel — the total does not vote.
+    expect(differenceSummary(rows).differing).toBe(4);
   });
 });
