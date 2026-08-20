@@ -10,6 +10,7 @@ import { panelInstitutionId } from '@/db/queries/panel/scope';
 import { formatDate } from '@/lib/format';
 import { formatParaguayanPhone } from '@/lib/leads/phone';
 import { AGE_BRACKET_LABELS } from '@/lib/leads/contract';
+import { LEAD_STATUS_LABELS } from '@/lib/leads/labels';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 import type { LeadStatus } from '@/lib/leads/contract';
@@ -32,14 +33,6 @@ const STATUS_TONE: Record<LeadStatus, 'ok' | 'warn' | 'info' | 'danger' | 'neutr
   contacted: 'ok',
   qualified: 'ok',
   discarded: 'neutral',
-};
-
-const STATUS_LABEL: Record<LeadStatus, string> = {
-  new: 'Nueva',
-  sent: 'Enviada',
-  contacted: 'Contactada',
-  qualified: 'Calificada',
-  discarded: 'Descartada',
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -145,7 +138,7 @@ export default async function PanelLeadsPage({ searchParams }: { searchParams: S
                       {AGE_BRACKET_LABELS[row.ageBracket]} · {formatDate(row.createdAt)}
                     </span>
                   </span>
-                  <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>
+                  <Badge tone={STATUS_TONE[row.status]}>{LEAD_STATUS_LABELS[row.status]}</Badge>
                 </Link>
               </li>
             ))}

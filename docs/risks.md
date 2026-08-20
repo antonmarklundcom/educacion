@@ -92,10 +92,36 @@ Much of the audience is 16–18. Paraguay has no comprehensive general data-prot
 | Institutions told not to resell                                             | In the delivery email (PR-14); the contractual version waits for the plan terms (Phase 3)                                                                                                                                                                                                                                                                                                                                                            |
 | **24-month deletion of leads**                                              | **Shipped in PR-33.** `/api/cron/purge-leads` is `CRON_SECRET`-guarded and idempotent, and it really deletes `leads` where `created_at < now() - 24 months`. It is the one job in the freshness system that destroys anything, and PR-33's stale-price policy change does **not** apply to it: showing an old arancel with a warning is a judgement about usefulness, keeping somebody's phone number past what we told them is a broken commitment. |
 
-**Planned (pr-plan.md PR-44):** executing a deletion request becomes one logged admin
-action — look up by the submitted phone/email, see every matching `leads` row, delete, with
-an `activity_log` entry recording actor and count but never the deleted values. The request
-channel itself does not change. And if student accounts ever activate, R-06 extends to them
+**Shipped in PR-44:** executing a deletion request is one logged `admin` action at
+`/admin/privacidad` — look up by the submitted phone or email, see every matching `leads`
+row, confirm, delete. The request channel itself did **not** change and is not going to
+while there is no student account to prove ownership with; what changed is that honouring a
+request no longer means writing a `DELETE` by hand in phpMyAdmin, where it was unlogged,
+unverified and one typo away from deleting somebody else's data.
+
+Four properties, each with a test that fails without it
+(`db/queries/admin/personal-data.test.ts`, `app/admin/privacidad/actions.test.ts`):
+
+| Property | Why |
+| --- | --- |
+| **Exact match, never a prefix** | The phone is normalised through `parseParaguayanPhone`, the same function the lead form stored it with; an unparseable number matches nothing rather than falling back to the raw string. A `LIKE '+59598%'` would put hundreds of unrelated people's leads on an operator's screen — a privacy incident committed while servicing a privacy request. |
+| **The log records the actor, the count and a hash** | Writing the number into `activity_log` would move the person's data out of a table we just emptied and into one kept forever. The digest is salted with the same `PRIVACY_SALT` as `leads.ip_hash` (a different namespace — `hashEmail`, not `hashIp`), so re-running the *same* lookup is recognisably the same request. It is taken over the phone and the address **jointly**, so a phone-only request and a later phone+email request about the same person do not share a digest: they match different rows, so they are different requests. `entity_id` is null too — an id is a pointer back to a row we have just promised to forget. |
+| **The `DELETE` and the log entry are one transaction** | A deletion that was not recorded is indistinguishable afterwards from data never collected, and this action's whole value is being answerable for it later. |
+| **A run that found nothing is still logged** | "We looked and there was nothing" is the answer the requester gets, and it has to be supported by something. |
+
+No ids travel through the browser: the action takes the contact key and re-runs the lookup
+inside the transaction, because an id list in a form is an id list somebody can edit. The
+cost of that choice is stated rather than hidden: a lead submitted between the lookup and
+the confirmation is deleted without the operator having seen it. That is the right side to
+err on — it is a row the request covers — but it does mean the count on the button is a
+count at lookup time, and the count in `activity_log` is the one that actually went. The
+lookup is a POST rather than a query string for the same reason a claim token is — a `GET`
+would leave the person's phone number in the browser history, the referrer and Hostinger's
+access log, three durable copies made while servicing a request to hold fewer.
+
+**The 24-month purge already deletes most of them.** A request about a lead older than that
+finds nothing, and the screen says so rather than leaving the operator wondering whether the
+lookup ran. And if student accounts ever activate, R-06 extends to them
 under the rules in `student-engagement.md` §3: versioned guardian consent for `menor_18`,
 self-service account deletion (an account session can prove ownership, so there the button
 _is_ a promise we can keep), and an inactivity purge mirroring the 24-month lead rule.

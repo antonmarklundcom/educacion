@@ -1,6 +1,6 @@
 # Pull Request Plan
 
-**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–43 are merged; the rest of Phases 6–7
+**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–44 are merged; the rest of Phases 6–7
 below are planned and not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
 left as-is rather than backfilled, so branch names in git history stay truthful.
 
@@ -674,6 +674,69 @@ by the submitted phone/email, see every matching `leads` row, delete, logged.
 `admin`-gated, removes the person's lead rows and any PII echoes, and writes its own
 `activity_log` entry (actor, count, hashed key — never the deleted values); the R-06 table
 in `risks.md` gains its row in this PR.
+
+**Shipped as:** specified, with **one migration** (`0010`, two indexes, not applied yet) and
+three decisions the brief left open. `architecture.md` §28 and `risks.md` §R-06 hold the
+reasoning.
+
+(1) **The viewer is `editor`-gated; three payload classes are not.** Four entity types —
+`user`, `institution_member`, `subscription`, `personal_data` — have `admin`-only screens of
+their own, and their snapshots carry what those screens carry. The **actor's email address**
+is withheld the same way, for the same reason. The row stays visible to an editor either
+way: that an account was created, by whom, when, is what an audit log is for. `claim` is
+deliberately excluded from the list — `/admin/reclamos` is editor-gated and shows the same
+address, so hiding it would protect nothing. The rule is "does another screen already refuse
+this reader", not "does it look sensitive".
+
+(2) **The restriction lives in the query, not the page.** An access-control rule rendered in
+JSX is the layer CLAUDE.md rule 4 calls UX. `listActivity` returns the row this reader is
+allowed to have.
+
+(3) **The date filter reads in Asunción.** Rows render `America/Asuncion` and the column is
+UTC, so a UTC-midnight bound dropped every entry after 21:00 local from the day it belongs
+to. `parseAsuncionDay`/`nextAsuncionDay` are in `src/lib/format/date.ts` with the offset as
+a documented constant (Paraguay abolished DST in 2024).
+
+**Migration `0010` is generated but NOT applied** — `deployment.md` §3.1. It adds
+`activity_log (created_at)` and `(entity_type, created_at)`: this PR is the table's first
+reader and its default view was a full scan plus filesort over a table that grows with every
+write and is never purged. Nothing on the site reads the new indexes to decide anything, so
+the deploy is safe before or after.
+
+**Independent review** (`agent-workflow.md` §5, a session that wrote none of it) found **one
+blocker** and eight lesser items; all fixed here.
+
+The blocker: the entries join `users` for "who did this", and the query handed an `editor`
+`users.email` for every account that has ever written a row — **including institution
+members**, whose address the same function was withholding one line below as
+`institution_member` snapshot data. The withheld list was the PR's own headline rule and the
+actor column walked straight around it. Fixed by moving both restrictions into
+`listActivity`, which is also what fixed the review's separate finding that the redaction
+existed only at the call site in `page.tsx`.
+
+The review then mutation-tested the guards, and **four claims survived being deleted**:
+(a) "exact match, never a prefix" — the fake database captured the `WHERE` and never read
+it, so replacing `eq` with `LIKE '+59598%'` (the exact privacy incident `risks.md` names)
+left all 20 tests green; the clause is now rendered through `MySqlDialect` and asserted.
+(b) "the `DELETE` and the log entry are one transaction" — the fake `transaction` handed the
+callback the connection back, so removing atomicity entirely was invisible; it now hands
+back a distinct handle, and there is a rollback case where the log write throws.
+(c) the read-only canary caught a write only on a path some other test walked — the reviewer
+added a `redactEntry` export and the suite stayed green; the test now enumerates the module's
+exports and calls each one.
+(d) `personal_data`, the entity type **this PR introduced**, was missing from the withheld
+list, and the test that was supposed to pin the list asserted a constant against a copy of
+itself. The test now scans every `logActivity` call site under `src/db/queries` — literals
+and constants — and fails until each entity type is classified.
+
+Also fixed: `diffSnapshots` used `key in obj`, so a snapshot key called `constructor` or
+`toString` reported a phantom change and handed the formatter a function (`Object.hasOwn`
+now, plus a guard for a `before_json` holding a string or an array — the column is untyped
+`json` and a 500 on the audit page is the worst possible time for one); a raw `discarded`
+enum shown to a Spanish-speaking operator (rule 8 — the label map moved to
+`src/lib/leads/labels.ts`, which also removed the duplicate in `/panel/leads`); a no-op
+`revalidatePath` on a `force-dynamic` route; the deleted person's contact details staying on
+screen after the deletion; and four doc sentences that claimed more than the code did.
 
 ### PR-45 — Observability: Sentry · **Sonnet**
 

@@ -1645,3 +1645,115 @@ for i in $(seq 1 30); do curl -s -o /dev/null -w '%{time_total}\n' \
 
 `npm run search:bench` is the synthetic-dataset harness for the SQL side (§4);
 it measures the query mix, not the cache, and its 150 ms budget is unchanged.
+
+---
+
+## 28. The activity log, read back (settled in PR-44)
+
+`activity_log` has recorded every admin and panel write since PR-19 — actor,
+entity, action, before/after snapshot — and until PR-44 nothing rendered it.
+A table that costs a write on every mutation and answers no question is worse
+than no table; the audit called it "built but orphaned".
+
+### 28.1 Read-only, structurally
+
+`db/queries/admin/activity.ts` exports three reads and no write, and there is
+no action file beside `/admin/actividad`. The reason is not tidiness: a staff
+member who can edit an entry can edit the record of their own edit, and the
+table stops being evidence of anything.
+
+`activity.access.test.ts` enforces it with a database that throws on `insert`,
+`update`, `delete` or `transaction` — and, because a throwing database only
+catches a write on a path some test happens to walk, it **enumerates the
+module's exports** and calls each one. The independent review demonstrated the
+difference by adding a `redactEntry` export to the first version: the suite
+stayed green. It does not now.
+
+### 28.2 An `editor` reads the rows; three entity types keep their payloads
+
+PR-44's brief says the viewer is `editor`-gated, and it is. But
+`/admin/usuarios`, `/admin/suscripciones` and `/admin/privacidad` are
+`admin`-only, and the snapshots for `user`, `institution_member`,
+`subscription` and `personal_data` carry exactly what those screens carry — a
+staff member's address, the role they were given, what an institution is
+paying, which deletion requests were run. Rendering them to an editor would
+make the activity log a way around a role boundary the rest of the admin
+enforces. CLAUDE.md rule 4 cuts both ways: a read refused on one screen cannot
+be granted on another.
+
+**Two things are withheld, not one.** The snapshots above, and the *actor's
+email address*. The independent review found the second: the entries join
+`users` for "who did this", and that column is the content of the `admin`-only
+`/admin/usuarios` — including institution members, whose address the same query
+was withholding one line below as `institution_member` snapshot data. An editor
+gets the actor's name, or `Cuenta #12`; the id is enough to tell two actors
+apart, which is what the column is for.
+
+So the **row** stays visible to an editor — that an account was created, by
+whom, when, is what an audit log is for — and only the payload is withheld,
+with a line saying so rather than an empty space. `claim` is deliberately *not*
+on the list even though its snapshot carries an email: `/admin/reclamos` is
+already `editor`-gated and shows the same address, so hiding it here would
+protect nothing. **The rule is "does another screen already refuse this
+reader", not "does it look sensitive."**
+
+Two things make that rule hold rather than merely be written down:
+
+1. **It is enforced in the query, not in the page.** `listActivity` returns the
+   row this reader is allowed to have. The first version left it to the JSX,
+   which put an access-control rule in the layer rule 4 calls UX — hard-code
+   `viewerIsAdmin` to `true` and the boundary was gone with the whole suite
+   green.
+2. **The list is checked against the call sites**, not against itself.
+   `activity-diff.test.ts` scans every `logActivity` call under
+   `src/db/queries` — literals and constants alike — and fails until each entity
+   type is either withheld or named with the editor-reachable screen that
+   already shows it. Asserting the constant against a copy of itself is what let
+   `personal_data`, introduced by this same PR, go missing from it.
+
+### 28.3 What the viewer shows is the diff, not the snapshot
+
+`before_json` and `after_json` are whole rows. Rendering both side by side asks
+the reader to diff twenty fields to find the one that moved, which is how an
+audit log becomes something nobody opens. `diffSnapshots` returns only the keys
+that differ. Two cases it is careful about, both tested: a key that *went away*
+and a key that *turned null* are different edits and render differently, and
+`0`, `false` and `''` are values, not absences — a diff written with truthiness
+checks would report `installmentsPerYear: 0` as a removal.
+
+**The date filter reads in Asunción, not UTC.** Rows render in
+`America/Asuncion` and the column is UTC, so a bound parsed at UTC midnight is
+three hours off from the day the operator can see: an entry shown as 20/08
+22:30 is stored 21/08 01:30Z, and "hasta el 20" dropped it. `parseAsuncionDay`
+/ `nextAsuncionDay` in `src/lib/format/date.ts` hold the offset as a constant
+with the reason beside it — Paraguay abolished DST in 2024 and is permanently
+UTC−03:00 — so the next reader does not "fix" it into a rule that no longer
+applies. (`src/lib/analytics/range.ts` is UTC on purpose and stays that way:
+its numbers have to agree with a session hash that buckets in UTC. Nothing here
+buckets.)
+
+`ENTITY_LABELS` and `ACTIVITY_ACTION_LABELS` fall back to the raw value.
+`entity_type` is a `varchar` each caller of `logActivity` picks for itself, so
+a label map that owned the vocabulary would hide whatever the next PR starts
+logging until somebody remembered to add it.
+
+### 28.4 R-06 execution — see `risks.md`
+
+`/admin/privacidad` is `admin`-only and is the one screen in this app that
+destroys data irreversibly. The four properties it has to hold, and the
+reasoning for each, are in `risks.md` §R-06 next to the promise they keep,
+rather than duplicated here. Two of them — "exact match, never a prefix" and
+"the `DELETE` and the log entry are one transaction" — were written before
+anything tested them, and the independent review showed both surviving
+mutation: a fake database that captures a `WHERE` and never reads it proves
+nothing about the operator, and a `transaction` that hands the callback the
+connection back proves nothing about atomicity. The clause is now rendered
+through `MySqlDialect` and asserted, and the fake transaction hands back a
+distinct handle with a rollback case.
+
+**One index, one migration.** This PR is the first *reader* of `activity_log`,
+and the default view is `ORDER BY created_at DESC LIMIT 50` with no `WHERE` —
+a full scan plus filesort on a table that gains a row on every admin and panel
+write and is never purged. Migration `0010` adds `(created_at)` and
+`(entity_type, created_at)`; it has **not** been applied (`deployment.md`
+§3.1).

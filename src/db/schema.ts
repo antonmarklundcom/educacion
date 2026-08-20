@@ -1077,6 +1077,19 @@ export const activityLog = mysqlTable(
   (t) => [
     index('activity_log_entity_idx').on(t.entityType, t.entityId),
     index('activity_log_user_idx').on(t.userId, t.createdAt),
+    /*
+     * PR-44 gave this table its first reader, and the default view of
+     * `/admin/actividad` is `ORDER BY created_at DESC LIMIT 50` with no WHERE.
+     * Without this index that is a full scan plus a filesort over a table that
+     * gains a row on every admin and panel write and is never purged — it is
+     * cheap today and gets worse every day the site is used.
+     *
+     * `(entity_type, created_at)` rather than a second index on `entity_type`
+     * alone: the entity filter is always rendered newest-first too, so the
+     * ordering wants to come out of the same index as the equality.
+     */
+    index('activity_log_created_idx').on(t.createdAt),
+    index('activity_log_entity_created_idx').on(t.entityType, t.createdAt),
   ],
 );
 

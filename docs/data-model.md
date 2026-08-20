@@ -289,8 +289,16 @@ curation_conflicts // the moderation queue — nothing auto-publishes on a confl
 
 activity_log
   id, user_id, entity_type, entity_id, action, before_json, after_json, created_at
+  INDEX (entity_type, entity_id), INDEX (user_id, created_at)
+  INDEX (created_at), INDEX (entity_type, created_at)   // PR-44, migration 0010
   // user_id is NULL for an automated write (PR-29's past-due sweep). No
   // "system user" row: it would be indistinguishable from staff in a report.
+  // The two created_at indexes arrived with PR-44, which gave the table its
+  // first reader: `/admin/actividad` is newest-first, unfiltered or filtered by
+  // entity, and both were a filesort over a table that only ever grows.
+  // entity_type is a plain varchar on purpose — every caller of logActivity
+  // picks its own, so a schema enum would turn "log this new thing" into a
+  // migration. `personal_data` (PR-44's R-06 deletions) is the newest value.
 
 job_postings       // PR-32 — a landing page's worth of real avisos, not a job board
   id, career_id, title, employer_name, location_label?, url, source,
