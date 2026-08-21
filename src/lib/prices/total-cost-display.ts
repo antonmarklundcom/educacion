@@ -6,13 +6,18 @@
  * the arancel.
  */
 
-import { STALE_LABEL } from '@/components/browse/price';
+import { staleWarning } from '@/components/browse/price';
 import { copy } from '@/lib/copy';
 import { formatDurationMonths, formatMonthYear, formatMoney } from '@/lib/format';
 
 import type { TotalCost, TotalCostGap } from './total-cost';
 
-const UNDETERMINED = ['duracion_parcial', 'incoherente'] as const;
+const UNDETERMINED = [
+  'duracion_parcial',
+  'incoherente',
+  'cuotas_invalidas',
+  'montos_invalidos',
+] as const;
 
 type UndeterminedGap = (typeof UNDETERMINED)[number];
 type AbsenceGap = Exclude<TotalCostGap, UndeterminedGap>;
@@ -63,14 +68,12 @@ export function totalCostLabel(total: TotalCost): string {
  * The words CLAUDE.md rule 3 requires on a stale figure, or null when the
  * figure is fresh or there is no figure at all.
  *
- * `STALE_LABEL` is reused rather than reworded: "dato de mayo de 2026" alone
+ * `staleWarning()` is reused rather than reworded: "dato de mayo de 2026" alone
  * reads as provenance, and a reader cannot tell it from a fresh date.
  */
 export function staleSuffix(total: TotalCost): string | null {
   if (total.kind !== 'complete' || total.freshness === 'fresh') return null;
-  return total.verifiedAt
-    ? `${STALE_LABEL} (${formatMonthYear(total.verifiedAt)})`
-    : `${STALE_LABEL} (sin fecha de verificación)`;
+  return staleWarning(total.verifiedAt ? formatMonthYear(total.verifiedAt) : null);
 }
 
 /** The comparador cell: the amount, with the warning attached when it is due. */

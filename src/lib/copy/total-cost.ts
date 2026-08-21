@@ -6,7 +6,9 @@
  *
  * `gaps` are noun phrases, joined after one `missingPrefix` — "sin datos de
  * matrícula, cuota y derecho de examen" rather than the same three words
- * three times. `undetermined` is a separate list on purpose: those two cases
+ * three times. Noun phrases, strictly: `cuotas_por_ano` read "cuántas cuotas se
+ * pagan por año" until PR-48b, which is a clause, and "sin datos de matrícula y
+ * cuántas cuotas se pagan por año" is not a sentence. `undetermined` is a separate list on purpose: those two cases
  * are **not** absent data, and copy that says "sin datos" about a complete row
  * tells the reader something false about the institution.
  */
@@ -31,7 +33,7 @@ export const totalCostCopy = {
     arancel: 'arancel',
     matricula: 'matrícula',
     cuota: 'cuota',
-    cuotas_por_ano: 'cuántas cuotas se pagan por año',
+    cuotas_por_ano: 'cantidad de cuotas por año',
     derecho_examen: 'derecho de examen',
     duracion: 'duración',
   },
@@ -40,6 +42,9 @@ export const totalCostCopy = {
     duracion_parcial:
       'la carrera no dura un número entero de años, así que no sabemos cuántas matrículas se pagan',
     incoherente: 'el arancel figura como gratuito y a la vez tiene montos cargados',
+    cuotas_invalidas:
+      'la cantidad de cuotas por año que figura no es un número posible, así que no podemos multiplicar las cuotas',
+    montos_invalidos: 'alguno de los montos cargados no es un importe posible',
   },
   /** The comparador cell when there is no total to show. */
   compareLabel: 'Costo total',

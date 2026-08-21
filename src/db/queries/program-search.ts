@@ -11,10 +11,15 @@
  * shared with the in-memory engine. This file is the translation of those
  * semantics into MySQL and nothing else.
  *
- * `today` is passed in from Node rather than read as `CURDATE()`: the app's
- * pool is pinned to UTC but the MySQL session timezone on shared hosting is
- * not ours to guarantee, and "which day is it" decides whether an arancel is
- * still displayable.
+ * Dates come from Node rather than `CURDATE()` wherever a comparison needs one:
+ * the app's pool is pinned to UTC but the MySQL session timezone on shared
+ * hosting is not ours to guarantee. Since PR-33 the arancel filter needs none —
+ * age no longer decides what may be shown, so nothing in `buildConditions`
+ * compares against today. The `today` argument it used to take was dead by the
+ * end of that PR and was removed in PR-48b, along with the `now` this function
+ * only needed in order to compute it. `options.now` still reaches
+ * `toOfferingSummary` in `searchPrograms`, which derives `price.freshness` on
+ * every read — that is the freshness decision, and it is not a query condition.
  */
 
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
@@ -22,7 +27,6 @@ import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 
 import { db as defaultDb, type Db } from '@/db';
 import { areas, programSearch as ps } from '@/db/schema';
-import { toDateOnly } from '@/lib/search/accreditation';
 import type { Facets, SearchFilters, SearchResponse, SortKey } from '@/lib/search/contract';
 import {
   buildFacetGroup,
@@ -98,7 +102,6 @@ const FILTER_COLUMNS: Record<ArrayFilterKey, AnyMySqlColumn> = {
 interface ConditionOptions {
   /** The facet group's own filter, dropped so its counts cross-filter. */
   except?: ArrayFilterKey;
-  today: string;
   query: ParsedQuery;
 }
 
@@ -306,14 +309,12 @@ export async function searchProgramSearchRows(
   options: SearchQueryOptions = {},
 ): Promise<SearchRowsResult> {
   const database = options.db ?? defaultDb;
-  const now = options.now ?? new Date();
-  const today = toDateOnly(now);
   const query = parseQuery(filters.q);
   const sort = resolveSort(filters);
   const { page, pageSize, offset } = resolvePaging(filters);
   const withFacets = options.withFacets ?? true;
 
-  const where = and(...buildConditions(filters, { today, query }));
+  const where = and(...buildConditions(filters, { query }));
 
   const rowsPromise = database
     .select()
@@ -336,7 +337,7 @@ export async function searchProgramSearchRows(
     ? FACET_GROUPS.map((group) => {
         const columns = FACET_COLUMNS[group.key];
         const groupWhere = and(
-          ...buildConditions(filters, { today, query, except: group.filterKey }),
+          ...buildConditions(filters, { query, except: group.filterKey }),
           sql`${columns.value} is not null`,
         );
         return countFacet(database, columns, groupWhere);

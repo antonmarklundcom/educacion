@@ -198,15 +198,61 @@ describe('buildCareerCityIntro', () => {
     expect(paragraph.text).toContain('presencial');
     expect(paragraph.text).toContain('semipresencial');
     expect(paragraph.text).toContain('60 a 66 meses');
-    // Price range drawn only from the two displayable prices, never the third.
+    // Price range drawn only from the two priced offerings; the third has no
+    // number at all. Age is not a filter here — PR-33 shows stale aranceles.
     expect(paragraph.text).toMatch(/Gs\. 8\.500\.000 a Gs\. 9\.400\.000/);
     expect(paragraph.text).toContain('1 de 3');
+  });
+
+  it("never prints a price range built from a stale number without rule 3's warning", () => {
+    // The range has no single date to name, so the warning covers the range and
+    // points at the per-carrera pages, which do carry each date. Before PR-48b
+    // this sentence printed the figures bare.
+    const offerings = [
+      offering(1, {
+        price: {
+          freshness: 'stale' as const,
+          hasAmount: true,
+          isFree: false,
+          currency: 'PYG' as const,
+          matricula: 500_000,
+          monthlyFee: 800_000,
+          installmentsPerYear: 10,
+          admissionFee: null,
+          annualCost: 8_500_000,
+          verifiedAt: new Date('2024-03-01T00:00:00Z'),
+        },
+      }),
+    ];
+    const [paragraph] = buildCareerCityIntro(career, 'Encarnación', offerings);
+    expect(paragraph.text).toContain('Gs. 8.500.000');
+    expect(paragraph.text).toContain('desactualizados');
+  });
+
+  it('leaves a fresh range unqualified, so the warning still means something', () => {
+    const fresh = {
+      freshness: 'fresh' as const,
+      hasAmount: true,
+      isFree: false,
+      currency: 'PYG' as const,
+      matricula: 500_000,
+      monthlyFee: 800_000,
+      installmentsPerYear: 10,
+      admissionFee: null,
+      annualCost: 8_500_000,
+      verifiedAt: new Date('2026-05-01T00:00:00Z'),
+    };
+    const [paragraph] = buildCareerCityIntro(career, 'Encarnación', [
+      offering(1, { price: fresh }),
+    ]);
+    expect(paragraph.text).toContain('Gs. 8.500.000');
+    expect(paragraph.text).not.toContain('desactualizados');
   });
 
   it('is honest about a missing price and a missing accreditation', () => {
     const offerings = [offering(1), offering(2)];
     const [paragraph] = buildCareerCityIntro(career, 'Villarrica', offerings);
-    expect(paragraph.text).toContain('tiene, por ahora, un arancel verificado');
+    expect(paragraph.text).toContain('tiene, por ahora, un arancel en guaraníes');
     expect(paragraph.text).toContain('no registramos acreditación vigente');
   });
 

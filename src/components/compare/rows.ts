@@ -14,7 +14,7 @@
  */
 
 import { accreditationLabel } from '@/components/browse/accreditation-display';
-import { STALE_LABEL, STALE_UNKNOWN_LABEL, priceDisplay } from '@/components/browse/price';
+import { priceDisplay, staleWarning } from '@/components/browse/price';
 import { copy } from '@/lib/copy';
 import { formatDurationMonths } from '@/lib/format';
 import { cheapestTotalIndex, totalCost } from '@/lib/prices/total-cost';
@@ -47,12 +47,19 @@ export interface CompareRow {
   isDifferent: boolean;
   /** Numeric-ish rows render in IBM Plex Mono (design-system.md §3). */
   isNumeric: boolean;
+  /**
+   * True when the row restates a fact another row already carries. Rendered
+   * like any other; excluded from the "N de M datos" tally.
+   */
+  isDerived: boolean;
 }
 
 type Extractor = {
   key: string;
   label: string;
   isNumeric?: boolean;
+  /** See `CompareRow.isDerived`. */
+  isDerived?: boolean;
   of: (offering: OfferingSummary) => CompareCell;
 };
 
@@ -91,19 +98,24 @@ const EXTRACTORS: readonly Extractor[] = [
       if (display.isGap) return { text: display.label, isGap: true };
       const amount = `${display.label}${display.unit ?? ''}`;
       // "dato de mayo de 2026" alone reads as provenance; rule 3 asks for the
-      // words. PR-48 fixed the wording here as well as on the total below, so
-      // the two cells of the same column cannot warn differently.
-      return value(
-        display.isStale
-          ? `${amount} · ${display.verifiedLabel ? `${STALE_LABEL} (${display.verifiedLabel})` : STALE_UNKNOWN_LABEL}`
-          : amount,
-      );
+      // words. PR-48 fixed the dated branch and left the undated one emitting
+      // "Sin fecha de verificación", which is a price rendered with no warning
+      // at all — the exact thing rule 3 forbids. Both branches now go through
+      // `staleWarning()`, which is also what the total cell below uses, so the
+      // two cells of one column cannot warn differently again (PR-48b).
+      return value(display.isStale ? `${amount} · ${staleWarning(display.verifiedLabel)}` : amount);
     },
   },
   {
     key: 'totalCost',
     label: copy.totalCost.compareLabel,
     isNumeric: true,
+    // The arancel composed over the duration, not a second fact about the
+    // institution — so a differing arancel would otherwise be counted twice.
+    // Not quite the reverse: two sedes can quote the same cuota and differ in
+    // matrícula, and then the total row is the only one carrying the
+    // difference. It is still rendered and still highlighted; it does not vote.
+    isDerived: true,
     of: (o) => {
       // Composed here from the same PriceSummary the arancel row reads, so the
       // two cells cannot disagree. A stale total keeps its date for the same
@@ -154,11 +166,28 @@ export function buildCompareRows(offerings: readonly OfferingSummary[]): Compare
       cells,
       isDifferent: new Set(cells.map((cell) => cell.text)).size > 1,
       isNumeric: extractor.isNumeric ?? false,
+      isDerived: extractor.isDerived ?? false,
     };
   });
 }
 
-/** For the page's summary line: "8 de 12 datos difieren". */
-export function countDifferences(rows: readonly CompareRow[]): number {
-  return rows.filter((row) => row.isDifferent).length;
+/**
+ * The page's summary line: "8 de 12 datos difieren".
+ *
+ * Derived rows are excluded from both halves of the fraction. PR-48 added the
+ * total-cost row, and because the total is the arancel composed, every pair of
+ * columns with different aranceles started counting **two** differing datos for
+ * one underlying difference — inflating the numerator and the denominator
+ * together and quietly restating what the reader already knew (PR-48b). The row
+ * is still rendered and still highlighted; it just does not vote.
+ */
+export function differenceSummary(rows: readonly CompareRow[]): {
+  differing: number;
+  counted: number;
+} {
+  const counted = rows.filter((row) => !row.isDerived);
+  return {
+    differing: counted.filter((row) => row.isDifferent).length,
+    counted: counted.length,
+  };
 }

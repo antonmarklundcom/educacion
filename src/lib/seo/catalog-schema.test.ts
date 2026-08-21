@@ -201,6 +201,25 @@ describe('courseSchema — the Offer freshness gate', () => {
     ).toHaveLength(0);
   });
 
+  it('emits no Offer from a row that violates a CHECK `program_search` does not carry', () => {
+    // `installments_per_year = 0` passes the `!= null` gate above it and makes
+    // `annual_cost` the bare matrícula, so a Gs. 22.650.000 carrera would be
+    // handed to Google as an Offer of Gs. 2.650.000 — the one surface that
+    // repeats our number with none of the page's context (`architecture.md`
+    // §31.8). The page refuses the same rows; both call `priceCheckViolations`.
+    expect(
+      offersIn(courseSchema([offering({ price: priced(1, { installmentsPerYear: 0 }) })], NOW)),
+    ).toHaveLength(0);
+    expect(
+      offersIn(courseSchema([offering({ price: priced(1, { matricula: -1 }) })], NOW)),
+    ).toHaveLength(0);
+    expect(
+      offersIn(
+        courseSchema([offering({ price: priced(1, { isFree: true, matricula: 500_000 }) })], NOW),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("labels the Offer with Google's category vocabulary", () => {
     expect(offersIn(courseSchema([offering({ price: priced(1) })], NOW))[0].category).toBe('Paid');
     expect(

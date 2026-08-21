@@ -7,6 +7,7 @@ import {
   assertPriceIsCoherent,
   assertScopeTarget,
   computeAnnualCost,
+  priceCheckViolations,
   hasRequiredCitation,
   needsFreshnessWarning,
   priceExpiresOn,
@@ -158,6 +159,59 @@ describe('price coherence', () => {
   it('rejects negative and non-integer money', () => {
     expect(() => assertPriceIsCoherent({ matricula: -1 })).toThrow(/must not be negative/);
     expect(() => assertPriceIsCoherent({ monthlyFee: 1_200_000.5 })).toThrow(/must be an integer/);
+  });
+});
+
+describe('priceCheckViolations', () => {
+  it('is silent on a valid price', () => {
+    expect(
+      priceCheckViolations({
+        matricula: 500_000,
+        monthlyFee: 400_000,
+        installmentsPerYear: 10,
+        admissionFee: 150_000,
+      }),
+    ).toEqual([]);
+  });
+
+  it('names the CHECK `program_search` does not carry, so a reader can act on it', () => {
+    // The three that are real constraints on `prices`. A module reading the
+    // denormalized copy re-asserts them by name (`architecture.md` §31.8).
+    expect(priceCheckViolations({ installmentsPerYear: 0 }).map((v) => v.check)).toEqual([
+      'prices_installments_range',
+    ]);
+    expect(priceCheckViolations({ matricula: -1 }).map((v) => v.check)).toEqual([
+      'prices_non_negative',
+    ]);
+    expect(priceCheckViolations({ isFree: true, matricula: 1 }).map((v) => v.check)).toEqual([
+      'prices_free_has_no_fees',
+    ]);
+  });
+
+  it('rejects a fractional installment count, which a tinyint would round rather than refuse', () => {
+    expect(priceCheckViolations({ installmentsPerYear: 1.5 }).map((v) => v.check)).toEqual([
+      'prices_installments_range',
+    ]);
+  });
+
+  it('reports every violation, not just the first', () => {
+    const checks = priceCheckViolations({
+      installmentsPerYear: 30,
+      matricula: -1,
+      admissionFee: 0.5,
+    }).map((v) => v.check);
+    expect(checks).toEqual([
+      'prices_installments_range',
+      'prices_non_negative',
+      'money_is_integer',
+    ]);
+  });
+
+  it('is the definition `assertPriceIsCoherent` throws from, not a second copy', () => {
+    // One rule set for the write path and the read path. Drift here is how the
+    // admin form and the comparador come to disagree about a valid price.
+    const invalid = { installmentsPerYear: 0 };
+    expect(() => assertPriceIsCoherent(invalid)).toThrow(priceCheckViolations(invalid)[0]!.message);
   });
 });
 

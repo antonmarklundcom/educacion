@@ -119,9 +119,9 @@ The shape above survived implementation. These are the decisions it forced, each
 
 **One extra query for area labels.** `program_search` carries `area_slug` but not the area's name, so the areas facet reads its labels from the seeded `areas` table — 14 rows, one small query. Adding an `area_name` column would remove it; it is not worth a migration.
 
-**Today comes from Node, not `CURDATE()`.** The 12-month arancel boundary decides what may be displayed, the pool is pinned to UTC, and the MySQL session timezone on shared hosting is not ours to guarantee. The query layer passes the date in as a parameter.
+**Dates come from Node, not `CURDATE()`.** The pool is pinned to UTC and the MySQL session timezone on shared hosting is not ours to guarantee, so any date a comparison needs is passed in as a parameter. Since PR-33 the arancel needs none: age no longer decides what may be displayed.
 
-**Two price predicates, deliberately.** Rendering uses `isPriceDisplayable()` (timestamp precision, `src/db/invariants.ts`, the single decision point). Filtering and sorting use `price_expires_on > :today` (date precision), because that is what an index can answer. The date form is never more permissive than the timestamp form, so a row can drop out of an arancel range on its last day while still showing its price — never the reverse. `row.test.ts` asserts the property.
+**One price predicate, since PR-33.** This paragraph used to describe two — `isPriceDisplayable()` for rendering and `price_expires_on > :today` for filtering, with a written rule about which was the more permissive. PR-33 deleted the first (there is no such function in the repo) and stopped filtering on the second, because age no longer decides what may be shown. What survives is `priceFreshness()`: one classification, derived per read from `verified_at`, travelling on every `PriceSummary` as `fresh | stale | unknown` and rendered by `priceDisplay()` as the number **and** its warning in one call. `price_expires_on` is still written by the rebuild and still read by `/admin/frescura` and the `Offer` gate; it filters nothing a visitor sees.
 
 **Short queries are the one place FULLTEXT is not enough.** InnoDB does not index tokens below `innodb_ft_min_token_size` (3), so "UC" is invisible to it and falls back to a prefix `LIKE` on `institution_short`. But two-letter Spanish function words are everywhere — "medicina de la UC" — so a short token only _filters_ when the whole query is short; alongside real words it only raises the rank of rows whose acronym it matches. The alternative, requiring every short token, returns an empty page for ordinary Spanish.
 
@@ -579,10 +579,13 @@ log is what makes it answerable afterwards (`risks.md` §R-03). The page says
 this in the words a person reads, not only in a comment.
 
 `/admin/frescura` reports the consequences rather than opinions: an arancel past
-12 months **is already hidden** from the comparador, the JSON-LD and the OG
-images, so `pricesExpired` counts carreras currently showing "Consultá el
-arancel" where we used to have a number. PR-33 owns the automated half — the
-weekly digest, the cron, the public "última actualización" surfaces. This is the
+12 months **is still shown** in the comparador and on the programme page,
+carrying a visible "dato desactualizado" and the month we last verified it
+(§23), and is withheld only from `Offer` JSON-LD, which a machine repeats
+stripped of that warning. So `pricesExpired` counts carreras currently quoting a
+number we are hedging on — the queue whose whole cost is paid in credibility.
+PR-33 owns the automated half — the weekly digest, the cron, the public
+"última actualización" surfaces. This is the
 manual half, which had to exist first: there is no point scheduling a reminder
 about a queue nobody can work.
 
@@ -2198,18 +2201,98 @@ than either one's annual figure. So:
 
 All three are server components. No schema change, no new query, no new cron.
 
-### 31.7 What the render tests hold
+### 31.7 What the render tests hold — and what they do not
 
 `TotalCostBlock` had no test in the first version of this PR, and replacing its
 stale-warning condition with `false` left the entire suite green. A pure-function
-test cannot catch that: the defect lives in the JSX.
+test cannot catch that: the defect lives in the JSX. `OfferingsBlock`'s per-sede
+total, the programme page's sede-name gate and — found by PR-48b's own review —
+`PriceLabel`'s stale badge had the same hole. The last is the price surface on
+every result card and both table layouts, and deleting its badge outright left
+1231 tests green. All three are pinned now. The sede gate moved out of the page
+into `totalCostScope()` to be reachable at all: a condition written inline in an
+async server component is a condition no test in this suite renders.
 
-`TotalCostBlock.test.ts` renders the component with
-`react-dom/server`'s `renderToStaticMarkup` — no new dependency, no DOM, one
-line of vitest config for the JSX transform — and asserts against the HTML that
-a stale figure never appears without the words rule 3 requires, and that a
-partial card contains no `Gs.` at all. Both go red when their guard is removed.
+`TotalCostBlock.test.ts`, `OfferingsBlock.test.ts` and `PriceLabel.test.ts`
+render their component with `react-dom/server`'s `renderToStaticMarkup` — no new
+dependency, no DOM, one line of vitest config for the JSX transform — and assert
+against the HTML that a stale figure never appears without the words rule 3
+requires, and that a partial card contains no `Gs.` at all. All go red when
+their guard is removed.
+
+**What that is evidence of, exactly.** `renderToStaticMarkup` proves that a
+given substring is present in (or absent from) the HTML one component emits, in
+guaraníes, for the props the test passes. It is a string assertion, and it is
+worth having because the defects above were string-level. It does **not**
+exercise the RSC pipeline — no async component, no `page.tsx`, no data loading,
+no streaming — so a component correct here can still be wired up wrongly, or not
+rendered at all, and nothing in this suite would say so. It says nothing about
+*visibility*: CSS is not applied, so a warning behind `hidden`, in
+`text-transparent`, or scrolled off a mobile viewport passes every one of these
+tests. Contrast and layout stay a design review (`design-system.md` §15 owns the
+a11y budgets), and the page's own composition stays uncovered.
+
+The OG routes are the gap this technique does not close: they return an
+`ImageResponse`, not HTML, so nothing here can read what they drew. That is not
+hypothetical — deleting the staleness branch from **both** routes left 1248
+tests green, and it is why those two files were still saying "Dato de mayo de
+2026" months after the wording was fixed everywhere else. Rather than accept an
+untestable surface, the decision moved out of them: `priceImageLines()` returns
+the amount and the warning as one list, tested as a pure function, and each
+route maps over it. A route can still mis-style a line; it can no longer draw
+the number and omit the warning, because it never receives them as two separate
+things.
 
 Its scope is stated on the card rather than implied: the total covers matrícula,
 cuotas and the derecho de examen, and says in as many words that it excludes
-materials and travel.
+materials and travel. `OfferingsBlock`'s per-sede figure is labelled but does
+not repeat that note; the aside card carries it once per page.
+
+### 31.8 The CHECKs `program_search` does not carry (PR-48b)
+
+`prices` constrains what a price row may say. `drizzle/0000_init_schema.sql` has
+three CHECKs on that table: `prices_free_has_no_fees`, `prices_installments_range`
+(1–24) and `prices_non_negative`, and `assertPriceIsCoherent()` adds
+`money_is_integer` on the write path. **`program_search` is a denormalized copy
+of those columns with none of them**, and every public price surface reads the
+copy.
+
+PR-48 mirrored the first and not the rest, which is the whole hazard: an
+`installments_per_year` of 0 does not make `computeAnnualCost` fail, it makes it
+multiply the cuota by zero and return the bare matrícula. A Gs. 22.650.000
+carrera would render as Gs. 2.650.000 — `complete`, no gap, no warning, and
+eligible for the "el más barato" marker. A negative `matricula` or
+`admission_fee` does the same, quietly, in the other direction.
+
+**This is a reachable hazard, not an observed incident.** The nightly rebuild
+copies straight from `prices`, which does carry the CHECKs, so under that path
+the values cannot appear. What it defends against is a direct write, an
+interrupted rebuild, or a MySQL that parses CHECK constraints and ignores them
+(anything before 8.0.16). The rule this establishes is the point: **a module
+reading `program_search` re-asserts the constraints the table it is copied from
+enforces**, because "the source table has a CHECK" is not a property of the
+copy.
+
+So `priceCheckViolations()` in `db/invariants.ts` states the four rules once, as
+data. `assertPriceIsCoherent()` is built on it, so the write path and the read
+path cannot drift apart. `total-cost.ts` maps each violation onto a gap and
+refuses to compose a total; `seo/catalog-schema.ts` refuses to emit the `Offer`,
+which matters more than it looks — a rich result is the one surface that repeats
+our number stripped of every qualification on the page around it.
+
+A violation is reported as **undetermined**, like `duracion_parcial`, never as
+"sin datos": there is a number on file, and telling a reader the institution
+gave us nothing would be a false statement about them.
+
+**`computeAnnualCost` is deliberately not where any of this lives.** It is a
+line-for-line mirror of the `annual_cost` STORED GENERATED column, which is the
+only reason it can be trusted to agree with the number the comparador sorts on.
+A generated column cannot refuse a value its table's CHECK already rejects, so a
+guard in the TypeScript copy alone would break that lockstep and make the two
+disagree about rows the database can hold. (It has exactly one production
+caller, `total-cost.ts`; PR-48b's first draft of this section claimed three,
+which was wrong and is what made the `catalog-schema.ts` exposure invisible to
+it.) Validation belongs at each boundary where unconstrained data enters —
+`total-cost.ts` and `catalog-schema.ts` for the index, `assertPriceIsCoherent`
+for the write path — and those are now the same four rules, not three
+paraphrases of them.

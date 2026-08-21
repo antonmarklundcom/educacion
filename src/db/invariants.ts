@@ -160,6 +160,16 @@ export interface PriceInput {
  * make a university with no captured price look free.
  *
  * Must stay identical to the `annual_cost` generated column in `schema.ts`.
+ * That is also why it does **not** validate: it multiplies by
+ * `installments_per_year` exactly as the column's CASE does, including an
+ * out-of-range value the column would never have been given, because
+ * `prices_installments_range` rejects one before it can be stored. Adding a
+ * refusal here that the column cannot make would break the lockstep this
+ * function exists to keep, and would make the two disagree about rows the
+ * database can hold. Callers reading a table without those CHECKs — that is
+ * `program_search`, through `lib/prices/total-cost.ts` and
+ * `lib/seo/catalog-schema.ts` — call `priceCheckViolations()` below first
+ * (`architecture.md` §31.8).
  */
 export function computeAnnualCost(price: PriceInput): number | null {
   if (price.isFree) return 0;
@@ -168,35 +178,81 @@ export function computeAnnualCost(price: PriceInput): number | null {
   return (price.matricula ?? 0) + (price.monthlyFee ?? 0) * (price.installmentsPerYear ?? 0);
 }
 
-export function assertPriceIsCoherent(price: PriceInput): void {
+/** The named rules a `prices` row must satisfy. See `priceCheckViolations()`. */
+export type PriceCheck =
+  | 'prices_free_has_no_fees'
+  | 'prices_installments_range'
+  | 'prices_non_negative'
+  | 'money_is_integer';
+
+export interface PriceCheckViolation {
+  check: PriceCheck;
+  /** A sentence for a form; a CHECK constraint only produces a stack trace. */
+  message: string;
+}
+
+/**
+ * Every rule a price row must satisfy, stated once, as data.
+ *
+ * Three of these are real CHECK constraints on `prices`
+ * (`drizzle/0000_init_schema.sql`); `money_is_integer` is enforced here only,
+ * because the column is a `bigint` and MySQL would round rather than refuse.
+ *
+ * **`program_search` carries none of them.** It is a denormalized copy of these
+ * columns written by the nightly rebuild, and every public price surface reads
+ * the copy — so a module reading it re-asserts the rules rather than inheriting
+ * a guarantee that belongs to a different table (`architecture.md` §31.8).
+ * `total-cost.ts` and `seo/catalog-schema.ts` are those modules; both refuse to
+ * publish a figure derived from a row that violates any of these, because the
+ * arithmetic on such a row is not wrong-looking, it is quietly wrong: an
+ * `installments_per_year` of 0 deletes every cuota from the total and a negative
+ * matrícula subtracts from it.
+ *
+ * Returns every violation rather than the first, so a caller can name them all.
+ * `assertPriceIsCoherent()` is this function plus a throw, so the write path and
+ * the read path cannot come to disagree about what a valid price is.
+ */
+export function priceCheckViolations(price: PriceInput): PriceCheckViolation[] {
+  const violations: PriceCheckViolation[] = [];
+
   if (price.isFree && (price.matricula != null || price.monthlyFee != null)) {
-    throw new InvariantError(
-      'A price marked is_free must not carry a matrícula or a cuota (an admission fee is allowed).',
-      'prices_free_has_no_fees',
-    );
+    violations.push({
+      check: 'prices_free_has_no_fees',
+      message:
+        'A price marked is_free must not carry a matrícula or a cuota (an admission fee is allowed).',
+    });
   }
+
   const n = price.installmentsPerYear;
-  if (n != null && (n < 1 || n > 24)) {
-    throw new InvariantError(
-      `installments_per_year must be between 1 and 24, got ${n}.`,
-      'prices_installments_range',
-    );
+  if (n != null && (n < 1 || n > 24 || !Number.isInteger(n))) {
+    violations.push({
+      check: 'prices_installments_range',
+      message: `installments_per_year must be a whole number between 1 and 24, got ${n}.`,
+    });
   }
+
   for (const [field, value] of Object.entries({
     matricula: price.matricula,
     monthlyFee: price.monthlyFee,
     admissionFee: price.admissionFee,
   })) {
     if (value != null && value < 0) {
-      throw new InvariantError(`${field} must not be negative.`, 'prices_non_negative');
+      violations.push({ check: 'prices_non_negative', message: `${field} must not be negative.` });
     }
     if (value != null && !Number.isInteger(value)) {
-      throw new InvariantError(
-        `${field} must be an integer in the base currency unit, got ${value}.`,
-        'money_is_integer',
-      );
+      violations.push({
+        check: 'money_is_integer',
+        message: `${field} must be an integer in the base currency unit, got ${value}.`,
+      });
     }
   }
+
+  return violations;
+}
+
+export function assertPriceIsCoherent(price: PriceInput): void {
+  const [first] = priceCheckViolations(price);
+  if (first) throw new InvariantError(first.message, first.check);
 }
 
 /**

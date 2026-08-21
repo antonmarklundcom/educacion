@@ -31,7 +31,7 @@ async function main() {
     console.log('');
     console.log(`Indexed              ${summary.rows} offerings`);
     console.log(`  published          ${summary.published}`);
-    console.log(`  displayable price  ${summary.withDisplayablePrice}`);
+    console.log(`  fresh price        ${summary.withFreshPrice}`);
     console.log(`  accreditation data ${summary.withAccreditationBadge}`);
     console.log(`Took                 ${summary.tookMs} ms`);
   } finally {

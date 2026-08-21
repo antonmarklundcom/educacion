@@ -122,6 +122,51 @@ describe('totalCost — every component or no number at all', () => {
     expect(total.missing).toEqual(['duracion']);
   });
 
+  it.each([0, 25, 1.5])(
+    'refuses an impossible cuotas-per-year of %s instead of multiplying by it',
+    (installmentsPerYear) => {
+      // The money bug PR-48 shipped. `prices_installments_range` caps this at
+      // 1–24 but `program_search` carries no CHECK, and `computeAnnualCost`
+      // multiplies by `coalesce(installments_per_year, 0)` — so a 0 does not
+      // fail, it deletes every cuota. Gs. 22.650.000 rendered as Gs. 2.650.000:
+      // `complete`, no gap, no warning, eligible for "el más barato".
+      const total = totalCost(price({ installmentsPerYear }), 60);
+      expect(total.kind).toBe('partial');
+      expect(total.total).toBeNull();
+      expect(total.missing).toEqual(['cuotas_invalidas']);
+      expect(totalCostLabel(total)).toContain('no es un número posible');
+      expect(totalCostLabel(total)).not.toMatch(/Gs\./);
+    },
+  );
+
+  it('reports an impossible cuotas-per-year as undetermined, not as absent data', () => {
+    // There is a number on file; "sin datos de cuotas" would be false about the
+    // institution's record. Same split as `duracion_parcial`.
+    const label = totalCostLabel(totalCost(price({ installmentsPerYear: 0 }), 60));
+    expect(label).not.toContain('sin datos');
+  });
+
+  it('accepts the ends of the allowed range', () => {
+    for (const installmentsPerYear of [1, 24]) {
+      expect(totalCost(price({ installmentsPerYear }), 60).kind).toBe('complete');
+    }
+  });
+
+  it.each([
+    ['a negative matrícula', { matricula: -500_000 }],
+    ['a negative derecho de examen', { admissionFee: -1_000_000 }],
+    ['a fractional cuota', { monthlyFee: 400_000.5 }],
+  ])('refuses %s instead of subtracting it from the total', (_label, overrides) => {
+    // `prices_non_negative` is the third CHECK `program_search` does not carry.
+    // Without this, -500.000 of matrícula silently turns a Gs. 22.650.000
+    // carrera into a Gs. 17.650.000 one: complete, no gap, no warning.
+    const total = totalCost(price(overrides as Partial<PriceSummary>), 60);
+    expect(total.kind).toBe('partial');
+    expect(total.total).toBeNull();
+    expect(total.missing).toEqual(['montos_invalidos']);
+    expect(totalCostLabel(total)).not.toMatch(/Gs\./);
+  });
+
   it('refuses a row that is free and priced at the same time, rather than dropping the fee', () => {
     // `prices_free_has_no_fees` forbids this on `prices`; `program_search`
     // carries no such CHECK. Trusting the flag would turn a Gs. 22.650.000
@@ -163,6 +208,16 @@ describe('totalCost — every component or no number at all', () => {
       'sin datos de matrícula y derecho de examen — total incompleto',
     );
   });
+
+  it('keeps the list a list of nouns when the cuotas gap is in it', () => {
+    // Every gap has to read as a noun phrase after one "sin datos de".
+    // `cuotas_por_ano` was a clause until PR-48b, which produced "sin datos de
+    // matrícula y cuántas cuotas se pagan por año".
+    const total = totalCost(price({ matricula: null, installmentsPerYear: null }), 60);
+    expect(partialLabel(total)).toBe(
+      'sin datos de matrícula y cantidad de cuotas por año — total incompleto',
+    );
+  });
 });
 
 describe('totalCost — staleness travels, it never hides', () => {
@@ -200,13 +255,24 @@ describe('the comparador cell — CLAUDE.md rule 3', () => {
 });
 
 describe('the annual figure has one definition', () => {
-  it('is computeAnnualCost, not a fourth copy of the formula', () => {
-    // data-model.md: the generated column and `computeAnnualCost()` "must stay
-    // in lockstep". This asserts the total is built from that function rather
-    // than from a restatement of it that could drift.
-    for (const p of [price(), price({ matricula: 0 }), price({ installmentsPerYear: 1 })]) {
-      expect(totalCost(p, 60).annualCost).toBe(computeAnnualCost(p));
-    }
+  /**
+   * The first version of this compared `totalCost(p).annualCost` against
+   * `computeAnnualCost(p)` — both sides of which are the same call, so it held
+   * nothing and passed for any implementation of either. The import above is
+   * what actually protects the lockstep `data-model.md` requires; what a test
+   * can add is the arithmetic itself, against literals, so a drift in the
+   * formula is caught here rather than only in the database.
+   */
+  it.each([
+    [price(), 4_500_000],
+    [price({ matricula: 0 }), 4_000_000],
+    [price({ installmentsPerYear: 1 }), 900_000],
+    [price({ isFree: true, matricula: null, monthlyFee: null, installmentsPerYear: null }), 0],
+  ])('is matrícula + cuota × cuotas/año, stated as a number', (p, expected) => {
+    expect(totalCost(p, 60).annualCost).toBe(expected);
+    // And it is the same number `@/db/invariants` produces, which is the one
+    // the `annual_cost` generated column stores and the comparador sorts on.
+    expect(computeAnnualCost(p)).toBe(expected);
   });
 });
 

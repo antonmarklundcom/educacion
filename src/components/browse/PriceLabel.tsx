@@ -6,12 +6,17 @@
  * visible warning badge right beside the amount — never a footnote, never a
  * tooltip. A visitor must not be able to read the number without reading that
  * it is old (CLAUDE.md rule 3).
+ *
+ * The badge said "Dato de mayo de 2026" until PR-48b, which is the date without
+ * the words: a reader who does not already know the rule reads it as
+ * provenance. `staleWarning()` owns the sentence now, and the card, the
+ * comparador cell and the total all say it identically.
  */
 
 import { cn } from '@/lib/cn';
 import type { PriceSummary } from '@/lib/search';
 
-import { STALE_UNKNOWN_LABEL, priceDisplay } from './price';
+import { priceDisplay, staleWarning } from './price';
 
 export function PriceLabel({ price, className }: { price: PriceSummary; className?: string }) {
   const display = priceDisplay(price);
@@ -30,7 +35,7 @@ export function PriceLabel({ price, className }: { price: PriceSummary; classNam
       </span>
       {display.isStale && (
         <span className="bg-warn-bg text-warn rounded px-1.5 py-0.5 text-[0.7rem] font-medium">
-          {display.verifiedLabel ? `Dato de ${display.verifiedLabel}` : STALE_UNKNOWN_LABEL}
+          {staleWarning(display.verifiedLabel)}
         </span>
       )}
     </span>

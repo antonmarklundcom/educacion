@@ -59,7 +59,7 @@ const PANEL_SECTIONS = [
   {
     title: 'Sedes y aranceles',
     detail:
-      'Cargás el arancel y se ve en el comparador enseguida. Un arancel con más de 12 meses deja de mostrarse, así que acá también ves cuáles ya no están a la vista.',
+      'Cargás el arancel y se ve en el comparador enseguida. Pasados 12 meses se sigue mostrando, pero con un aviso de dato desactualizado al lado del número, así que acá también ves cuáles conviene confirmar.',
   },
   {
     title: 'Convocatorias',

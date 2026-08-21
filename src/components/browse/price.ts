@@ -35,7 +35,54 @@ export interface PriceDisplay {
 
 /** The one wording for a stale number, used wherever a price appears. */
 export const STALE_LABEL = 'Dato desactualizado';
-export const STALE_UNKNOWN_LABEL = 'Sin fecha de verificación';
+/** The parenthetical when a stale price carries no verification date at all. */
+export const STALE_NO_DATE_LABEL = 'sin fecha de verificación';
+
+/**
+ * The warning CLAUDE.md rule 3 requires, in one place.
+ *
+ * Rule 3 asks for two things — the words *dato desactualizado* and the date —
+ * and a date on its own is not half of it: "Dato de mayo de 2026" reads as
+ * provenance, and a reader cannot tell it from a fresh date. Every surface that
+ * shows a stale figure (the card badge, the comparador cell, the total) calls
+ * this rather than composing the sentence itself, which is what stopped one of
+ * them wording it differently from the other two (PR-48b).
+ */
+export function staleWarning(verifiedLabel: string | null): string {
+  return `${STALE_LABEL} (${verifiedLabel ?? STALE_NO_DATE_LABEL})`;
+}
+
+export interface PriceImageLine {
+  text: string;
+  /** `warning` is drawn in the warn colour; `amount` in ink. */
+  kind: 'amount' | 'warning';
+}
+
+/**
+ * What an OG image draws for a price: the amount, then the rule-3 warning when
+ * one is due — as data, not as JSX.
+ *
+ * The OG routes return an `ImageResponse`, so no test in this suite can read
+ * what they drew: PR-48b deleted the entire `price.isStale && …` branch from
+ * **both** of them and 1248 tests stayed green. That is how those two came to
+ * be the last surfaces still saying "Dato de mayo de 2026" months after the
+ * wording was fixed everywhere else.
+ *
+ * So the decision moves here, where it is testable, and the routes map over
+ * what they are given. A route can still mis-style a line; it can no longer
+ * draw the number and quietly omit the warning, because it never sees them as
+ * two separate things. Same reason `priceDisplay()` returns the amount and
+ * `isStale` in one call.
+ */
+export function priceImageLines(price: PriceSummary): PriceImageLine[] {
+  const display = priceDisplay(price);
+  const amount: PriceImageLine = {
+    text: `${display.label}${display.unit ?? ''}`,
+    kind: 'amount',
+  };
+  if (!display.isStale) return [amount];
+  return [amount, { text: staleWarning(display.verifiedLabel), kind: 'warning' }];
+}
 
 export function staleNotice(price: PriceSummary): string | null {
   if (price.freshness === 'fresh' || !price.hasAmount) return null;

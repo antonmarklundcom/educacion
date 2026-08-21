@@ -137,11 +137,15 @@ const ADDED: Record<string, string> = {
   'totalCost.gaps.arancel': 'arancel',
   'totalCost.gaps.matricula': 'matrícula',
   'totalCost.gaps.cuota': 'cuota',
-  'totalCost.gaps.cuotas_por_ano': 'cuántas cuotas se pagan por año',
+  'totalCost.gaps.cuotas_por_ano': 'cantidad de cuotas por año',
   'totalCost.gaps.derecho_examen': 'derecho de examen',
   'totalCost.gaps.duracion': 'duración',
   'totalCost.undetermined.duracion_parcial':
     'la carrera no dura un número entero de años, así que no sabemos cuántas matrículas se pagan',
+  'totalCost.undetermined.cuotas_invalidas':
+    'la cantidad de cuotas por año que figura no es un número posible, así que no podemos multiplicar las cuotas',
+  'totalCost.undetermined.montos_invalidos':
+    'alguno de los montos cargados no es un importe posible',
   'totalCost.undetermined.incoherente':
     'el arancel figura como gratuito y a la vez tiene montos cargados',
   'totalCost.compareLabel': 'Costo total',

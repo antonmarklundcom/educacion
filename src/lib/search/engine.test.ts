@@ -243,7 +243,7 @@ describe('filters', () => {
 });
 
 describe('sorting', () => {
-  it('sorts by annual cost with undisplayable prices last, in both directions', () => {
+  it('sorts by annual cost with unpriced rows last, in both directions', () => {
     for (const sort of ['arancel_asc', 'arancel_desc'] as const) {
       const { results } = run({ sort, pageSize: 100 });
       const costs = results.map((result) => result.price.annualCost);

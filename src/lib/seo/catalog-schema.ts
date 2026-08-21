@@ -29,7 +29,7 @@
  * stays the single decision point for the comparador, the OG images and this.
  */
 
-import { priceFreshness } from '@/db/invariants';
+import { priceCheckViolations, priceFreshness } from '@/db/invariants';
 import type { InstitutionProfile } from '@/db/queries/institutions';
 import type { OfferingSummary } from '@/lib/search';
 
@@ -81,6 +81,15 @@ function offerFor(offering: OfferingSummary, now: Date): Record<string, unknown>
   if (!price.isFree && (price.monthlyFee == null || price.installmentsPerYear == null)) {
     return undefined;
   }
+
+  // The CHECKs `program_search` does not carry (`architecture.md` §31.8). This
+  // is the second boundary reading that unconstrained copy, and the worse of
+  // the two to get wrong: `installments_per_year = 0` passes the `!= null` gate
+  // above and makes `annual_cost` the bare matrícula, so a Gs. 22.650.000
+  // carrera would be handed to Google as an `Offer` of Gs. 2.650.000 — a number
+  // with none of the page's context attached and no reader able to see it is
+  // wrong. `total-cost.ts` refuses the same rows; both call the same function.
+  if (priceCheckViolations(price).length > 0) return undefined;
 
   const amount = price.isFree ? 0 : price.annualCost;
   if (amount == null) return undefined;

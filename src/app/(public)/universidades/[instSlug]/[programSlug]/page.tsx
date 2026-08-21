@@ -6,8 +6,9 @@
  * `findProgramOfferings()`; there is no client JavaScript on this route at all.
  *
  * **Provenance, or the honest gap.** Every fact carries where it came from
- * where the model has one: the arancel shows when it was verified and hides
- * itself past twelve months, the accreditation badge links to its source. Where
+ * where the model has one: the arancel shows when it was verified, and past
+ * twelve months it is shown with a visible "dato desactualizado" rather than
+ * hidden (PR-33); the accreditation badge links to its source. Where
  * we have nothing — plan de estudio, título que otorga, fechas de convocatoria
  * — the page says "sin datos" and explains why, rather than leaving a blank
  * that reads as "none" (CLAUDE.md rule 1).
@@ -35,7 +36,7 @@ import { AccreditationBlock } from '@/components/program/AccreditationBlock';
 import { AdmissionBlock } from '@/components/program/AdmissionBlock';
 import { OfferingsBlock } from '@/components/program/OfferingsBlock';
 import { PriceBlock } from '@/components/program/PriceBlock';
-import { TotalCostBlock } from '@/components/program/TotalCostBlock';
+import { TotalCostBlock, totalCostScope } from '@/components/program/TotalCostBlock';
 import { EventBeacon } from '@/components/analytics';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
@@ -261,7 +262,7 @@ export default async function ProgramPage({ params }: { params: Params }) {
           <TotalCostBlock
             price={primary.price}
             durationMonths={primary.durationMonths}
-            campusName={offerings.length > 1 ? primary.campusName : undefined}
+            campusName={totalCostScope(offerings)}
           />
           <AdmissionBlock offering={primary} />
         </aside>

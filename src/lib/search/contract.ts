@@ -65,8 +65,10 @@ export interface SearchFilters {
   /** Scoping used by the institution and career hub pages, not by the rail. */
   institutionSlug?: string;
 
-  /** Annual cost in guaraníes. Rows with no displayable price are excluded
-   *  when either bound is set — we never guess a price to keep a row in. */
+  /** Annual cost in guaraníes. Rows with no comparable annual figure are
+   *  excluded when either bound is set — we never guess a price to keep a row
+   *  in. Age is not a condition: a stale arancel is compared like any other and
+   *  carries its warning (PR-33). */
   annualCostMin?: number;
   annualCostMax?: number;
   /** `true` keeps only free programs; `false` keeps only paid ones. */
