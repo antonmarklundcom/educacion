@@ -39,6 +39,12 @@ const SERVER_ONLY = [
   // Drizzle. `architecture.md` §5.1 documents what that costs in a browser
   // bundle; this is the check that stops it happening again.
   'lib/prices/total-cost.ts',
+  // PR-51: the zod schemas for the public input surfaces. The browser keeps its
+  // HTML validation attributes, driven by the same constants; shipping zod to
+  // every public route is weight the 150 kB budget does not have spare, and
+  // `lib/auth/schema.ts` reaches `node:crypto` through `password.ts` besides.
+  'lib/leads/schema.ts',
+  'lib/auth/schema.ts',
 ].map((p) => join(SRC, p));
 
 function walkFiles(dir: string): string[] {
@@ -86,6 +92,21 @@ const CLIENT_ENTRIES = ALL_FILES.filter((file) =>
   /^\s*'use client';\s*$/m.test(readFileSync(file, 'utf8')),
 );
 
+/**
+ * A `'use server'` file is a boundary in the other direction, and the walk stops
+ * there (PR-51).
+ *
+ * Next replaces a Server Action import with a *reference* — an id the client
+ * posts to — and none of the module's code, or its imports', is compiled into
+ * the browser bundle. Walking through one would report every query module in
+ * the app as client-reachable, since almost every client form imports its
+ * actions file. This is the same reasoning as the `'use client'` entries above,
+ * read from the other side.
+ */
+function isServerBoundary(file: string): boolean {
+  return /^\s*'use server';\s*$/m.test(readFileSync(file, 'utf8'));
+}
+
 /** Transitive closure of the client entries, with the entry that reached each module. */
 function clientReachable(): Map<string, string[]> {
   const reached = new Map<string, string[]>();
@@ -97,6 +118,7 @@ function clientReachable(): Map<string, string[]> {
       if (seen.has(file)) continue;
       seen.add(file);
       reached.set(file, [...(reached.get(file) ?? []), entry]);
+      if (file !== entry && isServerBoundary(file)) continue;
       stack.push(...importsOf(file));
     }
   }
@@ -110,6 +132,15 @@ describe('the copy catalog and the client bundle', () => {
     // A resolver that quietly matched nothing would make every assertion below vacuous.
     expect(CLIENT_ENTRIES.length).toBeGreaterThan(20);
     expect(reachable.has(join(SRC, 'components/layout/Footer.tsx'))).toBe(true);
+  });
+
+  it('stops at a Server Action rather than walking the whole server through it', () => {
+    // The action module itself is reached — a client form imports it — and
+    // nothing it imports is. Without this the walk would call `@/db` a browser
+    // module, and every assertion below would be about the wrong graph.
+    const action = join(SRC, 'app/(auth)/ingresar/actions.ts');
+    expect(reachable.has(action)).toBe(true);
+    expect(reachable.has(join(SRC, 'db/queries/auth.ts'))).toBe(false);
   });
 
   it.each(SERVER_ONLY)('keeps %s out of every client boundary', (module) => {
