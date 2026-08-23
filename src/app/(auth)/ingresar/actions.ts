@@ -27,6 +27,7 @@ import {
   settleLoginSuccess,
   shouldLogRefusal,
 } from '@/lib/auth/rate-limit';
+import { loginSchema } from '@/lib/auth/schema';
 import { clientIpHash } from '@/lib/privacy/server-request';
 import { startSession } from '@/lib/auth/session';
 import { hashEmail } from '@/lib/privacy/hash';
@@ -41,8 +42,17 @@ function landingFor(role: string): string {
 }
 
 export async function loginAction(_state: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get('email') ?? '');
-  const password = String(formData.get('password') ?? '');
+  // Shape only, and the refusal is the **same sentence** every other failure
+  // gets: a distinct "correo inválido" here and a generic message for a real
+  // address is an account oracle with extra steps (`lib/auth/schema.ts`).
+  // Refused before the rate limiter so a malformed flood costs neither a
+  // database read nor somebody else's quota.
+  const parsed = loginSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  });
+  if (!parsed.success) return { error: LOGIN_ERROR };
+  const { email, password } = parsed.data;
 
   // The audit's one security inconsistency: every other public write was rate
   // limited and this one, where a guess actually succeeds, was not. Decided

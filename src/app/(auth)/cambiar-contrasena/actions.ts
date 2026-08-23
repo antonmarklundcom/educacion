@@ -17,6 +17,7 @@ import { redirect } from 'next/navigation';
 
 import { findPasswordHash, setPassword } from '@/db/queries/auth';
 import { hashPassword, passwordProblem, verifyPassword } from '@/lib/auth/password';
+import { changePasswordSchema, firstIssue } from '@/lib/auth/schema';
 import { currentUser, startSession } from '@/lib/auth/session';
 
 export interface ChangePasswordState {
@@ -30,11 +31,13 @@ export async function changePasswordAction(
   const user = await currentUser();
   if (!user) redirect('/ingresar');
 
-  const current = String(formData.get('current') ?? '');
-  const next = String(formData.get('password') ?? '');
-  const confirm = String(formData.get('confirm') ?? '');
-
-  if (next !== confirm) return { error: 'Las contraseñas no coinciden.' };
+  const parsed = changePasswordSchema.safeParse({
+    current: formData.get('current'),
+    password: formData.get('password'),
+    confirm: formData.get('confirm'),
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const { current, password: next } = parsed.data;
 
   const problem = passwordProblem(next);
   if (problem) return { error: problem };

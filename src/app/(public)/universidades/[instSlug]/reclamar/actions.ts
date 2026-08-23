@@ -25,6 +25,7 @@
 import { headers } from 'next/headers';
 
 import { requestClaim, ROUTE_EXPLANATION, type ClaimRequestOutcome } from '@/lib/claims';
+import { claimRequestSchema, firstIssue } from '@/lib/auth/schema';
 import { checkRate } from '@/lib/leads/rate-limit';
 import { hashClientIp } from '@/lib/privacy/request';
 
@@ -40,13 +41,6 @@ const CLAIM_RATE = [
   { limit: 3, windowMs: 60_000 },
   { limit: 10, windowMs: 3_600_000 },
 ];
-
-function field(formData: FormData, name: string, max: number): string | null {
-  const value = formData.get(name);
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().slice(0, max);
-  return trimmed.length > 0 ? trimmed : null;
-}
 
 export async function requestClaimAction(
   institutionSlug: string,
@@ -74,16 +68,23 @@ export async function requestClaimAction(
     };
   }
 
-  const email = field(formData, 'email', 255);
-  if (!email) return { error: 'Escribí tu correo institucional.' };
+  // Parsed after the origin and rate checks and before anything is written:
+  // a malformed submission must not reach `requestClaim`, which writes a row
+  // and can send mail to whatever address it is handed.
+  const parsed = claimRequestSchema.safeParse({
+    email: formData.get('email'),
+    contactName: formData.get('contactName'),
+    note: formData.get('note'),
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   let result: ClaimRequestOutcome;
   try {
     result = await requestClaim({
       institutionSlug,
-      email,
-      contactName: field(formData, 'contactName', 160),
-      note: field(formData, 'note', 500),
+      email: parsed.data.email,
+      contactName: parsed.data.contactName,
+      note: parsed.data.note,
     });
   } catch (error) {
     console.error('[claims] request failed', error);

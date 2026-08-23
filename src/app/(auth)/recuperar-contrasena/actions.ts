@@ -4,6 +4,7 @@ import { consumePasswordReset, requestPasswordReset } from '@/db/queries/passwor
 import { sendPasswordResetEmail } from '@/lib/auth/notify';
 import { passwordProblem } from '@/lib/auth/password';
 import { RESET_TTL_MINUTES } from '@/lib/auth/reset-token';
+import { firstIssue, newPasswordSchema, resetRequestSchema } from '@/lib/auth/schema';
 import { clientIpHash } from '@/lib/privacy/server-request';
 import { checkRate } from '@/lib/leads/rate-limit';
 
@@ -29,8 +30,6 @@ export async function requestResetAction(
   _prev: RequestResetState,
   formData: FormData,
 ): Promise<RequestResetState> {
-  const email = String(formData.get('email') ?? '').trim();
-
   // Two tiers, same as the lead form and the claim request: an in-process
   // window absorbs a flood before the database is touched. Rate limiting here
   // protects somebody else's inbox, not our data.
@@ -46,9 +45,10 @@ export async function requestResetAction(
     return { error: 'Demasiados intentos. Esperá unos minutos y probá de nuevo.' };
   }
 
-  if (!email.includes('@')) return { error: 'Escribí un correo válido.' };
+  const parsed = resetRequestSchema.safeParse({ email: formData.get('email') });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const request = await requestPasswordReset(email);
+  const request = await requestPasswordReset(parsed.data.email);
   if (!request) return { message: NEUTRAL };
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://educacion.com.py';
@@ -80,11 +80,16 @@ export async function completeResetAction(
   _prev: CompleteResetState,
   formData: FormData,
 ): Promise<CompleteResetState> {
-  const password = String(formData.get('password') ?? '');
-  const confirmation = String(formData.get('confirmation') ?? '');
+  const parsed = newPasswordSchema.safeParse({
+    password: formData.get('password'),
+    confirmation: formData.get('confirmation'),
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const { password } = parsed.data;
 
-  if (password !== confirmation) return { error: 'Las dos contraseñas no coinciden.' };
-
+  // Strength stays `passwordProblem`'s: it owns the two numbers and the Spanish
+  // that names them, and this form, `/cambiar-contrasena` and the bootstrap
+  // script all have to give the same answer.
   const problem = passwordProblem(password);
   if (problem) return { error: problem };
 

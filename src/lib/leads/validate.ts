@@ -9,6 +9,16 @@
  * rule testable as a rule rather than as an HTTP behaviour: `validateLead`
  * cannot return a valid result whose `consentAt` is unset, and the table's
  * `leads_consent_required` CHECK is the second lock on the same door.
+ *
+ * ### The split with `schema.ts` (PR-51)
+ *
+ * The **shape** — types, trims, lengths, the age enum — is one zod schema that
+ * the modal and this module both read, so a limit cannot be enforced in two
+ * places with two different numbers. The **rules** are still here, in this
+ * order, because each is a decision the schema cannot carry: the honeypot is
+ * answered as a success before anything else, the phone is normalised by
+ * `parseParaguayanPhone` rather than pattern-matched, and consent is compared
+ * against the version the person was actually shown. See `schema.ts`.
  */
 
 import {
@@ -19,8 +29,7 @@ import {
   type LeadErrorCode,
 } from './contract';
 import { parseParaguayanPhone } from './phone';
-
-const AGE_BRACKETS: readonly AgeBracket[] = ['menor_18', '18_mas', 'no_declarado'];
+import { honeypotSchema, leadPayloadSchema } from './schema';
 
 /** The validated payload. `institutionId` is resolved by the route, not here. */
 export interface ValidatedLead {
@@ -41,55 +50,25 @@ export type ValidationResult =
   | { ok: false; honeypot: true }
   | { ok: false; honeypot?: false; error: LeadErrorCode };
 
-function str(value: unknown): string | null {
-  return typeof value === 'string' ? value.trim() : null;
-}
-
-/**
- * Deliberately permissive: one `@`, something either side, no spaces. Email is
- * optional here and the only cost of a typo is an undeliverable copy — a regex
- * strict enough to be "correct" rejects real addresses, which costs a lead.
- */
-function isPlausibleEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) && value.length <= LEAD_LIMITS.emailMax;
-}
-
 export function validateLead(input: unknown): ValidationResult {
   if (typeof input !== 'object' || input === null) return { ok: false, error: 'invalid_payload' };
-  const body = input as Record<string, unknown>;
 
   // The honeypot is checked first and answered as a success by the caller: a
   // bot that learns which field betrayed it simply stops filling that field.
-  const trap = str(body[HONEYPOT_FIELD]);
-  if (trap) return { ok: false, honeypot: true };
+  // Parsed on its own so a payload that is malformed *and* trapped is still a
+  // trap — otherwise a bot could tell the two apart by sending rubbish.
+  const trap = honeypotSchema.safeParse(input);
+  if (trap.success && trap.data[HONEYPOT_FIELD]) return { ok: false, honeypot: true };
 
-  const offeringId = Number(body.offeringId);
-  if (!Number.isInteger(offeringId) || offeringId <= 0) {
-    return { ok: false, error: 'invalid_payload' };
-  }
+  const parsed = leadPayloadSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_payload' };
+  const body = parsed.data;
 
-  const name = str(body.name);
-  if (!name || name.length < LEAD_LIMITS.nameMin || name.length > LEAD_LIMITS.nameMax) {
-    return { ok: false, error: 'invalid_payload' };
-  }
-
-  const phone = str(body.phone);
-  if (!phone) return { ok: false, error: 'invalid_payload' };
-  const parsedPhone = parseParaguayanPhone(phone);
+  // Normalised, not pattern-matched: `parseParaguayanPhone` turns what a person
+  // typed into E.164, and answers its own error code so the modal can say what
+  // is wrong with the number rather than "revisá los datos".
+  const parsedPhone = parseParaguayanPhone(body.phone);
   if (!parsedPhone.ok || !parsedPhone.e164) return { ok: false, error: 'invalid_phone' };
-
-  const rawEmail = str(body.email);
-  if (rawEmail && !isPlausibleEmail(rawEmail)) return { ok: false, error: 'invalid_payload' };
-
-  const rawMessage = str(body.message);
-  if (rawMessage && rawMessage.length > LEAD_LIMITS.messageMax) {
-    return { ok: false, error: 'invalid_payload' };
-  }
-
-  const ageBracket = str(body.ageBracket) as AgeBracket | null;
-  if (!ageBracket || !AGE_BRACKETS.includes(ageBracket)) {
-    return { ok: false, error: 'invalid_payload' };
-  }
 
   // Consent is the one field with no permissive reading. Unchecked is a
   // refusal, and a lead without it is not stored (risks.md §R-06).
@@ -97,24 +76,22 @@ export function validateLead(input: unknown): ValidationResult {
 
   // The version is compared, never taken on trust: recording a lead against a
   // text the person did not see is worse than asking them to reload.
-  if (str(body.consentTextVersion) !== CONSENT_TEXT_VERSION) {
+  if (body.consentTextVersion !== CONSENT_TEXT_VERSION) {
     return { ok: false, error: 'consent_version_stale' };
   }
-
-  const rawSourcePage = str(body.sourcePage);
 
   return {
     ok: true,
     lead: {
-      offeringId,
-      name,
+      offeringId: body.offeringId,
+      name: body.name,
       phoneE164: parsedPhone.e164,
-      email: rawEmail || null,
-      message: rawMessage || null,
-      ageBracket,
+      email: body.email ?? null,
+      message: body.message ?? null,
+      ageBracket: body.ageBracket,
       consentTextVersion: CONSENT_TEXT_VERSION,
       consentAt: new Date(),
-      sourcePage: rawSourcePage ? rawSourcePage.slice(0, LEAD_LIMITS.sourcePageMax) : null,
+      sourcePage: body.sourcePage ? body.sourcePage.slice(0, LEAD_LIMITS.sourcePageMax) : null,
     },
   };
 }

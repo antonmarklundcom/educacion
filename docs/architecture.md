@@ -2296,3 +2296,98 @@ it.) Validation belongs at each boundary where unconstrained data enters —
 `total-cost.ts` and `catalog-schema.ts` for the index, `assertPriceIsCoherent`
 for the write path — and those are now the same four rules, not three
 paraphrases of them.
+
+---
+
+## 34. Input validation & the Server-Action tests (settled in PR-51)
+
+_§32 and §33 are PR-49's and PR-50's; this section is numbered for the order the
+three merge in, not for the branch it was written on._
+
+The audit's gap: the query layer is thoroughly tested, and the Server Actions
+wiring forms to it were not — so a mis-wired argument passed CI. Three things
+close it.
+
+### 34.1 zod on the public surfaces, and only there
+
+`pr-plan.md` PR-51: the schemas go where an unauthenticated stranger can post,
+because that is where hand-rolled parsing risk is highest and a missed check is
+a security finding rather than a bad row. `src/lib/admin/validation.ts` keeps
+the admin and panel forms — one PR does not rewrite working validation for
+symmetry.
+
+**Server-side only.** The forms are client components, and zod on every public
+route is weight the 150 kB budget (§9) does not have spare. So the browser keeps
+what it had — `required` / `minLength` / `maxLength` / `type`, driven by the
+**same constants** the schemas read (`LEAD_LIMITS`, `MAX_PASSWORD_LENGTH`) — and
+the schema is the server's single statement of the same shape. One statement of
+every number, enforced on both sides as it has to be, never written twice.
+`client-bundle.test.ts` holds the boundary, and the measured public bundle is
+unchanged.
+
+### 34.2 A schema decides shape; it must not decide outcome
+
+Three cases where being more helpful would be a vulnerability:
+
+- **`loginSchema` accepts anything that could be a credential.** It refuses an
+  absent field, a blank address, and strings longer than the column or the
+  hasher — nothing else. A "correo inválido" for a malformed address standing
+  beside one generic sentence for every real failure is an account oracle with
+  extra steps, and `login.ts`'s uniform answer is the thing being protected.
+- **Password reset answers the same sentence for every address**, so its schema
+  refuses only what could not reach anybody at all.
+- **Password strength is `passwordProblem`'s**, never a `.min()` in a schema. It
+  owns the two numbers and the Spanish that names them, and the reset form, the
+  change-password form and the bootstrap script have to give one answer.
+
+The lead pipeline splits the same way. `leads/schema.ts` owns the shape — types,
+trims, lengths, the age enum. `validateLead` keeps the **rules**, in order,
+because each is a decision a schema cannot carry: the honeypot is checked first
+and answered as a *success* (a bot that learns which field betrayed it stops
+filling that field), the phone goes through `parseParaguayanPhone`, which
+normalises as well as validates, and consent is compared against the version the
+person was actually shown rather than merely required. `consent` and
+`consentTextVersion` stay `unknown` in the schema on purpose: the route answers
+`consent_required` and `consent_version_stale` as distinct codes, and a schema
+failure would collapse both into `invalid_payload`.
+
+### 34.3 What an action test asserts
+
+Three properties, and the first is the one that matters:
+
+1. **Bad input is refused before any query runs.** Not "returns an error" — the
+   mocked query function must not have been called. A public endpoint that
+   reaches the database on garbage is a free amplifier.
+2. **Authorization is refused, and by the query.** The actions pass the session
+   through — `null` included — rather than deciding anything themselves;
+   `requireRole` is still the only place that answer is made (rule 4). The tests
+   assert the argument, not a returned boolean.
+3. **Arguments reach the query intact.** Guaraní amounts parsed out of the
+   format the form displays, blanks as `null` and never `''`, the id as an
+   argument and never from the form, and ownership checked before the payload is
+   read — `savePanelPriceAction` refuses another institution's offering without
+   telling the sender their payload was nearly right.
+
+Twenty admin `actions.ts` files are near-identical, so they get one structural
+scan (the session comes from `currentUser()`, no role or user id is read out of
+the form, no mutation is called without it) plus two real ones — an area and an
+arancel. Twenty copies of the same mock would be twenty things to update and one
+thing proved.
+
+### 34.4 `'use server'` is a boundary too
+
+`client-bundle.test.ts` walked the import graph from every `'use client'` file
+and did not stop at Server Actions — so it reported every query module in the
+app as browser-reachable, since almost every client form imports its actions
+file. Next replaces a Server Action import with a *reference*: none of that
+module's code, or its imports', is compiled into the browser bundle. The walk
+stops there now, which is the same reasoning as the client entries read from the
+other side, and the fix is what let the boundary assertions mean anything.
+
+### 34.5 Coverage is visibility, not a gate
+
+`npm run test:coverage` prints the number; nothing fails on it and no threshold
+is configured. A threshold picked before anybody has seen the figure is a number
+invented to be met, and the first thing it buys is a test written to raise it.
+The first measurement is **55.7 % of statements**. CI does not run it — `npm
+test` is untouched, so the PR check costs what it did before (CLAUDE.md rule 11).
