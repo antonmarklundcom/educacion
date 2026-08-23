@@ -2404,3 +2404,104 @@ The banner's count is the institution's **whole** overdue set, not the current
 page's and not the current tab's — filtering the inbox to "Descartadas" must not
 make the number look like zero — and its link goes to the `new` tab so the
 sentence and the list the institution lands on agree.
+
+---
+
+## 33. The data-operations console (settled in PR-50)
+
+`plan.md` §6 calls arancel and registry collection the real bottleneck of this
+project. Part of why it stayed one is unglamorous: every import ran from a shell
+with `DATABASE_URL` exported by hand (`deployment.md` §5), which is workable for
+the person who wrote the scripts and impossible for anybody else — so the
+bottleneck was a **person**, not a task. `/admin/importaciones` is the same work
+with a button on it.
+
+### 33.1 One import path, not two
+
+The PR-20 rule. The console calls `beginImport(db, source, () => collectCones())`
+and `curate({ db, exclusive: true })` — the same functions
+`scripts/import-cones.ts` and `scripts/curate.ts` call. What the scripts still
+own is argv parsing and printing to a terminal. Nothing about *what an import
+does* is decided in two places, so there is no second parser to fix when the
+CONES page changes.
+
+### 33.2 `import_runs` is the lock
+
+Two operators clicking "Importar CONES" in the same second must not produce two
+concurrent crawls of the same government site — rude to the source, and a way to
+get the whole network 403'd (`data-sources.md` §1). The lock is the table that
+already exists: a run with `status='running'` **is** the claim.
+
+It is taken in one statement, `INSERT … SELECT … WHERE NOT EXISTS`, because
+`SELECT`-then-`INSERT` from the application is a race however carefully it is
+written. Zero rows inserted means somebody else holds it, and
+`ImportAlreadyRunningError` says so in the Spanish the operator reads. The page's
+own "is this source busy" check, which disables the button, is a courtesy on top
+— it makes the common case legible and is explicitly *not* the lock.
+
+A lock is only as good as its release, so every path that opens a run closes it:
+`beginImport`'s `catch` marks `failed`, and PR-50 gave `curate()` the same
+treatment — a curate pass that threw used to leave its row `running` forever,
+which was cosmetic while nothing read the column and is not now. The case no
+`finally` can cover is a container restarted mid-crawl, and that is what
+`releaseImportRun` is for: after `STUCK_AFTER_MINUTES` the console offers to
+close the orphaned run, refuses to do it any earlier, and logs who did.
+
+### 33.3 Why the trigger does not await the import
+
+A full CONES pass is ~65 polite requests and takes minutes. A Server Action that
+awaited it would hit a proxy timeout with the operator none the wiser about
+whether it ran.
+
+So `beginImport` splits the work at the only interesting boundary: it awaits the
+**claim** — which is what the operator must be told about, immediately, on the
+click — and hands back the rest as a promise the console does not await. Progress
+is read from `import_runs`, which the import writes to anyway. `runImport` is
+`beginImport` plus `await done`, which is what keeps the CLI and the console on
+one code path instead of two that drift.
+
+### 33.4 The cron panel, and where a cron history comes from
+
+`/api/cron/[job]`'s `switch` became a lookup in `src/lib/cron/registry.ts`, and
+the console renders the same table. A second job list beside the route is how a
+console ends up offering a job the route answers `not_implemented` for;
+`registry.test.ts` holds the two together and also against `deployment.md` §7's
+curl list.
+
+Every run is written to **`activity_log`** — `entity_type='cron_job'`,
+`action='run'` — rather than to a `cron_runs` table. The console needs one fact
+per job (when it last ran, how it went), which is a row with an actor, a time, a
+subject and an outcome: exactly what that table stores, already indexed on
+`(entity_type, created_at)`. A new table would be a migration, a second thing to
+purge and a second history to check, for columns this screen does not use.
+`user_id` is null when hPanel fired it and set when somebody pressed the button,
+which is the distinction that makes the row worth writing at all: "it ran an hour
+ago" means something different when the only thing that has ever run it is a
+person clicking.
+
+**Failures are logged too**, and that is the half that matters. A job that has
+been throwing for three days looks exactly like a job hPanel was never scheduled
+for, until the failure is on the record.
+
+`action='run'` is new vocabulary (`ActivityAction`): a job executing is not a
+create, an update or a delete of anything, and forcing it into one would make
+`/admin/actividad`'s filter lie.
+
+### 33.5 "Ejecutar ahora" calls the route, not the function
+
+The button's Server Action `fetch`es `/api/cron/<job>` with `CRON_SECRET` in the
+`x-cron-secret` header, server-side. Two reasons. The secret is read on the
+server and never reaches the browser, so the button cannot become a way to learn
+it. And the button then exercises the same path hPanel does, header and all — a
+job that works from this page is evidence the scheduled one will work, which a
+direct call to the job function would not be.
+
+The origin comes from the request's own `Host` header rather than an env var, so
+it works on localhost and behind Hostinger's proxy with no configuration.
+`x-cron-actor` labels the log row with who pressed it; nothing is authorized by
+it, and a forged value would need the secret to be sent at all.
+
+The panel is otherwise **read-only**: nothing here schedules anything, because
+hPanel does, and this page cannot know whether the entry was ever created. What
+it shows is the last run we observed beside the cadence we believe is
+configured — and the gap between those two is the finding.

@@ -25,7 +25,9 @@ export const ENTITY_LABELS: Record<string, string> = {
   campus: 'Sede',
   career: 'Carrera',
   claim: 'Reclamo',
+  cron_job: 'Trabajo programado',
   curation_conflict: 'Conflicto de curaduría',
+  import_run: 'Importación',
   institution: 'Institución',
   institution_member: 'Miembro de institución',
   job_posting: 'Empleo',
@@ -44,5 +46,6 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   archive: 'Archivó',
   create: 'Creó',
   delete: 'Borró',
+  run: 'Ejecutó',
   update: 'Editó',
 };

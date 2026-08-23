@@ -43,6 +43,7 @@ import {
 } from '@/db/schema';
 import { decideApply } from '@/lib/curate/apply-rules';
 import { applicableUpdate } from '@/lib/curate/apply-rules';
+import { claimImportRun, startImportRun } from '@/lib/ingest/repository';
 import {
   autoMatchRate,
   buildProposals,
@@ -521,6 +522,12 @@ export interface CurateOptions {
   sources?: readonly SourceName[];
   dryRun?: boolean;
   onProgress?: (message: string) => void;
+  /**
+   * Refuse to start a source that already has a run in flight (PR-50).
+   * `/admin/importaciones` passes it; the CLI does not — see
+   * `claimImportRun`'s docstring for why the shell keeps the override.
+   */
+  exclusive?: boolean;
 }
 
 /**
@@ -568,12 +575,34 @@ export async function curate(options: CurateOptions): Promise<CurationPassSummar
 
     let importRunId = 0;
     if (!dryRun) {
-      const [result] = await db.insert(importRuns).values({ source, status: 'running' });
-      importRunId = Number(result.insertId);
+      importRunId = options.exclusive
+        ? await claimImportRun(db, source)
+        : await startImportRun(db, source);
     }
 
-    const report = await applyProposals(db, proposals, { importRunId, dryRun });
-    const aliasesWritten = dryRun ? 0 : await writeAliases(db, aliasCandidates, source);
+    // PR-50: a curate pass that threw used to leave its `import_runs` row
+    // `running` forever, which was cosmetic while nothing read the column and
+    // is not now that `running` is the console's lock. The catch closes the run
+    // as `failed` and re-throws, exactly as `runImport` does.
+    let report: ApplyReport;
+    let aliasesWritten: number;
+    try {
+      report = await applyProposals(db, proposals, { importRunId, dryRun });
+      aliasesWritten = dryRun ? 0 : await writeAliases(db, aliasCandidates, source);
+    } catch (error) {
+      if (!dryRun) {
+        await db
+          .update(importRuns)
+          .set({
+            status: 'failed',
+            finishedAt: new Date(),
+            rowsIn: records.length,
+            log: error instanceof Error ? `curate: ${error.name}: ${error.message}` : String(error),
+          })
+          .where(eq(importRuns.id, importRunId));
+      }
+      throw error;
+    }
 
     if (!dryRun) {
       await db

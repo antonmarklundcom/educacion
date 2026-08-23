@@ -84,6 +84,7 @@ const GROUPS: readonly NavGroup[] = [
   {
     title: 'Sistema',
     items: [
+      { href: '/admin/importaciones', label: 'Importaciones' },
       { href: '/admin/usuarios', label: 'Cuentas', adminOnly: true },
       { href: '/admin/actividad', label: 'Actividad' },
       { href: '/admin/privacidad', label: 'Datos personales', adminOnly: true },

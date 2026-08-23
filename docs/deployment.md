@@ -153,6 +153,13 @@ nightly 03:00 -04, `admissions` daily 05:00, `staleness` weekly on Monday,
 `purge-leads` weekly. `sitemap` needs **no** cron — the route is generated per
 request and answers `not_needed` if you schedule it anyway.
 
+Since PR-50 the same jobs are visible in the app: `/admin/importaciones` lists
+every route above with its cadence and the **last run we actually observed**,
+and has an "ejecutar ahora" button that calls the route server-side with
+`CRON_SECRET` in the header. A job whose last run says "nunca corrió" while its
+cadence says "diario" is a missing hPanel entry — that gap is the reason the
+panel states both. It schedules nothing; hPanel still owns the schedule.
+
 `purge-leads` is the one job that deletes: it enforces the 24-month retention
 `/legal/privacidad` promises. Everything else only reads, rebuilds or mails.
 
