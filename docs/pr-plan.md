@@ -1246,7 +1246,7 @@ the entire server graph through every client form's actions import, which made i
 "reached from" reports meaningless. First measured coverage: **55.7 % of statements**, no
 threshold, and `npm test` is untouched so the CI check costs what it did before.
 
-### PR-52 — PR-49/PR-50 review remediation · **Opus**
+### PR-52 — PR-49/PR-50 review remediation · **Opus** · ✅ shipped
 
 PR-49 and PR-50 are both in the review lane and merged on green CI without that pass
 (#56). The review ran afterwards, against `main`, and confirmed the designs that were
@@ -1296,13 +1296,29 @@ storage decision and return only with the migration that creates institution med
 | 4 — Depth & growth               | 30–34 | 5      | 2      | 3      | 0                    |
 | 5 — Closing PR-18                | 35–36 | 2      | 2      | 0      | 0                    |
 | — OG images (backfilled)         | 39    | 1      | 0      | 1      | 0                    |
-| **Shipped**                      |       | **37** | **13** | **16** | **8**                |
-| 6 — Hardening & SEO debt (plan)  | 40–46 | 7      | 2      | 2      | 3                    |
-| 7 — Growth & polish (plan)       | 47–51 | 5      | 0      | 3      | 2                    |
-| **Total incl. planned**          |       | **49** | **15** | **21** | **13**               |
+| 6 — Hardening & SEO debt         | 40–46 | 7      | 2      | 2      | 3                    |
+| 7 — Growth & polish              | 47–51 | 5      | 0      | 3      | 2                    |
+| — PR-48b, PR-52 (review passes)  | —     | 2      | 2      | 0      | 0                    |
+| **Shipped**                      |       | **51** | **17** | **21** | **13**               |
 
-Across the 37 shipped PRs Sonnet wrote **24 (65%)** and, weighted by lines of code, closer
-to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's.
-The planned Phases 6–7 keep the same shape: Opus owns the decisions that are expensive to
-unwind (caching interface, the money-path review), Sonnet writes everything downstream of a
-decided interface, and the review lane is enforced this time (PR-46's going-forward rule).
+Every planned PR is merged. On the plan's own attribution — the Sonnet column plus the
+review lane, which is how the 65% figure for the first 37 was derived — Sonnet was assigned
+**34 of 51 (67%)**, and the heavy-line-count PRs (pages, admin CRUD, components) are all
+in that set.
+
+**Read that column as intent, not as authorship, from PR-40 on.** Phases 6–7 were built by
+Opus in practice, whatever the lane says: PR-49, PR-50 and PR-51 are marked Sonnet or
+Sonnet-with-review and Opus wrote all three, in one session, along with PR-52. The earlier
+lines-of-code estimate is not restated here because nobody has measured it since, and
+carrying a stale number forward is how a planning document stops being worth reading.
+
+**The review lane was not, in the end, enforced.** PR-46's going-forward rule said it would
+be, and PR-49 and PR-50 merged on green CI without it (#56). The review ran afterwards
+anyway and found six defects — two of them false statements to a customer or an auditor —
+which is PR-52. The rule was right; the lesson is that "enforced" has to mean something a
+merge button checks, not something a planning document asserts. `architecture.md` §35 has
+the findings.
+
+**Nothing further is scheduled.** What remains is data operations (`plan.md` §6) and the
+first production Lighthouse run (`deployment.md` §7.2), neither of which is a PR. The two
+designed-but-unscheduled bodies of work are below.
