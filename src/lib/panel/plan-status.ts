@@ -185,10 +185,22 @@ export function planStatusSentences(
           formatted.endsOn === null ? plan.openEndedDetail : plan.trialDetail(formatted.endsOn),
       };
     case 'past_due_grace':
+      if (formatted.endsOn === null)
+        return { headline: plan.pastDueHeadline, detail: plan.openEndedDetail };
+      // `past_due` is a status an operator sets, not a date the system reaches,
+      // so it is reachable while the period is still running — and then the
+      // grace sentence would assert that a future day has already passed
+      // (PR-52). `daysLeft >= 0` is "the period has not ended yet".
+      if (view.daysLeft !== null && view.daysLeft >= 0) {
+        return {
+          headline: plan.pastDueHeadline,
+          detail: plan.pastDueUpcomingDetail(formatted.endsOn),
+        };
+      }
       return {
         headline: plan.pastDueHeadline,
         detail:
-          formatted.endsOn === null || formatted.graceEndsOn === null
+          formatted.graceEndsOn === null
             ? plan.openEndedDetail
             : plan.pastDueDetail(formatted.endsOn, formatted.graceEndsOn),
       };

@@ -8,6 +8,14 @@ import { cronJob } from '@/lib/cron/registry';
 import { currentUser } from '@/lib/auth/session';
 import { requireRole } from '@/lib/auth/roles';
 
+/**
+ * How long "ejecutar ahora" waits before it stops watching.
+ *
+ * Under Hostinger's own proxy limit, so the operator gets our sentence rather
+ * than a gateway error page. The job keeps running past it either way.
+ */
+const CRON_TRIGGER_TIMEOUT_MS = 30_000;
+
 export interface ConsoleState {
   error?: string;
   message?: string;
@@ -89,13 +97,25 @@ export async function runCronJobAction(
   const incoming = await headers();
   const host = incoming.get('host');
   if (!host) return { error: 'No pudimos resolver la dirección del sitio.' };
-  const protocol =
-    incoming.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+
+  // `x-forwarded-proto` is a list when more than one proxy has touched the
+  // request — "https,http" is ordinary behind a chain, and using it verbatim
+  // builds `https,http://host/...`, which fails to parse and breaks every
+  // trigger with an opaque error (PR-52). The first entry is the client's.
+  const forwarded = incoming.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const protocol = forwarded || (host.startsWith('localhost') ? 'http' : 'https');
 
   try {
     const response = await fetch(`${protocol}://${host}/api/cron/${job}`, {
       headers: { 'x-cron-secret': secret, 'x-cron-actor': String(user!.id) },
       cache: 'no-store',
+      // Bounded, because this awaits the whole job over HTTP inside a Server
+      // Action. Without it a slow `rebuild-search` runs past the proxy's own
+      // limit, the operator sees a generic failure and clicks again — and cron
+      // jobs have no `import_runs`-style lock, so the second click is a second
+      // concurrent pass (PR-52). The jobs are idempotent, so that is waste
+      // rather than corruption, but waste on the one path that deletes.
+      signal: AbortSignal.timeout(CRON_TRIGGER_TIMEOUT_MS),
     });
     const body = (await response.json()) as { status?: string; error?: string };
     revalidatePath('/admin/importaciones');
@@ -105,6 +125,16 @@ export async function runCronJobAction(
     }
     return { message: `${definition.label}: ${body.status ?? 'ok'}.` };
   } catch (error) {
+    // A timeout is not a failure of the job: it is still running, server-side,
+    // and it will write its own `activity_log` row when it finishes. Saying so
+    // is what stops the operator from clicking again.
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      return {
+        error:
+          `${definition.label} sigue corriendo: pasó de ${Math.round(CRON_TRIGGER_TIMEOUT_MS / 1000)} ` +
+          `segundos y dejamos de esperarlo. No lo ejecutes de nuevo — mirá el resultado abajo en unos minutos.`,
+      };
+    }
     return failed(error);
   }
 }

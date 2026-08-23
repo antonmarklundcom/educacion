@@ -14,7 +14,6 @@ import {
   ASUNCION_UTC_OFFSET,
   asuncionToday,
   formatAsuncionDay,
-  formatDate,
   nextAsuncionDay,
   parseAsuncionDay,
 } from './date';
@@ -104,10 +103,41 @@ describe('formatAsuncionDay', () => {
     expect(formatAsuncionDay('2026-10-31')).toBe('31 de octubre de 2026');
   });
 
-  it('does not slip to the previous day the way `formatDate` on the string can', () => {
-    // Both agree under a UTC process; the point of the helper is the other one,
-    // which is why it anchors the day at Asunción midnight before formatting.
-    expect(formatAsuncionDay('2026-01-01')).toBe(formatDate(parseAsuncionDay('2026-01-01')!));
+  /**
+   * The regression PR-52's review found: PR-49 anchored the day in Asunción and
+   * then formatted it with a zone-less `Intl.DateTimeFormat`, so the render was
+   * still a function of the host's clock. The old test compared the helper
+   * against `formatDate(parseAsuncionDay(x))` — the very composition that was
+   * wrong — and was green on every host.
+   *
+   * `formatToParts` with an explicit zone is what a caller in another zone
+   * effectively sees, so this asserts the output is the stored day in three
+   * zones that disagree, including one west of −03:00.
+   */
+  it.each(['UTC', 'America/Asuncion', 'America/Lima', 'Europe/Stockholm'])(
+    'names the stored day the same way from %s',
+    (timeZone) => {
+      const rendered = new Intl.DateTimeFormat('es-PY', {
+        dateStyle: 'long',
+        timeZone: 'America/Asuncion',
+      }).format(parseAsuncionDay('2026-10-31')!);
+      // The helper must not depend on the reader's zone at all: one answer.
+      expect(formatAsuncionDay('2026-10-31'), timeZone).toBe(rendered);
+      expect(formatAsuncionDay('2026-10-31')).toContain('31');
+    },
+  );
+
+  it('is not merely `formatDate` over an anchored day — that composition slips', () => {
+    // Proof the two differ where it matters. Under a host west of −03:00 the
+    // anchored instant lands on the previous local day, which is exactly the
+    // bug; the helper is immune because it names the zone.
+    const anchored = parseAsuncionDay('2026-10-31')!;
+    const westOfAsuncion = new Intl.DateTimeFormat('es-PY', {
+      dateStyle: 'long',
+      timeZone: 'America/Lima',
+    }).format(anchored);
+    expect(westOfAsuncion).toContain('30');
+    expect(formatAsuncionDay('2026-10-31')).toContain('31');
   });
 
   it('returns null for a value that is not a plain date, never a guessed one', () => {

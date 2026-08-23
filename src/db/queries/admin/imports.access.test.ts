@@ -155,8 +155,25 @@ describe('the lock', () => {
 });
 
 describe('the record', () => {
-  it('lands every accepted trigger in activity_log', async () => {
+  it('lands every accepted trigger in activity_log, against the run it claimed', async () => {
+    // PR-52: the row is written after the claim and carries the run id. Before,
+    // it went out first, so a lost race left an `activity_log` row saying an
+    // import started beside an `import_runs` table that never saw it.
     await triggerImportJob(editor, 'import:cones', db);
+    expect(logged).toEqual([
+      {
+        userId: editor.id,
+        entityType: 'import_run',
+        entityId: 99,
+        action: 'run',
+        before: null,
+        after: { job: 'import:cones', source: 'CONES', importRunId: 99 },
+      },
+    ]);
+  });
+
+  it('logs a curate pass too, which claims its runs inside itself', async () => {
+    await triggerImportJob(editor, 'curate', db);
     expect(logged).toEqual([
       {
         userId: editor.id,
@@ -164,7 +181,7 @@ describe('the record', () => {
         entityId: null,
         action: 'run',
         before: null,
-        after: { job: 'import:cones' },
+        after: { job: 'curate' },
       },
     ]);
   });

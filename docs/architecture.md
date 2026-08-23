@@ -2384,12 +2384,22 @@ banner and the operator's mail describe the same window rather than two.
 
 `ends_on` is a `date` column holding a Paraguayan calendar day.
 `formatDate('2026-10-31')` parses it to **UTC** midnight and then formats it in
-the process's own zone, so on a server set to `America/Asuncion` it renders as
-the 30th. `formatAsuncionDay()` anchors the day at Asunción midnight first,
-which is correct under both zones this site actually runs in. It is the same
-class of error PR-46 found in `dateOnly()` (§17), one layer up: there it cost a
-paying institution three hours of its last day, here it would just print the
-wrong date — but on the banner that tells them when to pay.
+the process's own zone, so the render can land on the 30th. It is the same class
+of error PR-46 found in `dateOnly()` (§17), one layer up: there it cost a paying
+institution three hours of its last day, here it just prints the wrong date —
+but on the banner that tells them when to pay.
+
+**PR-49 fixed half of it, and PR-52's review caught the other half.** Anchoring
+the day at Asunción midnight is necessary and not sufficient: handing that
+instant to a formatter with no `timeZone` is still a zone-dependent render, and
+on a host west of −03:00 the anchored instant falls on the previous local day —
+`America/Lima` prints "30 de octubre" for `2026-10-31`. The paragraph here used
+to claim correctness "in Asunción and in UTC alike", which was true and was not
+the whole set of hosts, and the test asserted the helper against
+`formatDate(parseAsuncionDay(x))` — the very composition that was wrong, so it
+was green everywhere. Both halves are pinned now: the day is anchored in
+Asunción **and** rendered in Asunción, which makes the output a function of the
+stored value alone, and the test asserts that from four zones.
 
 ### 32.4 Why the nudge is a component
 
@@ -2600,3 +2610,62 @@ is configured. A threshold picked before anybody has seen the figure is a number
 invented to be met, and the first thing it buys is a test written to raise it.
 The first measurement is **55.7 % of statements**. CI does not run it — `npm
 test` is untouched, so the PR check costs what it did before (CLAUDE.md rule 11).
+
+
+---
+
+## 35. What the PR-49/PR-50 review found (settled in PR-52)
+
+Both PRs were in the "Sonnet → Opus review" lane and merged on green CI without
+that pass; the review ran afterwards, against `main`. It confirmed the designs
+that were expensive to get wrong — the `import_runs` lock, `curate()`'s
+failure-closing path, the `beginImport`/`runImport` split, one `slaCutoff` behind
+both the SQL and the badge, registry-vs-route parity — and found six defects,
+all fixed here. Three are worth reading as a class.
+
+### 35.1 Two of them were false statements to a customer or an auditor
+
+CLAUDE.md rule 1 is about invented data, and both of these are the same rule
+wearing different clothes.
+
+**`past_due_grace` asserted a future date had passed.** `past_due` is a status an
+**operator sets**, not one the system reaches by a date, so it is reachable while
+the period is still running — and the banner then read "El período terminó el 31
+de diciembre de 2026" in August. Every test covered an `ends_on` in the past, so
+nothing saw it. The state now branches on whether the period has actually ended;
+the unpaid invoice is still stated, because that part was true.
+
+**The import audit row was written before the lock was claimed.** A lost race
+left `activity_log` saying an import started next to an `import_runs` table that
+never saw one — two records of the same event disagreeing, which is the thing an
+audit log exists not to do. It is written after the claim now, carrying the run
+id it claimed.
+
+### 35.2 One was a screen quietly destroying another screen
+
+`/api/cron/[job]` writes an `activity_log` row per fire. Hourly `lead-retry`
+alone is 24 a day, the whole schedule ~30 — and `/admin/actividad`'s default view
+is the newest 50 rows with no `WHERE`. Within two days it was entirely machine
+rows and the human edits PR-44 built it to show were pages down.
+
+`cron_job` is excluded from the **unfiltered** view only. The rows stay in the
+table, stay reachable by picking that entity in the filter, and `/admin/importaciones`
+renders the same history per job. Hiding a default is not dropping data, and the
+distinction is what keeps the log honest.
+
+### 35.3 Three were the ordinary hazards of talking over HTTP
+
+"Ejecutar ahora" awaited an entire cron job inside a Server Action with no
+timeout. A slow `rebuild-search` outlives the proxy, the operator sees a generic
+failure and clicks again — and unlike imports, cron jobs have **no lock**, so the
+second click is a second concurrent pass. The jobs are idempotent, so that is
+waste rather than corruption, but it is waste on the path that deletes. There is
+now a 30 s bound and, on hitting it, a message that says the job is still running
+and not to re-run it.
+
+`x-forwarded-proto` was used verbatim, and it is a **list** behind a proxy chain:
+`"https,http"` builds `https,http://host/...`, which fails to parse and breaks
+every trigger with an opaque error. The first entry is the client's.
+
+The third is §32.3's: a date helper that was zone-dependent in exactly the way it
+was written to stop being.

@@ -31,6 +31,8 @@ const institutionAdmin: SessionUser = {
 let rows: unknown[] = [];
 let limits: number[] = [];
 let offsets: number[] = [];
+/** Every `where(...)` argument the module built, for the default-filter tests. */
+let wheres: unknown[] = [];
 
 function chain(): unknown {
   const proxy: unknown = new Proxy(
@@ -46,6 +48,11 @@ function chain(): unknown {
         if (prop === 'offset')
           return (n: number) => {
             offsets.push(n);
+            return proxy;
+          };
+        if (prop === 'where')
+          return (clause: unknown) => {
+            wheres.push(clause);
             return proxy;
           };
         return () => proxy;
@@ -81,7 +88,20 @@ beforeEach(() => {
   rows = [];
   limits = [];
   offsets = [];
+  wheres = [];
 });
+
+/** The literal values a Drizzle condition tree carries, flattened. */
+function boundValues(node: unknown, seen = new Set<unknown>()): unknown[] {
+  if (node === null || typeof node !== 'object' || seen.has(node)) return [];
+  seen.add(node);
+  const out: unknown[] = [];
+  for (const value of Object.values(node as Record<string, unknown>)) {
+    if (typeof value === 'string' || typeof value === 'number') out.push(value);
+    else out.push(...boundValues(value, seen));
+  }
+  return out;
+}
 
 describe('the module is read-only', () => {
   it('has no export that writes, including ones added after this test', async () => {
@@ -227,5 +247,39 @@ describe('what reaches the page', () => {
     rows = [{ id: 7, email: 'staff@educacion.com.py', name: null }];
     expect((await listActivityActors(editor))[0].email).toBeNull();
     expect((await listActivityActors(admin))[0].email).toBe('staff@educacion.com.py');
+  });
+});
+
+/**
+ * PR-52's review finding: the cron console writes one `activity_log` row per
+ * cron fire — hourly `lead-retry` alone is 24 a day — and this screen's default
+ * is the newest 50 with no WHERE, so within two days it showed nothing but
+ * machine rows and the human edits PR-44 built it for were pages down.
+ *
+ * The fix hides a default; it must not drop data, so both directions are
+ * asserted.
+ */
+describe('the default view is about people', () => {
+  it('excludes cron rows when no entity filter was chosen', async () => {
+    await listActivity(editor, {});
+    expect(wheres.length).toBeGreaterThan(0);
+    const values = wheres.flatMap((clause) => boundValues(clause));
+    expect(values, 'the unfiltered view must exclude cron_job').toContain('cron_job');
+  });
+
+  it('shows them when they are the filter — the rows stay reachable', async () => {
+    await listActivity(editor, { entityType: 'cron_job' });
+    const values = wheres.flatMap((clause) => boundValues(clause));
+    expect(values).toContain('cron_job');
+    // Filtered means equality on that type, not equality *and* an exclusion of
+    // it, which would return nothing at all.
+    expect(values.filter((value) => value === 'cron_job')).toHaveLength(wheres.length);
+  });
+
+  it('does not quietly narrow a different entity filter', async () => {
+    await listActivity(editor, { entityType: 'price' });
+    const values = wheres.flatMap((clause) => boundValues(clause));
+    expect(values).toContain('price');
+    expect(values).not.toContain('cron_job');
   });
 });

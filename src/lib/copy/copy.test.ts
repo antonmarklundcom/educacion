@@ -179,6 +179,8 @@ const ADDED: Record<string, string> = {
   'panel.plan.endingSoonDetail':
     'Te vamos a escribir para renovarlo. Si querés adelantarlo, contestá ese mismo hilo.',
   'panel.plan.pastDueHeadline': 'Tenemos un pago pendiente de tu plan.',
+  'panel.plan.pastDueUpcomingDetail':
+    'El período va hasta el «arg0» y el pago sigue pendiente. Si ya lo hiciste, escribinos y lo cerramos.',
   'panel.plan.pastDueDetail':
     'El período terminó el «arg0» y tu plan sigue activo hasta el «arg1» mientras se acredita la transferencia. Si ya la hiciste, escribinos y lo cerramos.',
 };

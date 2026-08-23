@@ -155,6 +155,54 @@ describe('past due, inside grace', () => {
   });
 });
 
+/**
+ * PR-52's review finding. `past_due` is a status an **operator** sets, not a
+ * date the system reaches, so it is reachable while the period is still
+ * running — and the grace copy then asserted that a future day had already
+ * passed. Nothing covered it: every earlier case used an `ends_on` in the past.
+ */
+describe('past due while the period is still running', () => {
+  const view = planStatusView(
+    paid({ status: 'past_due_grace', currentPeriodEndsOn: '2026-12-31' }),
+    OPTIONS,
+  );
+
+  it('is still the past-due state — the unpaid invoice is the fact', () => {
+    expect(view.key).toBe('past_due_grace');
+    expect(view.daysLeft).toBeGreaterThan(0);
+  });
+
+  it('never says a future period already ended', () => {
+    const { detail } = planStatusSentences(view, {
+      endsOn: '31 de diciembre de 2026',
+      graceEndsOn: '15 de enero de 2027',
+    });
+    expect(detail).not.toContain('terminó');
+    expect(detail).toContain('va hasta el 31 de diciembre de 2026');
+  });
+
+  it('still says the payment is pending, which is the point of the banner', () => {
+    const { headline, detail } = planStatusSentences(view, {
+      endsOn: '31 de diciembre de 2026',
+      graceEndsOn: '15 de enero de 2027',
+    });
+    expect(headline).toContain('pago pendiente');
+    expect(detail).toContain('pendiente');
+  });
+
+  it('goes back to the grace sentence once the period has actually ended', () => {
+    const ended = planStatusView(
+      paid({ status: 'past_due_grace', currentPeriodEndsOn: '2026-08-20' }),
+      OPTIONS,
+    );
+    const { detail } = planStatusSentences(ended, {
+      endsOn: '20 de agosto de 2026',
+      graceEndsOn: '4 de septiembre de 2026',
+    });
+    expect(detail).toContain('terminó');
+  });
+});
+
 describe('the sentences', () => {
   const KEYS: PlanStatusView['key'][] = [
     'gratis',

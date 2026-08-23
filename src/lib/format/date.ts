@@ -1,4 +1,17 @@
 const longDate = new Intl.DateTimeFormat('es-PY', { dateStyle: 'long' });
+
+/**
+ * The same format, pinned to Asunción.
+ *
+ * `longDate` deliberately has no `timeZone`, so it renders an *instant* in
+ * whatever zone the process runs in — right for a timestamp a reader is looking
+ * at "now". A stored calendar day is not an instant, and `formatAsuncionDay`
+ * needs the zone named or the anchoring it does is undone by the formatter.
+ */
+const longDateAsuncion = new Intl.DateTimeFormat('es-PY', {
+  dateStyle: 'long',
+  timeZone: 'America/Asuncion',
+});
 const monthYear = new Intl.DateTimeFormat('es-PY', { month: 'long', year: 'numeric' });
 
 /** "2 de agosto de 2026" */
@@ -45,16 +58,24 @@ export function parseAsuncionDay(value: string): Date | undefined {
  * rendered "31 de octubre de 2026".
  *
  * `formatDate('2026-10-31')` is the wrong function for this: it parses to UTC
- * midnight and then formats in whatever zone the process runs in, so on a
- * server set to `America/Asuncion` a subscription's `ends_on` renders as the
- * day before. Anchoring the day at Asunción midnight first makes the rendering
- * correct in Asunción and in UTC alike, which is the pair that actually occurs
- * (`deployment.md` §3). An unparseable value returns null rather than a
- * plausible wrong date.
+ * midnight and then formats in whatever zone the process runs in, so a
+ * subscription's `ends_on` can render as the day before.
+ *
+ * **Anchoring alone does not fix that** — PR-49 shipped this function doing
+ * only half the job, and the review of PR-52 caught it. Parsing to Asunción
+ * midnight and then handing the instant to a formatter with no `timeZone` is
+ * still a zone-dependent render: on a host west of −03:00 the anchored instant
+ * falls on the previous local day, and `America/Lima` prints "30 de octubre"
+ * for `2026-10-31`. The old comment claimed correctness "in Asunción and in UTC
+ * alike", which was true and was not the whole set of hosts.
+ *
+ * So both halves are pinned: the day is anchored in Asunción **and** rendered
+ * in Asunción, which makes the output a function of the stored value alone. An
+ * unparseable value returns null rather than a plausible wrong date.
  */
 export function formatAsuncionDay(day: string): string | null {
   const parsed = parseAsuncionDay(day);
-  return parsed === undefined ? null : formatDate(parsed);
+  return parsed === undefined ? null : longDateAsuncion.format(parsed);
 }
 
 /** One day later — the exclusive upper bound of `[day, day+1)` in Asunción. */

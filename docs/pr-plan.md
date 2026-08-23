@@ -1246,6 +1246,32 @@ the entire server graph through every client form's actions import, which made i
 "reached from" reports meaningless. First measured coverage: **55.7 % of statements**, no
 threshold, and `npm test` is untouched so the CI check costs what it did before.
 
+### PR-52 — PR-49/PR-50 review remediation · **Opus**
+
+PR-49 and PR-50 are both in the review lane and merged on green CI without that pass
+(#56). The review ran afterwards, against `main`, and confirmed the designs that were
+expensive to get wrong — the `import_runs` lock, `curate()`'s failure-closing path, the
+`beginImport`/`runImport` split, one `slaCutoff` behind both the SQL and the badge. It
+found six defects, fixed here.
+
+Two were **false statements**, which is rule 1 in other clothes: `past_due_grace` read
+"el período terminó el {fecha futura}" whenever an operator marked a subscription past_due
+mid-period (every test used a past `ends_on`, so nothing saw it), and the import audit row
+was written *before* the lock was claimed, so a lost race left `activity_log` and
+`import_runs` disagreeing about whether an import ever started. One was a screen breaking
+another: ~30 cron rows a day made `/admin/actividad`'s unfiltered default view entirely
+machine rows within two days. Three were HTTP hazards — an unbounded await on "ejecutar
+ahora" (and cron jobs, unlike imports, have no lock, so the re-click is a second pass),
+`x-forwarded-proto` used verbatim when it is a list, and `formatAsuncionDay` still
+zone-dependent in exactly the way PR-49 wrote it to stop being.
+
+**Deps:** PR-49, PR-50 (merged).
+**Accept:** every fix has a test that goes red without it — the date helper is asserted
+from four zones rather than against the composition that was wrong; the activity default
+is mutation-checked; the past-due branch is covered on both sides of the end date. No
+behaviour is dropped: the cron rows stay in the table and stay reachable by filter.
+`architecture.md` §35 records all six, and §32.3 no longer claims what it did not have.
+
 ---
 
 ## Designed, not scheduled

@@ -35,7 +35,7 @@
  *   `/admin/usuarios`. An editor gets the actor's *name*, or nothing.
  */
 
-import { and, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, notInArray, sql, type SQL } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { activityLog, users } from '@/db/schema';
@@ -78,9 +78,27 @@ export interface ActivityFilters {
   page?: number;
 }
 
+/**
+ * Entity types kept out of the **unfiltered** view (PR-52).
+ *
+ * `cron_job` is written once per cron fire — hourly `lead-retry` alone is 24
+ * rows a day, and the whole schedule is ~30. `/admin/actividad`'s default is
+ * the newest 50 rows with no WHERE, so within two days it is entirely machine
+ * rows and the human edits it was built to show (PR-44) are on page three. The
+ * log stays complete and the rows stay reachable — picking `Trabajo
+ * programado` in the entity filter shows them, and `/admin/importaciones`
+ * renders the same history per job. This hides a default, it does not drop
+ * data.
+ */
+const HIDDEN_BY_DEFAULT = ['cron_job'] as const;
+
 function conditions(filters: ActivityFilters): SQL[] {
   const where: SQL[] = [];
-  if (filters.entityType) where.push(eq(activityLog.entityType, filters.entityType));
+  if (filters.entityType) {
+    where.push(eq(activityLog.entityType, filters.entityType));
+  } else {
+    where.push(notInArray(activityLog.entityType, [...HIDDEN_BY_DEFAULT]));
+  }
   if (filters.actorId === 'system') {
     where.push(sql`${activityLog.userId} is null`);
   } else if (typeof filters.actorId === 'number') {
