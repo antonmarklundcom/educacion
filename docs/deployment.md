@@ -177,7 +177,15 @@ threshold, and a sweep that never runs can only under-grant (an `active`
 subscription that has ended already stops granting features at `ends_on`;
 `past_due` is what _extends_ them through the grace window).
 
-## 7.1 Performance checks (PR-34)
+## 7.1 Tests, coverage and performance checks (PR-34, PR-51)
+
+`npm test` is what CI runs and what a PR is judged on. `npm run test:coverage`
+prints a coverage summary and writes an HTML report to `coverage/` — it is
+**visibility, not a gate**: nothing fails on the number, no threshold is
+configured, and CI does not run it, so the PR check costs what it did before
+(CLAUDE.md rule 11). The first measurement, at PR-51, was 55.7 % of statements.
+
+## 7.2 Performance checks (PR-34)
 
 `npm run perf:budget` runs in CI after `npm run build` and fails when a public
 route exceeds 150 kB of gzipped JS. Run it locally the same way: build first,
