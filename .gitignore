@@ -150,3 +150,6 @@ cones-*_files/
 # Scratch git worktrees the agent harness creates for isolated review sessions.
 # A second checkout of this repo, never project content.
 .claude/worktrees/
+
+# vitest coverage report (PR-51 — visibility, generated on demand)
+/coverage

@@ -44,6 +44,9 @@ const eslintConfig = [
       // Without this, `npm run lint` lints a second copy of the whole app plus
       // its `.next` output and reports thousands of problems that are not ours.
       '.claude/worktrees/**',
+      // `npm run test:coverage`'s HTML report (PR-51). Generated, gitignored,
+      // and full of vendored scripts that would otherwise be lint findings.
+      'coverage/**',
     ],
   },
 ];

@@ -1201,7 +1201,7 @@ second import code path (the PR-20 rule); a running import cannot be started twi
 (`import_runs` is the lock); "run now" calls the cron route with the server-held secret,
 never exposing `CRON_SECRET` to the browser; every trigger lands in `activity_log`.
 
-### PR-51 — Server-Action tests & input validation · **Sonnet**
+### PR-51 — Server-Action tests & input validation · **Sonnet** · ✅ shipped
 
 The audit's test gap: the query layer is thoroughly tested, but the Server Actions wiring
 forms to it (`src/app/admin/*/actions.ts`, `src/app/panel/actions.ts`) are not — a
@@ -1215,6 +1215,21 @@ otherwise — one PR does not rewrite working validation for symmetry.
 rejected before any query runs; zod schemas are the single definition their forms and
 handlers both use; `vitest.config` gains a coverage report (visibility, not a gate — a
 threshold arrives only when the number is known).
+
+**Shipped as:** 158 new tests, and two decisions worth reviewing. **zod is server-side
+only**: the client forms keep their `required` / `minLength` / `maxLength` attributes,
+driven by the same constants the schemas read, because shipping zod to every public route
+is weight the 150 kB budget does not have spare — measured, and the public routes are
+unchanged at 129.8 kB. **The schemas decide shape, never outcome**: `loginSchema` accepts
+anything that could be a credential, since a "correo inválido" for a malformed address
+beside a generic refusal for a real one is an account oracle; password strength stays
+`passwordProblem`'s, so three forms and a script give one answer. `validateLead` kept its
+rules and their order — honeypot first and answered as success, phone normalised, consent
+version compared — and its 45 existing tests were the safety net for the rewrite. In
+passing, `client-bundle.test.ts` learned that `'use server'` is a boundary: it was walking
+the entire server graph through every client form's actions import, which made its
+"reached from" reports meaningless. First measured coverage: **55.7 % of statements**, no
+threshold, and `npm test` is untouched so the CI check costs what it did before.
 
 ---
 
