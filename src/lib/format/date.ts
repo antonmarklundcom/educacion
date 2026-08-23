@@ -40,6 +40,23 @@ export function parseAsuncionDay(value: string): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+/**
+ * A stored `YYYY-MM-DD` **calendar day** — a `date` column, not an instant —
+ * rendered "31 de octubre de 2026".
+ *
+ * `formatDate('2026-10-31')` is the wrong function for this: it parses to UTC
+ * midnight and then formats in whatever zone the process runs in, so on a
+ * server set to `America/Asuncion` a subscription's `ends_on` renders as the
+ * day before. Anchoring the day at Asunción midnight first makes the rendering
+ * correct in Asunción and in UTC alike, which is the pair that actually occurs
+ * (`deployment.md` §3). An unparseable value returns null rather than a
+ * plausible wrong date.
+ */
+export function formatAsuncionDay(day: string): string | null {
+  const parsed = parseAsuncionDay(day);
+  return parsed === undefined ? null : formatDate(parsed);
+}
+
 /** One day later — the exclusive upper bound of `[day, day+1)` in Asunción. */
 export function nextAsuncionDay(day: Date): Date {
   return new Date(day.getTime() + 24 * 60 * 60 * 1000);

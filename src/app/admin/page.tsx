@@ -138,12 +138,29 @@ const GROUPS: readonly { title: string; blurb: string; sections: readonly Sectio
   },
   {
     title: 'Sistema',
-    blurb: 'Quién entra y con qué permisos.',
+    blurb: 'Quién entra, qué corrió y con qué permisos.',
     sections: [
+      {
+        href: '/admin/importaciones',
+        label: 'Importaciones',
+        detail:
+          'Correr CONES, ANEAES y la curaduría desde acá, y ver qué hizo el cron por última vez.',
+      },
       {
         href: '/admin/usuarios',
         label: 'Cuentas',
         detail: 'Staff e instituciones. Acá se crean los accesos y se suspenden.',
+        adminOnly: true,
+      },
+      {
+        href: '/admin/actividad',
+        label: 'Actividad',
+        detail: 'Quién cambió qué, con el antes y el después de cada edición.',
+      },
+      {
+        href: '/admin/privacidad',
+        label: 'Datos personales',
+        detail: 'Pedidos de acceso y borrado, y la purga que promete /legal/privacidad.',
         adminOnly: true,
       },
     ],

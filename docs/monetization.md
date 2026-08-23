@@ -114,6 +114,7 @@ Deliberately conservative. Assumes solo/part-time operation with agent assistanc
 - **Contract timing:** annual, aligned to the admission cycle. Sell Aug–Oct, run Nov–Oct. A January renewal date sells against an empty budget.
 - **Renewal reminders (PR-29):** the cron mails **the operator**, not the institution, at 90/30/7 days — the renewal conversation is a WhatsApp thread and a meeting, not a dunning notice. `architecture.md` §19.
 - **Past-due grace (PR-29):** a subscription that ends unpaid keeps its features for `BILLING_GRACE_DAYS` (default 15) and then stops counting on its own. Nothing is cancelled automatically.
+- **What the institution itself sees (PR-49):** `/panel` states the plan, the period end and — inside grace — both the date the period ended and the day cover stops. It is a status banner resolved from `subscriptions`' dates on each request, never a dunning mail and never a cached rank; the 90/30/7 reminder above stays operator-only. A free institution sees its tier stated plainly and a link to `/para-instituciones`, with **no countdown of any kind** — it has no period to count down, and inventing one would be a fabricated deadline. `architecture.md` §32.
 
 ---
 

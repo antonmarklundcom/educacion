@@ -6,9 +6,12 @@ import { PanelNav } from '@/components/panel/PanelNav';
 import { getOwnInstitution } from '@/db/queries/panel/catalog';
 import { panelDashboard } from '@/db/queries/panel/dashboard';
 import { panelEntitlements } from '@/db/queries/panel/entitlements';
-import { FEATURE_LABELS, FEATURE_KEYS } from '@/lib/entitlements';
+import { FEATURE_LABELS, FEATURE_KEYS, pastDueGraceDays } from '@/lib/entitlements';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
+import { panelCopy } from '@/lib/copy/panel';
+import { asuncionToday, formatAsuncionDay } from '@/lib/format';
+import { planStatusSentences, planStatusView } from '@/lib/panel/plan-status';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -73,6 +76,28 @@ export default async function PanelPage() {
   }
 
   const needsAttention = stats.offeringsWithoutPrice + stats.pricesExpired;
+
+  // The plan banner. `planStatusView` is handed the entitlements this request
+  // resolved from `subscriptions`' own dates — never `program_search.plan_rank`,
+  // which is a derived copy and would let the panel claim a plan is active on a
+  // day it is not (PR-49, `architecture.md` §32).
+  const plan = planStatusView(entitlements, {
+    today: asuncionToday(),
+    graceDays: pastDueGraceDays(),
+    freeName: panelCopy.plan.freeName,
+  });
+  const planEndsOn = plan.endsOn === null ? null : formatAsuncionDay(plan.endsOn);
+  const planGraceEndsOn = plan.graceEndsOn === null ? null : formatAsuncionDay(plan.graceEndsOn);
+  const planBorder =
+    plan.tone === 'danger'
+      ? 'border-danger/40'
+      : plan.tone === 'warn'
+        ? 'border-warn/40'
+        : 'border-border';
+  const { headline: planHeadline, detail: planDetail } = planStatusSentences(plan, {
+    endsOn: planEndsOn,
+    graceEndsOn: planGraceEndsOn,
+  });
 
   return (
     <>
@@ -166,8 +191,17 @@ export default async function PanelPage() {
           <Stat
             value={stats.newLeads}
             label="Solicitudes sin responder"
-            detail={`${stats.leadsLast30} llegaron en los últimos 30 días.`}
+            detail={
+              stats.overdueLeads > 0
+                ? `${
+                    stats.overdueLeads === 1
+                      ? panelCopy.leadSla.dashboardDetailOne
+                      : panelCopy.leadSla.dashboardDetail(stats.overdueLeads)
+                  } ${stats.leadsLast30} llegaron en los últimos 30 días.`
+                : `${stats.leadsLast30} llegaron en los últimos 30 días.`
+            }
             href="/panel/leads"
+            tone={stats.overdueLeads > 0 ? 'danger' : 'neutral'}
           />
         </section>
 
@@ -179,10 +213,13 @@ export default async function PanelPage() {
           </p>
         )}
 
-        <section className="border-border bg-surface flex flex-col gap-2 rounded-md border p-4">
+        <section className={`bg-surface flex flex-col gap-2 rounded-md border p-4 ${planBorder}`}>
           <h2 className="text-ink text-sm font-semibold">
-            Tu plan: {entitlements.planName ?? 'Gratis'}
+            {panelCopy.plan.heading(plan.planName)}
           </h2>
+          <p className="text-body max-w-prose text-sm">
+            <strong>{planHeadline}</strong> {planDetail}
+          </p>
           <ul className="text-body flex flex-col gap-1 text-sm">
             {FEATURE_KEYS.map((key) => (
               <li key={key} className={entitlements.features[key] ? 'text-body' : 'text-faint'}>
@@ -190,20 +227,13 @@ export default async function PanelPage() {
               </li>
             ))}
           </ul>
-          <p className="text-muted text-sm">
-            Cargar y corregir tus datos —aranceles, convocatorias, descripciones— es gratis y
-            siempre lo va a ser.{' '}
-            {entitlements.planRank === 0 ? (
-              <>
-                Lo que suma un plan es cómo te ve el estudiante y a qué accedés vos:{' '}
-                <Link href="/para-instituciones" className="underline underline-offset-4">
-                  mirá los planes
-                </Link>
-                .
-              </>
-            ) : entitlements.currentPeriodEndsOn ? (
-              <>Tu período va hasta el {entitlements.currentPeriodEndsOn}.</>
-            ) : null}
+          <p className="text-muted max-w-prose text-sm">
+            {panelCopy.plan.dataAlwaysFree}{' '}
+            {plan.showPlansLink && (
+              <Link href="/para-instituciones" className="underline underline-offset-4">
+                {panelCopy.plan.plansLink}
+              </Link>
+            )}
           </p>
         </section>
 

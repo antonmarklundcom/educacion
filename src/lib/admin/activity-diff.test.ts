@@ -155,6 +155,8 @@ describe('restrictSnapshots', () => {
     campus: '/admin/sedes is editor-gated',
     career: '/admin/carreras is editor-gated',
     claim: '/admin/reclamos is editor-gated and renders the same address',
+    cron_job: '/admin/importaciones is editor-gated and shows the same run',
+    import_run: '/admin/importaciones is editor-gated and shows the same run',
     curation_conflict: '/admin/moderacion is editor-gated',
     institution: '/admin/instituciones is editor-gated',
     job_posting: '/admin/empleos is editor-gated',

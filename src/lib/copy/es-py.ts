@@ -32,6 +32,7 @@ import { filterSheetCopy } from './filter-sheet';
 import { footerCopy } from './footer';
 import { leadCopy } from './lead';
 import { navCopy } from './nav';
+import { panelCopy } from './panel';
 import { totalCostCopy } from './total-cost';
 
 export const esPY = {
@@ -41,4 +42,5 @@ export const esPY = {
   browse: { ...browseCopy, filterSheet: filterSheetCopy },
   lead: leadCopy,
   totalCost: totalCostCopy,
+  panel: panelCopy,
 } as const;

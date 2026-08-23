@@ -34,6 +34,49 @@ export async function startImportRun(db: Db, source: SourceName): Promise<number
   return Number(result.insertId);
 }
 
+/** Thrown by `claimImportRun` when this source already has a run in flight. */
+export class ImportAlreadyRunningError extends Error {
+  constructor(readonly source: SourceName) {
+    super(`Ya hay una importación de ${source} en curso.`);
+    this.name = 'ImportAlreadyRunningError';
+  }
+}
+
+/**
+ * `startImportRun`, but only if this source has no run still `running` (PR-50).
+ *
+ * `import_runs` **is** the lock — there is no second table and no advisory
+ * lock. Two operators clicking "importar" at the same second must not produce
+ * two concurrent crawls of the same government site, which is both rude to the
+ * source and a way to get the whole network 403'd (`data-sources.md` §1).
+ *
+ * One statement, deliberately. `SELECT`-then-`INSERT` from the application is a
+ * race however carefully it is written; `INSERT … SELECT … WHERE NOT EXISTS` is
+ * decided inside the server, and InnoDB's locking read on the `NOT EXISTS`
+ * subquery is what makes two simultaneous attempts serialize instead of both
+ * seeing an empty table. Zero rows inserted means somebody else holds the run.
+ *
+ * The lock is only as good as runs being closed, which is why every path that
+ * opens a run also closes it — `runImport`'s `catch` marks `failed`, and PR-50
+ * gave `curate()` the same treatment, since a crash there used to leave a row
+ * `running` forever. `/admin/importaciones` can release a run that outlived its
+ * process, which is the case no `finally` can cover.
+ */
+export async function claimImportRun(db: Db, source: SourceName): Promise<number> {
+  const [result] = await db.execute(
+    sql`insert into ${importRuns} (${sql.raw(importRuns.source.name)}, ${sql.raw(importRuns.status.name)})
+        select ${source}, 'running' from dual
+        where not exists (
+          select 1 from ${importRuns}
+          where ${importRuns.source} = ${source} and ${importRuns.status} = 'running'
+        )`,
+  );
+
+  const header = result as unknown as { affectedRows?: number; insertId?: number };
+  if (!header.affectedRows) throw new ImportAlreadyRunningError(source);
+  return Number(header.insertId);
+}
+
 export async function finishImportRun(
   db: Db,
   importRunId: number,
@@ -142,24 +185,89 @@ export async function writeRawRecords<TPayload>(
   };
 }
 
+export interface ImportOptions {
+  dryRun?: boolean;
+  onProgress?: (message: string) => void;
+  /**
+   * Refuse to start when this source already has a run in flight (PR-50).
+   * `/admin/importaciones` passes it; the CLI does not, because an operator at
+   * a shell can see what they are doing and must not be locked out by a row a
+   * crashed process left behind.
+   */
+  exclusive?: boolean;
+}
+
+/**
+ * Open the run, and hand back the rest of the import as a promise (PR-50).
+ *
+ * This exists because the two callers need different halves of the same work
+ * awaited. The CLI wants the whole thing and prints the summary.
+ * `/admin/importaciones` needs the **claim** awaited — it is what takes the
+ * lock, and "ya hay una importación en curso" is an answer the operator must
+ * get on the click — and cannot await the rest, because a full CONES pass is
+ * ~65 polite requests and a Server Action that waited for it would time out
+ * with the operator none the wiser.
+ *
+ * So the claim is awaited here and everything after it is `done`. `runImport`
+ * is this function plus `await done`, which is what keeps the console and the
+ * CLI on one code path rather than two that drift (the PR-20 rule).
+ *
+ * A caller that keeps `done` must attach a rejection handler: an unhandled
+ * rejection ends the process on current Node.
+ */
+export async function beginImport<TPayload>(
+  db: Db,
+  source: SourceName,
+  produce: () => Promise<readonly RawRecord<TPayload>[]>,
+  options: ImportOptions = {},
+): Promise<{ importRunId: number; done: Promise<ImportRunSummary> }> {
+  const startedAt = new Date();
+  const importRunId = options.exclusive
+    ? await claimImportRun(db, source)
+    : await startImportRun(db, source);
+
+  const done = (async (): Promise<ImportRunSummary> => {
+    try {
+      const records = await produce();
+      const written = await writeRawRecords(db, records, importRunId, source);
+      await finishImportRun(db, importRunId, { status: 'succeeded', ...written });
+      return { importRunId, source, ...written, startedAt, finishedAt: new Date() };
+    } catch (error) {
+      await finishImportRun(db, importRunId, {
+        status: 'failed',
+        rowsIn: 0,
+        rowsNew: 0,
+        rowsUnchanged: 0,
+        log: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+      throw error;
+    }
+  })();
+
+  return { importRunId, done };
+}
+
 /**
  * Run one source end to end: open a run, write what the fetch+parse produced,
  * close the run. A thrown error still closes the run as `failed` with the
  * message in `log`, so a broken import is visible in the table rather than
  * leaving a row stuck in `running` forever.
+ *
+ * With `exclusive`, opening the run is `claimImportRun` and a second concurrent
+ * call throws `ImportAlreadyRunningError` **before** anything is fetched — the
+ * claim failing means no run was opened, so there is nothing to close.
  */
 export async function runImport<TPayload>(
   db: Db,
   source: SourceName,
   produce: () => Promise<readonly RawRecord<TPayload>[]>,
-  options: { dryRun?: boolean; onProgress?: (message: string) => void } = {},
+  options: ImportOptions = {},
 ): Promise<ImportRunSummary> {
-  const { dryRun = false, onProgress } = options;
   const startedAt = new Date();
 
-  if (dryRun) {
+  if (options.dryRun) {
     const records = await produce();
-    onProgress?.(`Dry run: parsed ${records.length} records, wrote nothing.`);
+    options.onProgress?.(`Dry run: parsed ${records.length} records, wrote nothing.`);
     return {
       importRunId: 0,
       source,
@@ -171,28 +279,6 @@ export async function runImport<TPayload>(
     };
   }
 
-  const importRunId = await startImportRun(db, source);
-
-  try {
-    const records = await produce();
-    const written = await writeRawRecords(db, records, importRunId, source);
-    await finishImportRun(db, importRunId, { status: 'succeeded', ...written });
-
-    return {
-      importRunId,
-      source,
-      ...written,
-      startedAt,
-      finishedAt: new Date(),
-    };
-  } catch (error) {
-    await finishImportRun(db, importRunId, {
-      status: 'failed',
-      rowsIn: 0,
-      rowsNew: 0,
-      rowsUnchanged: 0,
-      log: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
-    throw error;
-  }
+  const { done } = await beginImport(db, source, produce, options);
+  return done;
 }

@@ -26,7 +26,12 @@ import { activityLog } from '@/db/schema';
  */
 export type Writable = Pick<Db, 'insert'>;
 
-export type ActivityAction = 'create' | 'update' | 'delete' | 'archive';
+/**
+ * `'run'` is PR-50's: an import or a cron job executing is not a create, an
+ * update or a delete of anything, and forcing it into one of those would make
+ * `/admin/actividad`'s action filter lie about what happened.
+ */
+export type ActivityAction = 'create' | 'update' | 'delete' | 'archive' | 'run';
 
 export interface ActivityLogEntry {
   /**

@@ -150,6 +150,37 @@ const ADDED: Record<string, string> = {
     'el arancel figura como gratuito y a la vez tiene montos cargados',
   'totalCost.compareLabel': 'Costo total',
   'totalCost.cheapest': 'el más barato',
+
+  'panel.leadSla.badge': 'Sin responder',
+  'panel.leadSla.waitingDays': 'hace «arg0» días',
+  'panel.leadSla.bannerHeading': 'Solicitudes esperando hace más de 48 horas',
+  'panel.leadSla.bannerOne': 'Hay 1 solicitud sin responder desde hace más de 48 horas.',
+  'panel.leadSla.bannerMany': 'Hay «arg0» solicitudes sin responder desde hace más de 48 horas.',
+  'panel.leadSla.bannerBody':
+    'Quien la mandó está eligiendo carrera ahora. Abrila, escribile y marcala como contactada.',
+  'panel.leadSla.bannerAction': 'Ver las que están esperando',
+  'panel.leadSla.dashboardDetail': '«arg0» esperan hace más de 48 horas.',
+  'panel.leadSla.dashboardDetailOne': '1 espera hace más de 48 horas.',
+
+  'panel.plan.heading': 'Tu plan: «arg0»',
+  'panel.plan.freeName': 'Gratis',
+  'panel.plan.dataAlwaysFree':
+    'Cargar y corregir tus datos —aranceles, convocatorias, descripciones— es gratis y siempre lo va a ser.',
+  'panel.plan.plansLink': 'Mirá los planes',
+  'panel.plan.gratisHeadline': 'Estás en el plan Gratis.',
+  'panel.plan.gratisDetail':
+    'Lo que suma un plan pago es cómo te ve el estudiante y a qué accedés vos.',
+  'panel.plan.trialHeadline': 'Estás probando «arg0».',
+  'panel.plan.trialDetail': 'La prueba va hasta el «arg0».',
+  'panel.plan.activeHeadline': 'Tu plan está activo.',
+  'panel.plan.activeDetail': 'El período va hasta el «arg0».',
+  'panel.plan.openEndedDetail': 'El período no tiene fecha de término cargada.',
+  'panel.plan.endingSoonHeadline': 'Tu período termina el «arg0».',
+  'panel.plan.endingSoonDetail':
+    'Te vamos a escribir para renovarlo. Si querés adelantarlo, contestá ese mismo hilo.',
+  'panel.plan.pastDueHeadline': 'Tenemos un pago pendiente de tu plan.',
+  'panel.plan.pastDueDetail':
+    'El período terminó el «arg0» y tu plan sigue activo hasta el «arg1» mientras se acredita la transferencia. Si ya la hiciste, escribinos y lo cerramos.',
 };
 
 describe('the es-PY catalog', () => {
@@ -171,8 +202,12 @@ describe('the es-PY catalog', () => {
   it('has no empty or placeholder value', () => {
     for (const [key, value] of rendered) {
       expect(value.trim(), key).not.toBe('');
-      // Word-bounded: "Todos los montos…" is real copy, not a placeholder.
-      expect(value, key).not.toMatch(/\b(TODO|FIXME|Lorem ipsum)\b/i);
+      // Word-bounded **and** case-sensitive for the two code markers: `todo`
+      // is an ordinary Spanish word ("tu plan sigue activo", "todo el año"),
+      // and a case-insensitive TODO makes writing correct copy fail CI. A real
+      // placeholder is shouted; "Lorem ipsum" is not, so it keeps its `i`.
+      expect(value, key).not.toMatch(/\b(TODO|FIXME)\b/);
+      expect(value, key).not.toMatch(/\blorem ipsum\b/i);
     }
   });
 });

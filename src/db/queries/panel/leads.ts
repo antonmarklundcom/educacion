@@ -35,6 +35,7 @@ import { db as defaultDb, type Db } from '@/db';
 import { offerings, programs } from '@/db/schema';
 import {
   countLeadsForInstitution,
+  countOverdueLeadsForInstitution,
   getLeadById,
   listLeadsForInstitution,
   updateLeadStatus,
@@ -75,6 +76,13 @@ export interface PanelLeadsPage {
   pageSize: number;
   /** Whether this institution's plan includes contact details. */
   contactVisible: boolean;
+  /**
+   * Leads of **this institution** — not of this page, and not of the selected
+   * tab — sitting in `new` past the 48 h SLA (PR-49). The banner says how many
+   * are late overall; filtering to "Descartadas" must not make the number look
+   * like zero.
+   */
+  overdueCount: number;
 }
 
 /**
@@ -123,13 +131,13 @@ function shapeRow(
 
 export async function listPanelLeads(
   user: SessionUser | null | undefined,
-  options: { status?: LeadStatus; page?: number } = {},
+  options: { status?: LeadStatus; page?: number; now?: Date } = {},
   database: Db = defaultDb,
 ): Promise<PanelLeadsPage> {
   const institutionId = panelInstitutionId(user);
   const page = Math.max(1, options.page ?? 1);
 
-  const [contactVisible, records, total] = await Promise.all([
+  const [contactVisible, records, total, overdueCount] = await Promise.all([
     institutionContactVisible(institutionId, database),
     listLeadsForInstitution(
       {
@@ -141,6 +149,7 @@ export async function listPanelLeads(
       database,
     ),
     countLeadsForInstitution(institutionId, options.status, database),
+    countOverdueLeadsForInstitution(institutionId, options.now ?? new Date(), database),
   ]);
 
   const offeringIds = [
@@ -160,6 +169,7 @@ export async function listPanelLeads(
     page,
     pageSize: PAGE_SIZE,
     contactVisible,
+    overdueCount,
   };
 }
 

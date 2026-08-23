@@ -156,6 +156,15 @@ Two rules are enforced at the raw layer rather than deferred to PR-06:
 - **`citable: false` rows cannot support a positive accreditation status.** PR-06's apply step must refuse to write one from such a row (§R-09).
 - **Absence is never negative.** Nothing in either parser can emit "no acreditada"; a missing row is `sin datos`.
 
+**Running the importers from the browser (PR-50).** `/admin/importaciones` runs
+`import:cones`, `import:aneaes` and `curate` with a button, using the same entry
+functions the scripts call, and shows `import_runs` while they work. It is the
+right tool for the ordinary monthly pass. It does **not** replace the CLI for
+the case below: the console has no `--file`, so a source that 403s us still has
+to be saved from a browser and imported from a shell. A source with a run still
+open refuses a second one — `import_runs` is the lock — and a run orphaned by a
+restart can be closed from the same page.
+
 **Running the importers when the sources 403 you.** They will (§1), including from CI. Both scripts take `--file`, so the documented procedure is: save the register page or CKAN export from a browser, then
 
 ```

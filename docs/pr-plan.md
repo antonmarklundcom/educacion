@@ -1163,7 +1163,7 @@ is stale — cards, table, comparador, programme page, per-sede list, área/ciud
 both OG images; every guard above has a test that goes red when the guard is removed; no
 statement of the pre-PR-33 hide rule survives in `src/` or `docs/`.
 
-### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
+### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review** · ✅ shipped
 
 Two willingness-to-pay gaps in `/panel`. First: a lead sitting in `new` beyond 48 h is
 visually flagged in the inbox, and the existing daily digest states the count — the status
@@ -1177,7 +1177,19 @@ schema change; plan status reads through `resolveEntitlements`' dates, never a c
 free-tier institutions see their tier stated plainly with the `/para-instituciones` link —
 no dark-pattern countdown.
 
-### PR-50 — Admin import & cron console · **Sonnet → Opus review**
+**Shipped as:** `src/lib/leads/sla.ts` is the one statement of the 48-hour rule — the badge,
+the dashboard tone, the inbox banner and the digest all read it, and the SQL that counts
+overdue leads takes its cutoff from the same function rather than restating the threshold.
+`src/lib/panel/plan-status.ts` is the plan banner's state machine, six states, taking an
+`Entitlements` value and nothing else. Two things the review should check are pinned by
+tests: the free tier's rendered sentences match no digit at all (`plan-status.test.ts`), and
+`LeadSlaBadge` / `LeadSlaBanner` are components with `LeadSla.test.ts` rather than JSX that
+could be deleted silently — PR-48b's lesson applied before the fact. One incidental fix in
+scope: `formatAsuncionDay()`, because `formatDate` on a `date` column's string renders the
+day before on a process set to `America/Asuncion`, and `ends_on` is exactly such a column.
+`architecture.md` §32 records all of it.
+
+### PR-50 — Admin import & cron console · **Sonnet → Opus review** · ✅ shipped
 
 `plan.md` §6 calls data operations the real bottleneck; today every import runs from a
 shell. `/admin/importaciones`: trigger `import:cones`, `import:aneaes` and `curate` from
@@ -1188,6 +1200,21 @@ the browser, watch `import_runs` progress, and a read-only cron panel showing ea
 second import code path (the PR-20 rule); a running import cannot be started twice
 (`import_runs` is the lock); "run now" calls the cron route with the server-held secret,
 never exposing `CRON_SECRET` to the browser; every trigger lands in `activity_log`.
+
+**Shipped as:** `/admin/importaciones`, plus three things the criteria forced into the
+right shape. The lock is one conditional statement — `INSERT … SELECT … WHERE NOT EXISTS`
+in `claimImportRun` — because a `SELECT`-then-`INSERT` from the application is a race;
+`lock.test.ts` pins the branch. `beginImport` splits the import at the claim, so the
+operator is told "ya hay una corrida en curso" on the click while the ~65-request crawl
+outlives the Server Action, and `runImport` is that function plus `await done` — one code
+path with the CLI, not two. The cron half needed a history and got `activity_log`
+(`entity_type='cron_job'`) rather than a migration, with failures recorded too, which is
+what tells a job that has been throwing for three days apart from a job hPanel never
+scheduled. In passing: `curate()` now closes its `import_runs` row as `failed` when it
+throws (it used to leave it `running` forever, which stopped being cosmetic the moment
+`running` became the lock), and the admin rail and the `/admin` index — two lists whose
+own docstrings say they match — are now held together by a test, having already drifted by
+two screens. `architecture.md` §33 records all of it.
 
 ### PR-51 — Server-Action tests & input validation · **Sonnet** · ✅ shipped
 

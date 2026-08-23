@@ -3,6 +3,7 @@ export { formatDurationMonths } from './duration';
 export {
   ASUNCION_UTC_OFFSET,
   asuncionToday,
+  formatAsuncionDay,
   formatDate,
   formatMonthYear,
   nextAsuncionDay,
