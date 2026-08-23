@@ -22,13 +22,14 @@
  * dashboard will be these same questions and no second set of queries.
  */
 
-import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { PRICE_MAX_AGE_MONTHS } from '@/db/invariants';
 import { admissions, curationConflicts, leads, offerings, prices, programs } from '@/db/schema';
 import { countEventsByType } from '@/db/queries/events';
 import type { SessionUser } from '@/lib/auth/session';
+import { slaCutoff } from '@/lib/leads/sla';
 
 import { panelInstitutionId } from './scope';
 
@@ -40,6 +41,8 @@ export interface PanelDashboard {
   pricesExpired: number;
   activeAdmissions: number;
   newLeads: number;
+  /** Of `newLeads`, those past the 48 h SLA (PR-49). Derived, never stored. */
+  overdueLeads: number;
   leadsLast30: number;
   offeringViewsLast30: number;
   whatsappClicksLast30: number;
@@ -77,6 +80,7 @@ export async function panelDashboard(
     offeringsWithoutPrice,
     pricesExpired,
     newLeads,
+    overdueLeads,
     leadsLast30,
     events,
     openReviewRequests,
@@ -134,6 +138,18 @@ export async function panelDashboard(
       database
         .select({ count: sql<number>`count(*)` })
         .from(leads)
+        .where(
+          and(
+            eq(leads.institutionId, institutionId),
+            eq(leads.status, 'new'),
+            lte(leads.createdAt, slaCutoff(now)),
+          ),
+        ),
+    ),
+    one(
+      database
+        .select({ count: sql<number>`count(*)` })
+        .from(leads)
         .where(and(eq(leads.institutionId, institutionId), gte(leads.createdAt, thirtyDaysAgo))),
     ),
     countEventsByType({ since: thirtyDaysAgo, until: now }, institutionId, database),
@@ -181,6 +197,7 @@ export async function panelDashboard(
     pricesExpired,
     activeAdmissions,
     newLeads,
+    overdueLeads,
     leadsLast30,
     offeringViewsLast30: byType.get('offering_view') ?? 0,
     whatsappClicksLast30: byType.get('whatsapp_click') ?? 0,

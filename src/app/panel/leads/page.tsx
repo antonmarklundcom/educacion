@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/format';
 import { formatParaguayanPhone } from '@/lib/leads/phone';
 import { AGE_BRACKET_LABELS } from '@/lib/leads/contract';
 import { LEAD_STATUS_LABELS } from '@/lib/leads/labels';
+import { LeadSlaBadge, LeadSlaBanner } from '@/components/panel/LeadSla';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 import type { LeadStatus } from '@/lib/leads/contract';
@@ -51,14 +52,18 @@ export default async function PanelLeadsPage({ searchParams }: { searchParams: S
     : 'all';
   const page = Number(one(params, 'page')) > 0 ? Number(one(params, 'page')) : 1;
 
+  // One clock for the whole render: the badge on a row and the count in the
+  // banner must not be measured a few milliseconds apart and disagree.
+  const now = new Date();
+
   let data;
   let whatsappClicksTotal = 0;
   try {
     const institutionId = panelInstitutionId(user);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
     const [leadsPage, events] = await Promise.all([
-      listPanelLeads(user, { status: status === 'all' ? undefined : status, page }),
-      countEventsByType({ since: thirtyDaysAgo, until: new Date() }, institutionId),
+      listPanelLeads(user, { status: status === 'all' ? undefined : status, page, now }),
+      countEventsByType({ since: thirtyDaysAgo, until: now }, institutionId),
     ]);
     data = leadsPage;
     whatsappClicksTotal = events.find((row) => row.type === 'whatsapp_click')?.events ?? 0;
@@ -99,6 +104,8 @@ export default async function PanelLeadsPage({ searchParams }: { searchParams: S
           </p>
         )}
 
+        <LeadSlaBanner count={data.overdueCount} />
+
         <nav aria-label="Estado" className="flex flex-wrap gap-1">
           {STATUS_TABS.map((tab) => (
             <Link
@@ -138,7 +145,10 @@ export default async function PanelLeadsPage({ searchParams }: { searchParams: S
                       {AGE_BRACKET_LABELS[row.ageBracket]} · {formatDate(row.createdAt)}
                     </span>
                   </span>
-                  <Badge tone={STATUS_TONE[row.status]}>{LEAD_STATUS_LABELS[row.status]}</Badge>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <LeadSlaBadge lead={row} now={now} />
+                    <Badge tone={STATUS_TONE[row.status]}>{LEAD_STATUS_LABELS[row.status]}</Badge>
+                  </span>
                 </Link>
               </li>
             ))}

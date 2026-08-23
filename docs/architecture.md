@@ -2296,3 +2296,111 @@ it.) Validation belongs at each boundary where unconstrained data enters —
 `total-cost.ts` and `catalog-schema.ts` for the index, `assertPriceIsCoherent`
 for the write path — and those are now the same four rules, not three
 paraphrases of them.
+
+---
+
+## 32. Lead SLA nudges & in-panel plan status (settled in PR-49)
+
+Two willingness-to-pay gaps in `/panel`, both closed by **reading data that was
+already there**: no migration, no cron job and no new table.
+
+### 32.1 "Overdue" is a question, not a column
+
+A lead is late when it is still in `status='new'` and `created_at` is at least
+48 hours old. That is answerable from two columns every lead already has, so
+`src/lib/leads/sla.ts` answers it at render time and nothing records it.
+
+The alternative — an `is_overdue` flag set by a sweep — is worse in three
+specific ways, which is why it is not here. It needs a job, so the panel is
+wrong between ticks. It is a second thing to keep in step with a status change,
+so a lead marked `contacted` stays flagged until the sweep catches up. And it
+puts a derived value in a table, which is the mistake `program_search.plan_rank`
+is already the site's one licensed exception to. `pr-plan.md` PR-49 states the
+constraint outright; `sla.ts` is where the derivation lives so that the inbox
+badge, the dashboard tone, the inbox banner and the daily digest are four
+readers of one rule rather than four copies of `48 * 3_600_000`.
+
+The SQL that *counts* overdue leads does not restate the threshold either: it
+takes `slaCutoff(now)` from the same module. `countOverdueLeadsForInstitution`
+and the digest's `overdueCount` aggregate are therefore incapable of disagreeing
+with the badge beside the row they counted.
+
+**Only `new` is tracked.** `contacted`, `qualified` and `discarded` are
+deliberate acts — the institution dealt with the lead and the clock is off.
+`sent` is *our* delivery mail having gone out, which says nothing about whether
+anybody replied and is not a state the institution can clear from the panel, so
+nagging about it would be nagging about something they cannot fix.
+
+**48 hours, and it is not a contract.** Nothing is refunded, nothing escalates,
+and the word "SLA" never reaches the UI — the copy says "hace más de 48 horas",
+which is a fact, where "incumpliste el SLA" would be a term from an agreement
+nobody signed.
+
+One clock per render: `/panel/leads` takes `new Date()` once and passes it to
+the query and to every badge, so a lead sitting exactly on the boundary cannot
+be counted by the banner and un-flagged on its own row.
+
+### 32.2 The plan banner reads dates, never a cached rank
+
+`planStatusView()` takes an `Entitlements` value — the one this request resolved
+from `subscriptions.starts_on` / `ends_on` through `resolveEntitlements` (§17) —
+and nothing else. It is deliberately not fed `program_search.plan_rank`, which
+is a derived copy refreshed on writes and nightly: good enough to order search
+results, not good enough to tell an institution its plan is active on a day it
+is not. Everything §17 says about expiry needing no cron is what makes the
+banner correct on the morning after a period ends, with nothing having run.
+
+Six states, and the shape of each is the decision:
+
+| State               | Shows                                          | Sells |
+| ------------------- | ---------------------------------------------- | ----- |
+| `gratis`            | the tier, plainly                              | link to `/para-instituciones` |
+| `trial`             | the plan being tried and its end date          | link  |
+| `active`            | the period end                                 | no    |
+| `active_open_ended` | that there is no end date on file              | no    |
+| `ending_soon`       | the end date, within 30 days                   | no    |
+| `past_due_grace`    | the date the period ended **and** the day cover stops | no |
+
+**The free tier never gets a countdown.** `daysLeft` is null on `gratis` and the
+sentences carry no number at all — `plan-status.test.ts` asserts the rendered
+pair matches no digit. A "te quedan N días" on an account that never had a
+period is an invented deadline, which is CLAUDE.md rule 1 wearing a marketing
+hat. Every other state's date is one an institution actually agreed to.
+
+`past_due_grace` is the one state where "your period ended" and "your features
+still work" are both true, so the copy names **both** dates: `ends_on`, and
+`ends_on + BILLING_GRACE_DAYS` computed from the same grace value the resolver
+used. Saying only the first is false today; saying only the second hides that
+anything is pending. It carries no plans link — it is a payment note, not an
+upsell aimed at somebody whose transferencia is in flight. `monetization.md`
+§5's 90/30/7 renewal mail stays **operator-only**; this is the institution's own
+read of the same facts, and it dunned nobody.
+
+`ending_soon` fires at 30 days because that is the operator's middle reminder
+threshold (`REMINDER_THRESHOLDS`), asserted equal in the test: the institution's
+banner and the operator's mail describe the same window rather than two.
+
+### 32.3 `formatAsuncionDay`, and the day a `date` column loses
+
+`ends_on` is a `date` column holding a Paraguayan calendar day.
+`formatDate('2026-10-31')` parses it to **UTC** midnight and then formats it in
+the process's own zone, so on a server set to `America/Asuncion` it renders as
+the 30th. `formatAsuncionDay()` anchors the day at Asunción midnight first,
+which is correct under both zones this site actually runs in. It is the same
+class of error PR-46 found in `dateOnly()` (§17), one layer up: there it cost a
+paying institution three hours of its last day, here it would just print the
+wrong date — but on the banner that tells them when to pay.
+
+### 32.4 Why the nudge is a component
+
+`LeadSlaBadge` and `LeadSlaBanner` are components with a test, not JSX inline in
+the page, and that is PR-48b's lesson applied before the fact: deleting
+`PriceLabel`'s stale badge outright left 1231 tests green. Both compute the flag
+themselves from `lib/leads/sla` rather than taking an `overdue` boolean prop, so
+a caller cannot compute it differently from the query that counted it, and
+`LeadSla.test.ts` fails the moment either stops rendering.
+
+The banner's count is the institution's **whole** overdue set, not the current
+page's and not the current tab's — filtering the inbox to "Descartadas" must not
+make the number look like zero — and its link goes to the `new` tab so the
+sentence and the list the institution lands on agree.

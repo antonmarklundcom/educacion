@@ -1163,7 +1163,7 @@ is stale — cards, table, comparador, programme page, per-sede list, área/ciud
 both OG images; every guard above has a test that goes red when the guard is removed; no
 statement of the pre-PR-33 hide rule survives in `src/` or `docs/`.
 
-### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review**
+### PR-49 — Panel: lead SLA nudges & in-panel plan status · **Sonnet → Opus review** · ✅ shipped
 
 Two willingness-to-pay gaps in `/panel`. First: a lead sitting in `new` beyond 48 h is
 visually flagged in the inbox, and the existing daily digest states the count — the status
@@ -1176,6 +1176,18 @@ dunning mail).
 schema change; plan status reads through `resolveEntitlements`' dates, never a cached rank;
 free-tier institutions see their tier stated plainly with the `/para-instituciones` link —
 no dark-pattern countdown.
+
+**Shipped as:** `src/lib/leads/sla.ts` is the one statement of the 48-hour rule — the badge,
+the dashboard tone, the inbox banner and the digest all read it, and the SQL that counts
+overdue leads takes its cutoff from the same function rather than restating the threshold.
+`src/lib/panel/plan-status.ts` is the plan banner's state machine, six states, taking an
+`Entitlements` value and nothing else. Two things the review should check are pinned by
+tests: the free tier's rendered sentences match no digit at all (`plan-status.test.ts`), and
+`LeadSlaBadge` / `LeadSlaBanner` are components with `LeadSla.test.ts` rather than JSX that
+could be deleted silently — PR-48b's lesson applied before the fact. One incidental fix in
+scope: `formatAsuncionDay()`, because `formatDate` on a `date` column's string renders the
+day before on a process set to `America/Asuncion`, and `ends_on` is exactly such a column.
+`architecture.md` §32 records all of it.
 
 ### PR-50 — Admin import & cron console · **Sonnet → Opus review**
 

@@ -10,7 +10,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ASUNCION_UTC_OFFSET, asuncionToday, nextAsuncionDay, parseAsuncionDay } from './date';
+import {
+  ASUNCION_UTC_OFFSET,
+  asuncionToday,
+  formatAsuncionDay,
+  formatDate,
+  nextAsuncionDay,
+  parseAsuncionDay,
+} from './date';
 
 describe('parseAsuncionDay', () => {
   it('starts the day at 03:00 UTC, not at midnight UTC', () => {
@@ -84,5 +91,27 @@ describe('asuncionToday', () => {
     const day = parseAsuncionDay(asuncionToday(now))!;
     expect(now.getTime()).toBeGreaterThanOrEqual(day.getTime());
     expect(now.getTime()).toBeLessThan(nextAsuncionDay(day).getTime());
+  });
+});
+
+/**
+ * PR-49: `subscriptions.ends_on` is a `date` column, and `/panel` prints it.
+ * `formatDate` on the raw string is off by a day on a process whose zone is
+ * behind UTC — which `America/Asuncion`, the zone this site runs in, is.
+ */
+describe('formatAsuncionDay', () => {
+  it('names the day the column holds', () => {
+    expect(formatAsuncionDay('2026-10-31')).toBe('31 de octubre de 2026');
+  });
+
+  it('does not slip to the previous day the way `formatDate` on the string can', () => {
+    // Both agree under a UTC process; the point of the helper is the other one,
+    // which is why it anchors the day at Asunción midnight before formatting.
+    expect(formatAsuncionDay('2026-01-01')).toBe(formatDate(parseAsuncionDay('2026-01-01')!));
+  });
+
+  it('returns null for a value that is not a plain date, never a guessed one', () => {
+    expect(formatAsuncionDay('')).toBeNull();
+    expect(formatAsuncionDay('31/10/2026')).toBeNull();
   });
 });

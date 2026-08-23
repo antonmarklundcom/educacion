@@ -20,11 +20,12 @@
  * to, its abuse metadata belongs to nobody.
  */
 
-import { and, desc, eq, gt, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { leads } from '@/db/schema';
 import type { AgeBracket, LeadStatus } from '@/lib/leads/contract';
+import { slaCutoff } from '@/lib/leads/sla';
 
 /**
  * One lead as any reader is allowed to see it. PR-23 (`/panel/leads`, CSV
@@ -253,6 +254,14 @@ export async function listUndeliveredLeads(
   return rows.map((row) => ({ ...row, offeringId: row.offeringId ?? null }));
 }
 
+export interface InstitutionNewLeads {
+  institutionId: number;
+  newCount: number;
+  /** Of `newCount`, how many are already past the 48 h SLA (PR-49). */
+  overdueCount: number;
+  oldestCreatedAt: Date;
+}
+
 /**
  * One row per institution that currently has at least one `status='new'`
  * lead, with the count — the whole read side of the daily digest. `since` is
@@ -261,14 +270,22 @@ export async function listUndeliveredLeads(
  * there is no persisted "last sent" clock to measure the second sentence
  * against (`architecture.md` §10 notes the digest as a live snapshot, safe to
  * re-send).
+ *
+ * `overdueCount` is the same aggregate over the same rows rather than a second
+ * query: the digest sentence and the panel badge have to agree, and the cutoff
+ * both are measured against is `slaCutoff(now)` — one definition of 48 hours,
+ * in `lib/leads/sla.ts`, read here and by the panel (PR-49).
  */
 export async function listInstitutionsWithNewLeads(
+  now: Date = new Date(),
   database: Db = defaultDb,
-): Promise<Array<{ institutionId: number; newCount: number; oldestCreatedAt: Date }>> {
+): Promise<InstitutionNewLeads[]> {
+  const cutoff = slaCutoff(now);
   const rows = await database
     .select({
       institutionId: leads.institutionId,
       newCount: sql<number>`count(*)`,
+      overdueCount: sql<number>`sum(case when ${lte(leads.createdAt, cutoff)} then 1 else 0 end)`,
       oldestCreatedAt: sql<Date>`min(${leads.createdAt})`,
     })
     .from(leads)
@@ -278,8 +295,35 @@ export async function listInstitutionsWithNewLeads(
   return rows.map((row) => ({
     institutionId: row.institutionId,
     newCount: Number(row.newCount),
+    overdueCount: Number(row.overdueCount ?? 0),
     oldestCreatedAt: row.oldestCreatedAt,
   }));
+}
+
+/**
+ * How many of one institution's leads are sitting in `new` past the SLA.
+ *
+ * A count and not a filter: the inbox still lists every lead in whatever tab
+ * the institution chose, and the banner above it states how many of them are
+ * late. Scoping is the caller's — `panel/leads.ts` is the only one, and it
+ * passes `panelInstitutionId(user)` (rule 4).
+ */
+export async function countOverdueLeadsForInstitution(
+  institutionId: number,
+  now: Date = new Date(),
+  database: Db = defaultDb,
+): Promise<number> {
+  const rows = await database
+    .select({ count: sql<number>`count(*)` })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.institutionId, institutionId),
+        eq(leads.status, 'new'),
+        lte(leads.createdAt, slaCutoff(now)),
+      ),
+    );
+  return Number(rows[0]?.count ?? 0);
 }
 
 /**

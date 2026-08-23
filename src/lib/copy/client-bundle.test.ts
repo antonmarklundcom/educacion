@@ -35,6 +35,9 @@ const SERVER_ONLY = [
   'lib/copy/es-py.ts',
   'lib/copy/browse.ts',
   'lib/copy/total-cost.ts',
+  // PR-49: `/panel` copy. Every reader is a server component, and the panel is
+  // behind a session — none of it belongs in a public route's bundle.
+  'lib/copy/panel.ts',
   // PR-48: reaches `@/db/invariants` and therefore the schema module and
   // Drizzle. `architecture.md` §5.1 documents what that costs in a browser
   // bundle; this is the check that stops it happening again.

@@ -22,11 +22,19 @@
 import { getInstitutionContacts } from '@/db/queries/institutions';
 import { listInstitutionsWithNewLeads } from '@/db/queries/leads';
 
+import { LEAD_SLA_HOURS } from './sla';
+
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
 export interface DigestEntry {
   institutionId: number;
   newCount: number;
+  /**
+   * Of `newCount`, how many are past the 48 h SLA (PR-49). The same number the
+   * panel banner shows, from the same `slaCutoff` — the digest is the copy of
+   * this sentence that reaches an institution that never logs in.
+   */
+  overdueCount: number;
   oldestCreatedAt: Date;
 }
 
@@ -38,10 +46,16 @@ function daysWaiting(oldest: Date, now: Date): number {
 export function digestBody(institutionName: string, entry: DigestEntry, now: Date): string {
   const waiting = daysWaiting(entry.oldestCreatedAt, now);
   const plural = entry.newCount === 1 ? 'solicitud sin responder' : 'solicitudes sin responder';
+  const overdue = entry.overdueCount;
   return [
     `Hola, ${institutionName}.`,
     ``,
     `Tenés ${entry.newCount} ${plural} en educacion.com.py.`,
+    overdue > 0
+      ? overdue === 1
+        ? `1 de ellas espera hace más de ${LEAD_SLA_HOURS} horas.`
+        : `${overdue} de ellas esperan hace más de ${LEAD_SLA_HOURS} horas.`
+      : null,
     waiting > 0
       ? `La más antigua lleva ${waiting} ${waiting === 1 ? 'día' : 'días'} esperando.`
       : null,
@@ -97,7 +111,7 @@ export async function sendLeadDigests(now: Date = new Date()): Promise<DigestRun
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.LEAD_FROM_EMAIL;
 
-  const entries = await listInstitutionsWithNewLeads();
+  const entries = await listInstitutionsWithNewLeads(now);
   if (entries.length === 0) return { institutions: 0, sent: 0 };
 
   if (!apiKey || !from) {
