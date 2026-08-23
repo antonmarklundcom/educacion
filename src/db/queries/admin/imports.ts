@@ -241,19 +241,18 @@ export async function triggerImportJob(
     throw new ImportAlreadyRunningError(run.source);
   }
 
-  await logActivity(database, {
-    userId: actorId,
-    entityType: IMPORT_ENTITY,
-    entityId: null,
-    action: 'run',
-    before: null,
-    after: { job: definition.job },
-  });
-
   if (definition.job === 'curate') {
     // `curate` opens one run per source itself, so the claim it needs is inside
     // it — passing `exclusive` is how a source that is already being imported
     // or curated refuses the pass rather than racing it.
+    await logActivity(database, {
+      userId: actorId,
+      entityType: IMPORT_ENTITY,
+      entityId: null,
+      action: 'run',
+      before: null,
+      after: { job: definition.job },
+    });
     void curate({ db: database, exclusive: true }).catch((error) => {
       console.error('[imports] curate failed', error);
     });
@@ -276,6 +275,19 @@ export async function triggerImportJob(
     source === 'CONES'
       ? await beginImport(database, 'CONES', () => collectCones(), { exclusive: true })
       : await beginImport(database, 'ANEAES', () => collectAneaes(), { exclusive: true });
+
+  // Logged **after** the claim, and carrying the run id (PR-52). Written before
+  // it, a lost race left an `activity_log` row saying an import started next to
+  // an `import_runs` table that never saw it — the two records of the same
+  // event disagreeing, which is the thing an audit log exists not to do.
+  await logActivity(database, {
+    userId: actorId,
+    entityType: IMPORT_ENTITY,
+    entityId: importRunId,
+    action: 'run',
+    before: null,
+    after: { job: definition.job, source, importRunId },
+  });
 
   void done.catch((error) => {
     console.error(`[imports] ${source} run #${importRunId} failed`, error);

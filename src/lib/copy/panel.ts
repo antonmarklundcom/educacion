@@ -57,6 +57,13 @@ export const panelCopy = {
     endingSoonDetail:
       'Te vamos a escribir para renovarlo. Si querés adelantarlo, contestá ese mismo hilo.',
     pastDueHeadline: 'Tenemos un pago pendiente de tu plan.',
+    /**
+     * The period has **not** ended yet — an operator marked the subscription
+     * past_due mid-period. Saying "el período terminó el {fecha futura}" here
+     * would be a statement about a day that has not happened (PR-52).
+     */
+    pastDueUpcomingDetail: (endsOn: string) =>
+      `El período va hasta el ${endsOn} y el pago sigue pendiente. Si ya lo hiciste, escribinos y lo cerramos.`,
     pastDueDetail: (endsOn: string, graceEndsOn: string) =>
       `El período terminó el ${endsOn} y tu plan sigue activo hasta el ${graceEndsOn} mientras se acredita la transferencia. Si ya la hiciste, escribinos y lo cerramos.`,
   },
