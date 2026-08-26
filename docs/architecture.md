@@ -2909,6 +2909,30 @@ The lead delivery modules (`leads/notify.ts`, `leads/retry.ts`,
 `leads/digest.ts`) are also low, and are left alone here because they are the
 email path, which is blocked on a decision outside the code.
 
+### 37.6 The other six were still 0 %, and PR-58 closes them
+
+§37.3 covered `createInstitutionAction` and the beca actions because they are
+not three lines; the other twenty admin `actions.ts` files were left to the
+structural scan, and six of those twenty — carreras, programas, sedes,
+ofertas, empleos and blog — had no behavioural test at all. All six are
+genuinely the same three-line shape, so `actions.crud-remaining.test.ts`
+follows `actions.editorial.test.ts` rather than adding six near-identical
+files: one file, §34.3's three properties per domain, plus what is not
+generic —
+
+- **empleos**: `parseJobPostingInput`'s "no publicado mañana" rule (§37.1) and
+  that URL uniqueness excludes the row being edited.
+- **blog**: `seo.md` §7's no-orphan-post rule blocks publishing, not saving,
+  and publishing revalidates `/blog` as well as `/admin/blog` — the same
+  "an admin-only post is not published" property `actions.editorial.test.ts`
+  already pinned for becas.
+- **sedes** and **programas**: slug uniqueness is scoped by institution, not
+  global — `isCampusSlugTaken`/`isProgramSlugTaken` take the institution id
+  as an argument, and the test asserts it is passed rather than assumed.
+
+Statement coverage moved from 59.0 % to 62.1 % with no source file changed —
+still no threshold, per §34.5.
+
 ---
 
 ## 38. The `force-dynamic` audit (settled in PR-55)
