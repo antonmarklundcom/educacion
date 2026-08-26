@@ -183,7 +183,9 @@ subscription that has ended already stops granting features at `ends_on`;
 prints a coverage summary and writes an HTML report to `coverage/` — it is
 **visibility, not a gate**: nothing fails on the number, no threshold is
 configured, and CI does not run it, so the PR check costs what it did before
-(CLAUDE.md rule 11). The first measurement, at PR-51, was 55.7 % of statements.
+(CLAUDE.md rule 11). The first measurement, at PR-51, was 55.7 % of statements;
+PR-54 took it to **59.0 %** by covering the admin write paths and the validators
+behind them (`architecture.md` §37). There is still no threshold, on purpose.
 
 ## 7.2 Performance checks (PR-34)
 

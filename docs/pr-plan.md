@@ -1307,6 +1307,29 @@ both the workflow and a developer run, with tests pinning the two settings that 
 wrong. `architecture.md` §36 records the before/after numbers, the aggregation caveat, and
 what was measured and deliberately not fixed.
 
+### PR-54 — Coverage where being wrong is expensive · **Opus**
+
+PR-51 printed 55.7 % and set no threshold on purpose. This reads the number instead of
+moving it: **56.1 % → 59.0 % of statements**, 98 tests, no source file changed, still no
+threshold.
+
+Sorted by uncovered statements, the top of the list was the admin write paths. Three
+parsers carrying the sharpest integrity rules in the repo had no test between them —
+`parseBecaInput` (rule 1 as a form: a source is required on a draft, coverage and amount
+have to agree), `parseJobPostingInput` (§R-11 attribution, and no future posting date),
+`parseSubscriptionInput` (the money path and the `subscriptions_date_order` CHECK).
+`/admin/importaciones`'s actions were at 0 % and are the riskiest file in the set: three
+of PR-52's six defects lived in `runCronJobAction` alone, and none of them had a test.
+`createInstitutionAction` and the beca actions — the two CRUD actions that are not three
+lines — were covered by the §34.3 scan and by nothing else.
+
+**Deps:** PR-51 (the pattern), PR-53 (merged).
+**Accept:** the PR-52 regressions are named in tests (`x-forwarded-proto: "https,http"`
+must build one URL; a timed-out cron run must say *no lo ejecutes de nuevo*). No source
+behaviour changes. `architecture.md` §37 records what was covered, what stays uncovered —
+the comparador's client components, which would cost a DOM environment to reach — and why
+that is a line rather than an oversight.
+
 ---
 
 ## Designed, not scheduled
