@@ -1330,6 +1330,32 @@ behaviour changes. `architecture.md` §37 records what was covered, what stays u
 the comparador's client components, which would cost a DOM environment to reach — and why
 that is a line rather than an oversight.
 
+### PR-55 — The `force-dynamic` audit · **Opus**
+
+101 files carry `export const dynamic = 'force-dynamic'` and nobody had gone through them
+asking whether each is load-bearing. PR-53 made the question concrete: a dynamic route
+does not get the font preload a prerendered one does.
+
+Every one of them is needed — the browse pages read `searchParams`, the auth and staff
+routes read the session, and the data pages that read neither still need it for the
+*build*, because CI has no `DATABASE_URL` (§3). The `/admin` and `/panel` copies are
+redundant under a layout that already declares it, and are left in place deliberately:
+the gain is cosmetic and being wrong means an auth-gated page prerendered at build time.
+
+The finding was in the second column. PR-43 cached four read paths and left the six career
+and área reads live — on the SEO surfaces, per request, against a pool of eight
+connections. The worst was the homepage: `loadTopCareers` walks áreas in a loop it cannot
+parallelise (each step decides whether there is a next one) at two uncached round trips
+per step. `/carreras/[carreraSlug]/empleos` was importing past the module the cache lives
+in as well.
+
+**Deps:** PR-43, PR-53 (merged).
+**Accept:** the six reads go on the same tag and TTL as the other four; the second render
+of the same homepage reaches the database zero times; `admin/areas.ts` — the one write
+that reaches these entries and correctly does not rebuild the index — expires the tag
+itself, asserted through the function rather than by grepping its source.
+`architecture.md` §38 is the audit, including what stays uncached and why.
+
 ### PR-56 — The SEO-surface sweep · **Opus**
 
 The PR-52 exercise aimed at the public surfaces, prompted by PR-55's audit: read
