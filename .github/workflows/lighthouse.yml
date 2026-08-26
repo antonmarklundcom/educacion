@@ -10,6 +10,10 @@ name: Lighthouse
 #
 # Run it against production, or against a Hostinger deploy of the branch:
 #   gh workflow run lighthouse.yml -f url=https://educacion.com.py
+#
+# Locally, against a production build on this machine:
+#   npm run build && npm run start &
+#   npm run perf:lighthouse -- --url http://localhost:3000
 on:
   workflow_dispatch:
     inputs:
@@ -34,16 +38,6 @@ jobs:
 
       - run: npm ci
 
-      - name: Point the budgets at the requested origin
-        run: |
-          node -e "
-            const fs = require('fs');
-            const config = JSON.parse(fs.readFileSync('lighthouserc.json', 'utf8'));
-            const base = '${{ inputs.url }}'.replace(/\/$/, '');
-            config.ci.collect.url = config.ci.collect.url.map((u) =>
-              base + new URL(u).pathname
-            );
-            fs.writeFileSync('lighthouserc.json', JSON.stringify(config, null, 2));
-          "
-
-      - run: npx --yes @lhci/cli@0.14.x autorun
+      # The rewrite lives in scripts/lighthouse.ts so the same command a
+      # developer runs locally is the one that runs here (PR-53).
+      - run: npm run perf:lighthouse -- --url "${{ inputs.url }}"

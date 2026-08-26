@@ -153,3 +153,6 @@ cones-*_files/
 
 # vitest coverage report (PR-51 — visibility, generated on demand)
 /coverage
+
+# Lighthouse CI scratch (npm run perf:lighthouse)
+/.lighthouseci

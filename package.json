@@ -24,7 +24,7 @@
     "search:rebuild": "tsx scripts/rebuild-search.ts",
     "search:bench": "tsx scripts/search-bench.ts",
     "perf:budget": "tsx scripts/check-bundle-size.ts",
-    "perf:lighthouse": "lhci autorun"
+    "perf:lighthouse": "tsx scripts/lighthouse.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",
