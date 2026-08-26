@@ -1274,7 +1274,7 @@ behaviour is dropped: the cron rows stay in the table and stay reachable by filt
 
 ---
 
-## Phase 8 — Quality hardening (PR 53–55) — in progress
+## Phase 8 — Quality hardening (PR 53–56) — in progress
 
 Feature-complete against the plan, so this phase adds no features. It measures the
 things earlier phases configured and never ran, raises the coverage floor on the
