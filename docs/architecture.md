@@ -2994,7 +2994,8 @@ unchanged data, while not expiring after a write that committed is a stale page.
 their write paths — unlike the catalog's — do not go through
 `rebuildProgramSearch()`, so caching them means adding an expiry to each of those
 write paths first. That is a second change with its own failure mode (a published
-beca that does not appear), and it is not this PR's.
+beca that does not appear), and it is not this PR's. **PR-57 is that second
+change — see §40.**
 
 ---
 
@@ -3051,3 +3052,57 @@ full list. That is the identical defect PR-41's second review pass closed on the
 career hubs; `/becas` shipped in PR-31 and nobody carried the fix across. Both it
 and `/acreditacion` now withhold their whole JSON-LD block on a `noindex` view,
 which is what `seo.md` §5 already said.
+
+---
+
+## 40. Closing the last uncached public reads (settled in PR-57)
+
+§38.5 left `becas`, `posts` and `plans` live and named the reason: their write
+paths do not go through `rebuildProgramSearch()`, so caching the reads first
+would have meant a published beca that silently does not appear for up to an
+hour. This PR is the second change §38.5 pointed at.
+
+`@/lib/becas`, `@/lib/posts` and `@/lib/plans` are new — the same shape as
+`@/lib/institutions` and `@/lib/careers`: a thin wrapper around
+`db/queries/*` that runs every read through `cachedRead`, and the public
+routes and `/og/beca`, `/og/blog` now import from there instead of
+`db/queries` directly.
+
+### 40.1 The write side is the whole PR
+
+`becas` and `posts` are not in `program_search`, so — same as
+`admin/areas.ts` (§38.4) — `createBeca`/`updateBeca`/`archiveBeca` and
+`createPost`/`updatePost`/`archivePost` now call `expirePublicReads()`
+themselves, outside their transaction, for the reason that comment gives every
+time: expiring after a write that then rolls back costs one cold read of
+unchanged data; not expiring after a write that committed is a stale page.
+`cache/tags.ts` lists both files next to `admin/areas.ts` rather than waving
+at them, per its own rule. `plans` needed nothing here — it has no in-app
+write path at all, only `npm run seed:plans`, out of process like `curate`.
+
+### 40.2 The date-dependent reads
+
+`db/queries/becas.ts`'s `listBecas`/`becaTypeCounts` and
+`db/queries/posts.ts`'s `listPublishedPosts`/`getPostBySlug` filter their
+`WHERE` against `now` — an expired beca drops off the open list, and a
+scheduled post appears once its `published_at` arrives, both without a write
+in between. Caching that naively would have let a closed beca or a
+not-yet-visible post sit in a cache entry until the TTL caught up, so those
+four keys carry `toDateOnly(now)`, the same shape `search-key.ts` already
+uses for `admission_closes_on`. `getBecaBySlug` does not need this — its
+`WHERE` only checks `status = 'published'` — and its one date-derived field,
+`isClosed`, is computed in `decode`, which runs on every read against that
+request's own clock, exactly like `price.freshness` in `lib/search/index.ts`.
+
+### 40.3 Tests
+
+`src/lib/becas/cache.test.ts`, `src/lib/posts/cache.test.ts` and
+`src/lib/plans/cache.test.ts` follow `institutions/cache.test.ts` and
+`careers/cache.test.ts`: a real `unstable_cache`, a mocked `db/queries` layer,
+asserting a second read of the same key does not reach the database, two
+different keys do not share an entry, and — the property specific to this
+PR — a cache **hit** still reflects the request's own clock for `isClosed`.
+`src/db/queries/admin/becas.cache.test.ts` and
+`admin/posts.cache.test.ts` follow `admin/areas.cache.test.ts`: through the
+functions, asserting `expirePublicReads()` fires exactly once per committed
+write and never on a failed one.

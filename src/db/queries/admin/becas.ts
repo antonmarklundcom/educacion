@@ -7,13 +7,19 @@
  * and when" is the question that gets asked when it turns out not to be
  * (`architecture.md` §14.2 made the same argument for prices).
  *
- * No search-index rebuild: becas are not in `program_search`.
+ * No search-index rebuild: becas are not in `program_search`. PR-57 put the
+ * public becas reads (`@/lib/becas`) behind the public-read cache, which means
+ * every mutation below now has to expire it itself — `rebuildProgramSearch()`
+ * was never in this file's path to begin with, so there is nothing to piggy
+ * back on. Same reasoning, and the same call, as `admin/areas.ts`
+ * (`cache/tags.ts` lists both).
  */
 
 import { and, asc, desc, eq, ne, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { becas } from '@/db/schema';
+import { expirePublicReads } from '@/lib/cache';
 import { requireRole } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
 import type { BecaInput } from '@/lib/admin/validation';
@@ -100,7 +106,7 @@ export async function createBeca(
   const user = requireRole(actor, ['editor']);
   const row = toRow(input, user.id);
 
-  return database.transaction(async (tx) => {
+  const insertId = await database.transaction(async (tx) => {
     const [result] = await tx.insert(becas).values(row);
     const insertId = Number(result.insertId);
     await logActivity(tx, {
@@ -113,6 +119,14 @@ export async function createBeca(
     });
     return insertId;
   });
+
+  // Outside the transaction on purpose (`admin/areas.ts` makes the same
+  // argument): expiring after a write that then rolls back costs one cold read
+  // of unchanged data, while not expiring after a write that committed is a
+  // stale page.
+  expirePublicReads();
+
+  return insertId;
 }
 
 export async function updateBeca(
@@ -139,6 +153,9 @@ export async function updateBeca(
       after: { ...before, ...row },
     });
   });
+
+  // Outside the transaction — see `createBeca` above.
+  expirePublicReads();
 }
 
 export async function archiveBeca(
@@ -162,4 +179,7 @@ export async function archiveBeca(
       after: { status: 'archived' },
     });
   });
+
+  // Outside the transaction — see `createBeca` above.
+  expirePublicReads();
 }

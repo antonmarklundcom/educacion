@@ -9,7 +9,7 @@
 
 import { ImageResponse } from 'next/og';
 
-import { getBecaBySlug } from '@/db/queries/becas';
+import { getBecaBySlug } from '@/lib/becas';
 import { coverageLabel, deadlineLabel } from '@/lib/becas/display';
 
 export const runtime = 'nodejs';

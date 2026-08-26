@@ -14,8 +14,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Badge, Card } from '@/components/ui';
-import { becaTypeCounts, listBecas, type BecaSummary, type BecaType } from '@/db/queries/becas';
 import { BECA_TYPE } from '@/db/schema';
+import { becaTypeCounts, listBecas, type BecaSummary, type BecaType } from '@/lib/becas';
 import { BECA_TYPE_LABELS } from '@/lib/becas/labels';
 import { coverageLabel, deadlineLabel } from '@/lib/becas/display';
 import { JsonLd, breadcrumbSchema, siteUrl } from '@/lib/seo/jsonld';

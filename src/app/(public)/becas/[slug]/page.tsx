@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Badge, Button } from '@/components/ui';
-import { getBecaBySlug } from '@/db/queries/becas';
+import { getBecaBySlug } from '@/lib/becas';
 import { BECA_TYPE_LABELS } from '@/lib/becas/labels';
 import { coverageLabel, deadlineLabel } from '@/lib/becas/display';
 import { Markdown } from '@/lib/content/Markdown';
