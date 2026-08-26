@@ -36,13 +36,6 @@ import { JsonLd, breadcrumbSchema, faqSchema } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Acreditación ANEAES y habilitación CONES: qué significan y cómo verificarlas',
-  description:
-    'Qué es una carrera acreditada por la ANEAES, en qué se diferencia de la habilitación del CONES, qué pasa con tu título y cómo verificar tu carrera con la resolución a la vista.',
-  alternates: { canonical: '/acreditacion' },
-};
-
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const QUERY_PARAM = 'q';
@@ -77,10 +70,40 @@ const FAQ = [
   },
 ] as const;
 
+function readQuery(params: Record<string, string | string[] | undefined>): string {
+  const raw = params[QUERY_PARAM];
+  return (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
+}
+
+/**
+ * A checker result is `noindex, follow` with the canonical on the explainer
+ * (PR-56).
+ *
+ * The page is two things: a hand-written explainer, which is the indexable
+ * asset, and a search box whose every answer lives at `/acreditacion?q=…`. PR-30
+ * shipped one static `metadata`, so each of those infinitely many URLs asked to
+ * be indexed *and* claimed to be `/acreditacion` — the pattern `seo.md` §1 puts
+ * behind `noindex, follow` everywhere else. It is a plain GET form on purpose
+ * (every answer is shareable); the answers are not pages we want crawled.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  const query = readQuery(await searchParams);
+  return {
+    title: 'Acreditación ANEAES y habilitación CONES: qué significan y cómo verificarlas',
+    description:
+      'Qué es una carrera acreditada por la ANEAES, en qué se diferencia de la habilitación del CONES, qué pasa con tu título y cómo verificar tu carrera con la resolución a la vista.',
+    alternates: { canonical: '/acreditacion' },
+    robots: query ? { index: false, follow: true } : undefined,
+  };
+}
+
 export default async function AcreditacionPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const raw = params[QUERY_PARAM];
-  const query = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
+  const query = readQuery(params);
 
   const results = query ? (await searchPrograms({ q: query, pageSize: MAX_RESULTS })).results : [];
 
@@ -97,8 +120,15 @@ export default async function AcreditacionPage({ searchParams }: { searchParams:
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-10 px-4 py-12 sm:px-6 sm:py-16">
-      <JsonLd data={faqSchema(FAQ)} />
-      <JsonLd data={breadcrumbSchema([{ name: 'Acreditación', path: '/acreditacion' }])} />
+      {/* seo.md §5: a page that renders `noindex` emits no JSON-LD, and a
+          checker result does (PR-56). The explainer below is unchanged — only
+          the markup that would describe it as an indexable page is withheld. */}
+      {!query && (
+        <>
+          <JsonLd data={faqSchema(FAQ)} />
+          <JsonLd data={breadcrumbSchema([{ name: 'Acreditación', path: '/acreditacion' }])} />
+        </>
+      )}
 
       <header className="flex flex-col gap-3">
         <h1 className="text-ink text-2xl font-bold sm:text-3xl">

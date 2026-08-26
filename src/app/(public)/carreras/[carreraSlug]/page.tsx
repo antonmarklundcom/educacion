@@ -45,7 +45,13 @@ import { getWhatsappNumbers } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
 import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';
 import type { PlacementFlags } from '@/components/browse';
-import { DEFAULT_SORT, parseSearchFilters, searchHref, searchPrograms } from '@/lib/search';
+import {
+  DEFAULT_SORT,
+  hasActiveFilters,
+  parseSearchFilters,
+  searchHref,
+  searchPrograms,
+} from '@/lib/search';
 import { itemListSchema } from '@/lib/seo/catalog-schema';
 import { breadcrumbSchema, JsonLd } from '@/lib/seo/jsonld';
 
@@ -65,12 +71,28 @@ const loadCareer = cache(async (slug: string) => {
   return { career, stats, citySupply, related };
 });
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}): Promise<Metadata> {
   const { carreraSlug } = await params;
   const loaded = await loadCareer(carreraSlug);
   if (!loaded) return { title: 'Carrera no encontrada' };
 
   const { career, stats } = loaded;
+
+  // Two independent reasons to stay out of the index, and either is enough
+  // (PR-56). The second was missing: `seo.md` §1 puts every filtered view behind
+  // `noindex, follow` with the canonical on the clean route, PR-09 implemented
+  // that on `/carreras`, and the hubs — which render the same filter rail —
+  // never got it. PR-41 gated this page's `ItemList` on the same condition, so
+  // a filtered hub was already declining to *describe* itself as the list while
+  // still asking to be indexed as it.
+  const thin = !hasEditorialCopy(career.descriptionMd);
+  const narrowed = hasActiveFilters(parseSearchFilters(await searchParams));
 
   return {
     title: `${career.nameEs} en Paraguay – ${stats.institutionCount} universidades y aranceles`,
@@ -79,7 +101,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     // A hub with no hand-written overview yet is thin by seo.md's own anti-doorway
     // standard, so it stays crawlable but out of the index until real copy lands
     // (docs/careers/copy.ts) — the page never fabricates the words to avoid this.
-    robots: hasEditorialCopy(career.descriptionMd) ? undefined : { index: false, follow: true },
+    robots: thin || narrowed ? { index: false, follow: true } : undefined,
   };
 }
 
@@ -129,7 +151,12 @@ export default async function CareraHubPage({
   // Schema follows the page's own `robots`: a hub below the editorial gate
   // renders `noindex`, and structured data on a page we are asking not to
   // index is at best ignored and at worst a thin-content signal (seo.md §5).
-  const isIndexable = hasEditorialCopy(career.descriptionMd);
+  //
+  // Both of `generateMetadata`'s reasons, not one. PR-56 added the second —
+  // a filtered view is `noindex, follow` (seo.md §1) — and the invariant §5
+  // states is that these two can never disagree, so it is computed from the
+  // same two conditions.
+  const isIndexable = hasEditorialCopy(career.descriptionMd) && !hasActiveFilters(railFilters);
   // An `ItemList` describes *the* list at this URL. On a narrowed, reordered or
   // paginated view it would describe a slice — positions restarting at 1,
   // `numberOfItems` counting one page — while `alternates.canonical` points at

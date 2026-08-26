@@ -17,13 +17,17 @@ There is no paid-acquisition budget and no captive traffic (see `risks.md` §R-0
 | `/carreras`                       | browse (base, unfiltered)                       | ✅                                           |
 | `/carreras?...filters`            | filtered combinations                           | ❌ `noindex,follow`, canonical → `/carreras` |
 | `/carreras/[carrera]`             | **"medicina en paraguay"** — primary money page | ✅                                           |
+| `/carreras/[carrera]?...filters`  | filtered combinations                           | ❌ `noindex,follow`, canonical → the hub      |
 | `/carreras/[carrera]/[ciudad]`    | "medicina en encarnación"                       | ✅ **only above the supply gate (§4)**       |
 | `/areas/[area]`                   | "carreras de salud en paraguay"                 | ✅                                           |
 | `/universidades`                  | "universidades de paraguay"                     | ✅                                           |
 | `/universidades/[inst]`           | "universidad católica carreras"                 | ✅                                           |
+| `/universidades/[inst]?...filters`| filtered combinations                           | ❌ `noindex,follow`, canonical → the profile  |
 | `/universidades/[inst]/[program]` | "medicina una arancel" — the lead page          | ✅                                           |
 | `/acreditacion` + children        | **"carreras acreditadas aneaes"** — the wedge   | ✅                                           |
+| `/acreditacion?q=`                | one checker answer, shareable                   | ❌ `noindex,follow`, canonical → `/acreditacion` |
 | `/becas`, `/becas/[slug]`         | "becas para estudiar en paraguay"               | ✅                                           |
+| `/becas?...filters`               | filtered combinations                           | ❌ `noindex,follow`, canonical → `/becas`     |
 | `/blog/[slug]`                    | informational, feeds the money pages            | ✅                                           |
 | `/comparar`                       | shareable, not searchable                       | ❌ `noindex`                                 |
 | `/para-instituciones`             | B2B                                             | ✅                                           |
@@ -101,6 +105,15 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
   offering agrees.** They are per-offering columns and genuinely differ — a distancia sede
   is commonly longer — so a value read off the first row would contradict the instances
   beside it.
+- **The filtered-view rule is one rule, and it applies to every surface that
+  renders a filter rail or a search box** — not only `/carreras`. PR-09 implemented
+  it there and PR-56 found it had never been carried to the career hubs, the
+  institution profiles, `/acreditacion`'s checker answers or `/becas`. Each of those
+  shipped a bare self-canonical and an unconditional `index`, so every filter
+  combination was an indexable near-duplicate that also claimed to *be* the page it
+  was a slice of. Page number and sort order are deliberately **not** part of the
+  predicate: `/carreras` has never counted them either, and one rule stated the same
+  way everywhere is worth more than a stricter one stated twice.
 - **The career hub's `ItemList` ships only from the canonical view**: page 1, no active
   filters, no `q`, default sort, non-empty. Anywhere else it would describe a slice —
   positions restarting at 1, `numberOfItems` counting one page — while the canonical points
@@ -114,7 +127,12 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
   layout also wraps `/comparar`, which is `noindex` and must therefore carry no schema at
   all. "All pages" in the table above is the intent; the homepage is where it is read.
 - **A page that renders `noindex` emits no JSON-LD.** The career hub reads the same
-  `hasEditorialCopy()` its `generateMetadata` reads, so the two can never disagree.
+  conditions its `generateMetadata` reads — `hasEditorialCopy()` **and**, since PR-56,
+  `hasActiveFilters()` — so the two can never disagree. `/acreditacion` and `/becas`
+  now withhold their whole JSON-LD block on a filtered view for the same reason;
+  before PR-56, `/becas` emitted an `ItemList` describing a filtered slice while
+  canonicalising to the full list, which is the exact defect PR-41's second review
+  pass closed on the career hubs and nobody carried across.
 - **`Offer` is stricter than the page, deliberately.** CLAUDE.md rule 3 shows a stale
   arancel *with* a visible "dato desactualizado" warning; `Offer` has no field for that
   warning, so a rich result would reprint the number stripped of the context that makes

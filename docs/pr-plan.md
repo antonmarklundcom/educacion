@@ -1330,6 +1330,31 @@ behaviour changes. `architecture.md` §37 records what was covered, what stays u
 the comparador's client components, which would cost a DOM environment to reach — and why
 that is a line rather than an oversight.
 
+### PR-56 — The SEO-surface sweep · **Opus**
+
+The PR-52 exercise aimed at the public surfaces, prompted by PR-55's audit: read
+`generateMetadata` on every public route in one sitting rather than one route at a time.
+
+`seo.md` §1's filtered-view rule — `noindex, follow`, canonical on the clean route — was
+implemented on `/carreras` in PR-09 and never carried anywhere else. `/carreras/[carrera]`,
+`/universidades/[inst]`, `/acreditacion`'s checker answers and `/becas` all shipped a bare
+self-canonical and an unconditional `index`, so every filter combination was an indexable
+near-duplicate claiming to *be* the page it was a slice of. On the institution profiles
+that is the whole filter rail times ~59 institutions. The career hub is the sharpest case:
+PR-41 gated its `ItemList` on exactly this condition, so a filtered hub already declined to
+describe itself as the list while still asking to be indexed as it.
+
+Underneath, two more on `/becas`: `?tipo` was cast into the `WHERE` unchecked (harmless to
+the database, but every `?tipo=<anything>` rendered as a filtered page for a filter that
+does not exist), and its `ItemList` shipped on filtered views — the identical defect PR-41
+closed on the career hubs and nobody carried across to the page PR-31 built.
+
+**Deps:** PR-55 (merged).
+**Accept:** the four surfaces compute the same predicate; the career hub's two reasons to
+stay out of the index compose rather than replace each other, and its schema gate reads
+both, keeping §5's "the two can never disagree" true. `architecture.md` §39 and `seo.md`
+§2/§5 record the rule and the sweep.
+
 ---
 
 ## Designed, not scheduled

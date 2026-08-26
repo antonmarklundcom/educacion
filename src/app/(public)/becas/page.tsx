@@ -15,24 +15,64 @@ import Link from 'next/link';
 
 import { Badge, Card } from '@/components/ui';
 import { becaTypeCounts, listBecas, type BecaSummary, type BecaType } from '@/db/queries/becas';
+import { BECA_TYPE } from '@/db/schema';
 import { BECA_TYPE_LABELS } from '@/lib/becas/labels';
 import { coverageLabel, deadlineLabel } from '@/lib/becas/display';
 import { JsonLd, breadcrumbSchema, siteUrl } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Becas para estudiar en Paraguay',
-  description:
-    'Becas universitarias vigentes en Paraguay: quién las da, cuánto cubren, hasta cuándo se puede postular y el enlace a la fuente de cada una.',
-  alternates: { canonical: '/becas' },
-};
-
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * The three filters this page accepts, read once so the page body and
+ * `generateMetadata` cannot disagree about whether the view is filtered
+ * (PR-56).
+ *
+ * `tipo` is **checked against the enum** rather than cast to it. It used to be
+ * `one(params, 'tipo') as BecaType`, which put arbitrary query-string text into
+ * a `WHERE becas.type = ?`: Drizzle parameterises, so nothing was injectable,
+ * but every one of the infinitely many `?tipo=<anything>` URLs rendered as a
+ * *filtered* page — the "no hay becas con ese filtro" empty state, no chip
+ * marked `aria-current`, and its own `ItemList` — for a filter that does not
+ * exist. An unrecognised value is now simply not a filter.
+ *
+ * `area` stays free text: it is matched against `areas.slug`, an unknown slug
+ * correctly returns nothing, and validating it would cost a query to tell a
+ * crawler what an empty list already says.
+ */
+function readFilters(params: Record<string, string | string[] | undefined>) {
+  const rawType = one(params, 'tipo');
+  const type = BECA_TYPE.includes(rawType as BecaType) ? (rawType as BecaType) : undefined;
+  const areaSlug = one(params, 'area');
+  const fullOnly = one(params, 'cobertura') === 'total';
+  return { type, areaSlug, fullOnly, filtered: Boolean(type || areaSlug || fullOnly) };
+}
+
+/**
+ * A filtered view is `noindex, follow` with the canonical on the bare page —
+ * the same treatment `/carreras?…filters` gets (`seo.md` §1). PR-31 shipped one
+ * static `metadata` here, so `?tipo=estatal` was an indexable near-duplicate of
+ * `/becas` that also claimed to *be* `/becas`.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  const { filtered } = readFilters(await searchParams);
+  return {
+    title: 'Becas para estudiar en Paraguay',
+    description:
+      'Becas universitarias vigentes en Paraguay: quién las da, cuánto cubren, hasta cuándo se puede postular y el enlace a la fuente de cada una.',
+    alternates: { canonical: '/becas' },
+    robots: filtered ? { index: false, follow: true } : undefined,
+  };
 }
 
 function BecaCard({ beca }: { beca: BecaSummary }) {
@@ -58,21 +98,27 @@ function BecaCard({ beca }: { beca: BecaSummary }) {
 
 export default async function BecasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const type = one(params, 'tipo') as BecaType | undefined;
-  const areaSlug = one(params, 'area');
-  const fullOnly = one(params, 'cobertura') === 'total';
+  const { type, areaSlug, fullOnly, filtered } = readFilters(params);
 
   const [becas, counts] = await Promise.all([
     listBecas({ type, areaSlug, fullOnly }),
     becaTypeCounts(),
   ]);
 
-  const filtered = Boolean(type || areaSlug || fullOnly);
+  // `seo.md` §5: an `ItemList` describes *the* list at this URL, and a filtered
+  // view is a slice — positions restarting at 1, `numberOfItems` counting a
+  // subset — while the canonical above points at the whole list. PR-41's second
+  // review pass closed exactly this gate on the career hubs; `/becas` shipped
+  // in PR-31 and never got it. And a page that renders `noindex` emits no
+  // JSON-LD at all.
+  const listsWholeIndex = !filtered && becas.length > 0;
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16">
-      <JsonLd data={breadcrumbSchema([{ name: 'Becas', path: '/becas' }])} />
-      {becas.length > 0 && (
+      {/* seo.md §5: a page that renders `noindex` emits no JSON-LD. The
+          breadcrumb goes with the `ItemList` on a filtered view. */}
+      {!filtered && <JsonLd data={breadcrumbSchema([{ name: 'Becas', path: '/becas' }])} />}
+      {listsWholeIndex && (
         <JsonLd
           data={{
             '@context': 'https://schema.org',
