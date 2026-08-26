@@ -4,7 +4,9 @@ import { MAX_COMPARE } from '@/lib/search/contract';
 
 import {
   compareCtaLabel,
+  compareFullMessage,
   compareHref,
+  compareLabel,
   parseCompareIds,
   parseCompareLabels,
   serializeCompareIds,
@@ -86,6 +88,59 @@ describe('parseCompareLabels', () => {
   it('drops entries missing the fields it would have to render', () => {
     const raw = JSON.stringify([{ id: 1 }, { id: 'x', programName: 'a', institutionShort: 'b' }]);
     expect(parseCompareLabels(raw)).toEqual([]);
+  });
+
+  it('drops a non-object entry rather than reading fields off it (PR-54)', () => {
+    expect(parseCompareLabels(JSON.stringify([null, 3, 'cuatro']))).toEqual([]);
+  });
+
+  it('drops an id that is not a positive safe integer', () => {
+    const bad = [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 2];
+    const raw = JSON.stringify(
+      bad.map((id) => ({ id, programName: 'a', institutionShort: 'b', brandColor: null })),
+    );
+    expect(parseCompareLabels(raw)).toEqual([]);
+  });
+
+  it('keeps a good entry standing next to a bad one', () => {
+    const good = { id: 4, programName: 'a', institutionShort: 'b', brandColor: null };
+    expect(parseCompareLabels(JSON.stringify([{ id: 'x' }, good]))).toEqual([good]);
+  });
+
+  it('normalises a non-string brandColor to null instead of rendering it', () => {
+    const raw = JSON.stringify([
+      { id: 4, programName: 'a', institutionShort: 'b', brandColor: 123 },
+    ]);
+    expect(parseCompareLabels(raw)[0]?.brandColor).toBeNull();
+  });
+
+  it('degrades a JSON document that is not an array', () => {
+    expect(parseCompareLabels('"solo un string"')).toEqual([]);
+    expect(parseCompareLabels('42')).toEqual([]);
+  });
+});
+
+describe('compareLabel and compareFullMessage', () => {
+  it('derives the label from what the row already shows', () => {
+    expect(
+      compareLabel({
+        offeringId: 12,
+        programName: 'Medicina',
+        institutionShort: 'UNA',
+        brandColor: '#0d6e86',
+      }),
+    ).toEqual({
+      id: 12,
+      programName: 'Medicina',
+      institutionShort: 'UNA',
+      brandColor: '#0d6e86',
+    });
+  });
+
+  it('states the ceiling once, in voseo, and defaults it to MAX_COMPARE', () => {
+    expect(compareFullMessage()).toContain(String(MAX_COMPARE));
+    expect(compareFullMessage()).toContain('Podés comparar hasta');
+    expect(compareFullMessage(2)).toContain('hasta 2 carreras');
   });
 });
 

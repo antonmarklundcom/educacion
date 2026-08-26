@@ -2669,3 +2669,85 @@ every trigger with an opaque error. The first entry is the client's.
 
 The third is §32.3's: a date helper that was zone-dependent in exactly the way it
 was written to stop being.
+
+---
+
+## 37. Raising the coverage floor (settled in PR-54)
+
+§34.5 printed the first number — 55.7 % of statements — and deliberately set no
+threshold, because a threshold chosen before anybody has seen the figure buys a
+test written to meet it. This is the other half: read the number, find what it
+is actually saying, and cover the paths where being wrong is expensive.
+
+**56.1 % → 59.0 % of statements** (branches 50.9 → 53.8, functions 51.0 → 52.4),
+98 tests, no source file changed. Still no threshold: the same reasoning holds,
+and the paths worth covering are chosen by what they do, not by what they move
+the percentage to.
+
+### 37.1 What the number was hiding
+
+The gap was not spread evenly. Sorted by uncovered statements, the top of the
+list was the admin write paths and the validators behind them — and three of the
+parsers with the sharpest integrity rules in the repo had no test between them:
+
+- `parseBecaInput` — CLAUDE.md rule 1 as a form. The source URL is required on a
+  draft, the coverage and the amount have to agree, and a beca with no stated
+  provider is not information. All of it was reachable only through the UI.
+- `parseJobPostingInput` — attribution and dating (`risks.md` §R-11). A
+  "publicado mañana" row sorts to the top of every list forever.
+- `parseSubscriptionInput` — the money path, including the
+  `subscriptions_date_order` CHECK said in Spanish before MySQL says it in
+  English.
+
+Each of those rules exists in two places: a CHECK constraint and a sentence the
+operator reads. Only the sentence is the product, and only the sentence was
+untested.
+
+### 37.2 The data-ops console was the riskiest file at 0 %
+
+`/admin/importaciones`'s actions are not one of the twenty near-identical CRUD
+files §34.3 covered with a scan. "Ejecutar ahora" reads `CRON_SECRET`, builds an
+origin out of the request's own headers and awaits an entire cron job over HTTP.
+**Three of PR-52's six defects were in that one function** — the unbounded await,
+`x-forwarded-proto` used verbatim when it is a list — and none of them had a
+test, which is why a review had to find them rather than CI.
+
+It has one now, including the two regressions by name: a `x-forwarded-proto` of
+`"https,http"` must produce `https://host/...`, and a timed-out run must say
+*"no lo ejecutes de nuevo"* rather than reporting a failure, because cron jobs
+have no `import_runs`-style lock and the second click is a second concurrent pass
+over the one job that deletes.
+
+### 37.3 The two CRUD actions that are not three lines
+
+`createInstitutionAction` reads a slug back out of the database, uploads a file
+and encodes an upload failure into a redirect; the beca actions carry rule 1 from
+the form to `/becas` and revalidate the public page as well as the admin list.
+The §34.3 scan passed on both and could not see any of it. Both are covered now,
+including the branch that matters when storage is down: the institution row
+stays, and the failure travels to the edit screen instead of being swallowed.
+
+### 37.4 Read paths: the order is the promise
+
+`getOfferingRowsByIds` returns rows in the order the ids were given — the compare
+columns follow the user's selection — and MySQL's `IN` promises no ordering at
+all, so the re-sort in that function is the whole guarantee. It is now tested
+against a stub that deliberately returns them shuffled. `withFacets: false`,
+which exists so `/comparar` and the detail pages do not run eight facet queries
+they have no rail for, is asserted by counting the queries rather than trusting
+the flag.
+
+### 37.5 What is still uncovered, and why it stays that way
+
+The comparador's *logic* is at 94–100 % (`lib/compare/state.ts`,
+`compare/rows.ts`) and the cost calculator at 96–100 % (`lib/prices/total-cost*`)
+— both were already there. What is at 0 % is the **client components** around
+them: `CompareProvider`, `CompareBar`, `CompareTable`, `ShareButtons`. Covering
+those needs a DOM environment and a rendering library this repo does not have,
+and adding jsdom + testing-library to raise a percentage is exactly the trade
+§34.5 warned about. The logic they render is tested; the rendering is not, and
+that is a deliberate line rather than an oversight.
+
+The lead delivery modules (`leads/notify.ts`, `leads/retry.ts`,
+`leads/digest.ts`) are also low, and are left alone here because they are the
+email path, which is blocked on a decision outside the code.
