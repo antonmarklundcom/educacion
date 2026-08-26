@@ -10,8 +10,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { listPublishedPosts } from '@/db/queries/posts';
 import { formatDate } from '@/lib/format';
+import { listPublishedPosts } from '@/lib/posts';
 
 export const dynamic = 'force-dynamic';
 

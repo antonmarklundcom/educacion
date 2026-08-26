@@ -30,8 +30,8 @@ import Link from 'next/link';
 
 import { PlanCards } from '@/components/sales/PlanCards';
 import { Button, Card } from '@/components/ui';
-import { listPlans } from '@/db/queries/plans';
 import { CONTACT_EMAIL, contactMailto } from '@/lib/legal/contact';
+import { listPlans } from '@/lib/plans';
 
 export const dynamic = 'force-dynamic';
 

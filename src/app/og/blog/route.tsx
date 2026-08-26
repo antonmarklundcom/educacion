@@ -12,8 +12,8 @@
 
 import { ImageResponse } from 'next/og';
 
-import { getPostBySlug } from '@/db/queries/posts';
 import { formatDate } from '@/lib/format';
+import { getPostBySlug } from '@/lib/posts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

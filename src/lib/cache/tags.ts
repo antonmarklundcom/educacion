@@ -41,6 +41,21 @@
  *   `npm run search:rebuild` afterwards is what publishes its work. If a later
  *   PR moves `curate` into the browser (pr-plan.md PR-50 proposes exactly
  *   that), it has to rebuild the index anyway, and the expiry comes with it.
+ * - **`admin/areas.ts`** (PR-55) writes `areas`, whose name is not in the
+ *   index either, and expires the tag itself for the same reason.
+ * - **`admin/becas.ts`** and **`admin/posts.ts`** (PR-57) write `becas` and
+ *   `posts`. Neither table is in `program_search`, so neither ever called
+ *   `rebuildProgramSearch()` — but PR-57 put `@/lib/becas` and `@/lib/posts`
+ *   behind this cache, and every mutation in both files now calls
+ *   `expirePublicReads()` itself, outside its transaction, same shape as
+ *   `admin/areas.ts`. Without it, a beca an editor just published would not
+ *   appear on `/becas` for up to an hour.
+ *
+ * **`plans` is not an exception, because it is not a write path at all.**
+ * `listPlans()` (`@/lib/plans`, PR-57) is cached the same way, but `plans` is
+ * written once by `npm run seed:plans` — out of process, like `curate` above,
+ * with no cache to expire and nothing that calls this file from inside a
+ * request.
  *
  * ### Why the TTL is an hour
  *

@@ -14,9 +14,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { getPostBySlug } from '@/db/queries/posts';
 import { Markdown } from '@/lib/content/Markdown';
 import { formatDate } from '@/lib/format';
+import { getPostBySlug } from '@/lib/posts';
 import { JsonLd, articleSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 export const dynamic = 'force-dynamic';

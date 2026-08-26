@@ -6,12 +6,19 @@
  * No `rebuildProgramSearch` here — a post is not in the index. This is the
  * first admin entity where that is true, and it is stated so the omission does
  * not read as one.
+ *
+ * PR-57 put the public post reads (`@/lib/posts`) behind the public-read
+ * cache, so every mutation below now expires it directly — there was never a
+ * `rebuildProgramSearch()` call in this file to piggy back on. Same reasoning,
+ * and the same call, as `admin/areas.ts` and `admin/becas.ts`
+ * (`cache/tags.ts` lists all three).
  */
 
 import { and, desc, eq, like, ne, or, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { posts } from '@/db/schema';
+import { expirePublicReads } from '@/lib/cache';
 import { requireRole } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
 import type { PostInput } from '@/lib/admin/validation';
@@ -105,7 +112,7 @@ export async function createPost(
     publishedAt: publishedAtFor(input, null),
   };
 
-  return database.transaction(async (tx) => {
+  const insertId = await database.transaction(async (tx) => {
     const [result] = await tx.insert(posts).values(row);
     const insertId = Number(result.insertId);
     await logActivity(tx, {
@@ -118,6 +125,14 @@ export async function createPost(
     });
     return insertId;
   });
+
+  // Outside the transaction on purpose (`admin/areas.ts` makes the same
+  // argument): expiring after a write that then rolls back costs one cold read
+  // of unchanged data, while not expiring after a write that committed is a
+  // stale page.
+  expirePublicReads();
+
+  return insertId;
 }
 
 export async function updatePost(
@@ -153,6 +168,9 @@ export async function updatePost(
       after: { ...before, ...row },
     });
   });
+
+  // Outside the transaction — see `createPost` above.
+  expirePublicReads();
 }
 
 export async function archivePost(
@@ -176,4 +194,7 @@ export async function archivePost(
       after: { status: 'archived' },
     });
   });
+
+  // Outside the transaction — see `createPost` above.
+  expirePublicReads();
 }
