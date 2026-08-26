@@ -1548,6 +1548,9 @@ reason §3 already gives: CI builds without a `DATABASE_URL`. So the cache sits
 one layer down, around the read paths themselves, and the routes stay
 `force-dynamic`.
 
+> **PR-55 added six more** — the career and área reads. §38.2 has the list and
+> why leaving them out mattered more than it looked.
+
 | Read path | Module | Why |
 | --- | --- | --- |
 | `searchPrograms(filters)` | `src/lib/search` | Ten statements per call, and the funnel behind `/carreras`, career hubs, city pages, `/areas/[area]`, institution pages, programme pages and the home page |
@@ -2905,3 +2908,90 @@ that is a deliberate line rather than an oversight.
 The lead delivery modules (`leads/notify.ts`, `leads/retry.ts`,
 `leads/digest.ts`) are also low, and are left alone here because they are the
 email path, which is blocked on a decision outside the code.
+
+---
+
+## 38. The `force-dynamic` audit (settled in PR-55)
+
+101 files in `src/app` carry `export const dynamic = 'force-dynamic'`. §3 has said
+since PR-01 that this is the site's rendering strategy and §27 explains why PR-43
+put the cache under the routes rather than replacing them with ISR — but nobody
+had gone through them one at a time and asked whether each is load-bearing. §36
+made the question concrete: a `force-dynamic` route does not get the
+`<link rel="preload" as="font">` a prerendered one does, which is a real cost, so
+the ones that do not need it are paying for nothing.
+
+**The verdict is that every one of them is needed, and that the real finding is
+elsewhere: what dynamic rendering costs is a database round trip per request, and
+six of the read paths behind it were not paying for a cache.**
+
+### 38.1 Route by route
+
+| Group | Files | Reads request state? | Verdict |
+| --- | --- | --- | --- |
+| `(public)` browse & search — `/carreras`, `/comparar`, `/acreditacion`, `/becas`, `/universidades/[instSlug]`, `/carreras/[carreraSlug]` | 6 | **Yes**, `searchParams` | Needed. A page that is a function of its query string has nothing to prerender; the full-route cache does not vary by `searchParams` (§27.1). |
+| `(public)` data pages with no request state — `/`, `/universidades`, `/blog`, `/blog/[slug]`, `/becas/[slug]`, `/areas/[areaSlug]`, `/para-instituciones`, the two remaining career routes | 12 | No | Needed **for the build, not for the request**: without `force-dynamic` Next prerenders them, and CI builds with no `DATABASE_URL` (§3). The alternative is a build-time database or a prerender of empty pages that then serve as HTML until revalidation — worse for exactly the surfaces this site is for. |
+| `(auth)` — `/ingresar`, `/recuperar-contrasena`, `/reclamar/[token]` … | 5 | **Yes**, cookies and a token in the path | Needed. |
+| `/admin/**`, `/panel/**` | 68 | **Yes**, the session | Needed, and `noindex` either way. Both layouts also declare it, so the per-page copies are redundant under Next's segment-config inheritance — **left in place on purpose**: the gain is cosmetic and the failure mode of being wrong about that inheritance is an auth-gated page prerendered at build time. |
+| `/api/**`, `/og/**`, `sitemap.xml`, `sitemap/[child]` | 10 | **Yes**, headers, query params or a live query | Needed. |
+
+Nothing was removed. The audit's value was in the second column.
+
+### 38.2 What the audit actually found: six uncached read paths
+
+PR-43 wrapped four read paths (§27.1) and left the career and área reads alone.
+Nobody wrote down why, and the reason it matters is that these are the SEO
+surfaces:
+
+| Read | Used by |
+| --- | --- |
+| `getCareerBySlug` | every career hub, city page and `/empleos` page |
+| `getAreaBySlug` | `/areas/[areaSlug]`, and the homepage's supply ranking |
+| `getCareerStats` | career hubs, `/empleos` |
+| `getCareerCitySupply` | the city-page gate (`seo.md` §4) |
+| `listCareersByArea` | `/areas/[areaSlug]`, and the homepage's supply ranking |
+| `listRelatedCareers` | every career hub |
+
+All six now go through `cachedRead` on the same tag and TTL as the other four.
+`carreras/[carreraSlug]/empleos` was also importing `@/db/queries/careers`
+directly, past the module the cache lives in — one page paying two round trips
+its siblings do not.
+
+### 38.3 The homepage was the worst case, and it is a loop
+
+`loadTopCareers` walks áreas in descending order of supply and stops as soon as
+the answer can no longer change. That walk is **necessarily sequential** — each
+step decides whether there is a next one — and it was two uncached queries per
+step (`getAreaBySlug`, then `listCareersByArea`) on the most-visited page on the
+site, against a pool of eight connections (§1). On a cold cache with fourteen
+seeded áreas that is up to 28 serial round trips before the homepage can render,
+and §36 measured the homepage's LCP with an *empty* catalog, where the walk
+terminates immediately.
+
+It is not parallelisable without discarding the early exit, which is the thing
+that makes it exact rather than "the top áreas' top careers". So the fix is the
+cache: the walk still runs, and after the first request it runs against memory.
+`careers/cache.test.ts` asserts the second render of the same homepage reaches
+the database zero times.
+
+### 38.4 The write that had to learn to expire
+
+`cache/tags.ts` states the invalidation rule as "almost every write that can
+change a public read goes through `rebuildProgramSearch()`", and insists on
+listing the exceptions rather than waving at them. Caching the área reads
+created a new one: `admin/areas.ts` writes `areas` and rebuilds nothing —
+correctly, because an área's name is not in `program_search` — so the 150 words
+an editor writes to lift a hub out of `noindex` (`seo.md` §4.1) would have waited
+up to an hour to appear.
+
+It now calls `expirePublicReads()` itself, like `claims.ts`, outside the
+transaction: expiring after a write that then rolls back costs one cold read of
+unchanged data, while not expiring after a write that committed is a stale page.
+
+### 38.5 Still uncached, and why
+
+`becas`, `posts` and `plans` reads stay live. They are low-traffic pages, and
+their write paths — unlike the catalog's — do not go through
+`rebuildProgramSearch()`, so caching them means adding an expiry to each of those
+write paths first. That is a second change with its own failure mode (a published
+beca that does not appear), and it is not this PR's.
