@@ -40,6 +40,7 @@ import { JsonLd } from '@/lib/seo/jsonld';
 import {
   INSTITUTION_TYPE_LABELS,
   MANAGEMENT_LABELS,
+  hasActiveFilters,
   parseSearchFilters,
   searchHref,
   searchPrograms,
@@ -53,16 +54,35 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /** Shared by `generateMetadata` and the body — one profile read per request. */
 const loadInstitution = cache(async (slug: string) => getInstitutionBySlug(slug));
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}): Promise<Metadata> {
   const { instSlug } = await params;
   const institution = await loadInstitution(instSlug);
 
   if (!institution) return { title: 'Institución no encontrada' };
 
+  // `seo.md` §1: a filtered view is `noindex, follow` with the canonical on the
+  // clean route. This page renders the whole filter rail — nivel, modalidad,
+  // ciudad, arancel, free text — and shipped a bare self-canonical, so every
+  // combination on every one of ~59 institutions was an indexable near-duplicate
+  // that also claimed to *be* the canonical page (PR-56). `institutionSlug` is
+  // dropped for the same reason the body drops it: the path already scopes it,
+  // so it is not one of the user's filters.
+  const narrowed = hasActiveFilters({
+    ...parseSearchFilters(await searchParams),
+    institutionSlug: undefined,
+  });
+
   return {
     title: `${institution.nameShort} – Carreras, aranceles y sedes`,
     description: `${institution.nameOfficial}: ${institution.programCount} carreras publicadas, con duración, modalidad, arancel y estado de acreditación de cada una.`,
     alternates: { canonical: `/universidades/${instSlug}` },
+    robots: narrowed ? { index: false, follow: true } : undefined,
   };
 }
 

@@ -2995,3 +2995,59 @@ their write paths — unlike the catalog's — do not go through
 `rebuildProgramSearch()`, so caching them means adding an expiry to each of those
 write paths first. That is a second change with its own failure mode (a published
 beca that does not appear), and it is not this PR's.
+
+---
+
+## 39. What the sweep of PR-30/31/41 found (settled in PR-56)
+
+The PR-52 pass re-read PR-49 and PR-50 against `main` and found six defects. This
+is the same exercise aimed at the SEO surfaces, prompted by §38's audit: reading
+`generateMetadata` on every public route one after another, rather than one route
+at a time as its own PR shipped it.
+
+**One rule was implemented once and never carried across.** `seo.md` §1 says a
+filtered view is `noindex, follow` with the canonical on the clean route. PR-09
+implemented that on `/carreras`. Nothing else has it — and three of the four
+surfaces that needed it are money pages.
+
+### 39.1 Four surfaces, one missing line
+
+| Surface | What shipped | What a crawler saw |
+| --- | --- | --- |
+| `/carreras/[carreraSlug]` | `robots` gated on the editorial copy only | Every facet combination on every hub: indexable, self-canonical to the bare hub. PR-41 had already gated this page's **`ItemList`** on exactly this condition, so a filtered hub declined to *describe* itself as the list while still asking to be indexed as it. |
+| `/universidades/[instSlug]` | a bare self-canonical, no `robots` | The whole filter rail — nivel, modalidad, ciudad, arancel, free text — times ~59 institutions, every one an indexable near-duplicate claiming to be the profile. |
+| `/acreditacion` | one static `metadata` | Every checker answer at `?q=…` asking to be indexed as `/acreditacion`. The GET form is deliberate (each answer is shareable); the answers are not pages to crawl. |
+| `/becas` | one static `metadata` | Every filter combination, plus §39.2. |
+
+All four now compute the same predicate — `hasActiveFilters()`, or the presence
+of a query — and the two independent reasons on the career hub compose: thin
+**or** narrowed keeps it out.
+
+Page number and sort order are deliberately **not** in the predicate. `/carreras`
+has never counted them, and the value here is one rule stated identically in four
+places rather than a stricter rule stated twice.
+
+### 39.2 `/becas` was casting a query string into a `WHERE`
+
+`const type = one(params, 'tipo') as BecaType` — an unchecked cast of arbitrary
+query-string text into `eq(becas.type, …)`. Drizzle parameterises, so nothing was
+injectable, and that is the whole reason it survived review: the damage was not a
+database one. Every one of the infinitely many `?tipo=<anything>` URLs rendered as
+a **filtered** page — the "no hay becas con ese filtro" empty state, no chip
+marked `aria-current`, its own `ItemList` — for a filter that does not exist.
+
+`parseSearchFilters` has validated every facet value against its enum since PR-08;
+`/becas` was written with its own three-line parameter reader and never got that
+property. It checks the enum now, and an unrecognised value is simply not a
+filter. `area` stays free text on purpose: it is matched against `areas.slug`, an
+unknown slug correctly returns nothing, and validating it would cost a query to
+tell a crawler what an empty list already says.
+
+### 39.3 The `ItemList` gate, again
+
+`/becas` emitted an `ItemList` on filtered views: positions restarting at 1,
+`numberOfItems` counting a subset, while `alternates.canonical` pointed at the
+full list. That is the identical defect PR-41's second review pass closed on the
+career hubs; `/becas` shipped in PR-31 and nobody carried the fix across. Both it
+and `/acreditacion` now withhold their whole JSON-LD block on a `noindex` view,
+which is what `seo.md` §5 already said.
