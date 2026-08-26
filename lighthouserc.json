@@ -1,5 +1,5 @@
 {
-  "//": "Lighthouse CI budgets (PR-34). See docs/architecture.md §24 for why this runs against a deployed URL rather than inside the PR check.",
+  "//": "Lighthouse CI budgets (PR-34, measured for the first time and corrected in PR-53). See docs/architecture.md §24 for why this runs against a serving URL rather than inside the PR check, and §36 for the first real numbers and what the two settings below are for.",
   "ci": {
     "collect": {
       "url": [
@@ -10,7 +10,7 @@
       ],
       "numberOfRuns": 3,
       "settings": {
-        "preset": "desktop",
+        "//formFactor": "Throttled mobile, which is what §9's budget is stated against. PR-34 also carried `preset: \"desktop\"` here — every field it sets is overridden below except the emulated user agent, which it quietly swapped for a desktop one. That one leftover cost two whole audits, so the preset is gone rather than corrected.",
         "formFactor": "mobile",
         "screenEmulation": {
           "mobile": true,
@@ -23,7 +23,9 @@
           "rttMs": 150,
           "throughputKbps": 1638,
           "cpuSlowdownMultiplier": 4
-        }
+        },
+        "//emulatedUserAgent": "Lighthouse's own mobile UA plus the `Chrome-Lighthouse` token it used to append itself. Next 15 streams metadata to browsers and inlines it in <head> only for the HTML-limited bots in its own list — which is exactly what the SEO category is a proxy for. Without the token Lighthouse is a browser, gets the streamed copy, and reports `meta-description` as missing on every page of a site whose <head> is correct for every crawler that matters. architecture.md §36.",
+        "emulatedUserAgent": "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse"
       }
     },
     "assert": {

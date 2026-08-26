@@ -194,15 +194,27 @@ route exceeds 150 kB of gzipped JS. Run it locally the same way: build first,
 then the budget.
 
 Lighthouse is **not** in the PR check — CI has no `DATABASE_URL`, so it would
-audit error pages. Run it against something that is actually serving:
+audit error pages. Run it against something that is actually serving. Both of
+these go through `scripts/lighthouse.ts`, which re-hosts the four paths in
+`lighthouserc.json` onto the origin you give it:
 
 ```
-gh workflow run lighthouse.yml -f url=https://educacion.com.py
+gh workflow run lighthouse.yml -f url=https://educacion.com.py   # from CI, on demand
+
+npm run build                                                     # or locally, against
+DATABASE_URL=... npm run start &                                  # a production build
+npm run perf:lighthouse -- --url http://localhost:3000
 ```
 
-Thresholds live in `lighthouserc.json`. They are configured and **not yet
-measured against production** — the first run needs a deployed site with real
-data in it.
+Thresholds live in `lighthouserc.json` and are not overridable from the command
+line on purpose. A machine that needs extra Chrome flags can pass them through:
+`npm run perf:lighthouse -- --url ... --collect.settings.chromeFlags=--no-sandbox`.
+
+**First measured in PR-53**, locally, against a build with the taxonomy seeded
+and an empty catalog: `architecture.md` §36 has the numbers, the four defects
+they found, and why an empty catalog makes every figure a floor. Still **not
+measured against production** — do that once the domain serves, and expect worse
+numbers than §36's, not better.
 
 ## 8. Post-deploy checklist
 

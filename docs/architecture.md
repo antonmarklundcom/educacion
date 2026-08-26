@@ -375,7 +375,10 @@ Inherited from `conversion-design` and `seo-web-builds`:
 
 - LCP < 2.5 s on 4G, CLS < 0.1, INP < 200 ms.
 - Total JS ≤ 150 kb gzipped on public pages. The browser page is the risk: keep FilterRail and ResultTable as server components, only the compare bar and the modal are client.
-- Fonts: IBM Plex Sans + IBM Plex Mono, self-hosted via `next/font`, max 4 weights total.
+- Fonts: IBM Plex Sans + IBM Plex Mono, self-hosted via `next/font`. Six weights, which
+  `design-system.md` §3 has always said and this line used to contradict with "max 4";
+  the count is not the cost anyway — Google serves Plex Sans as one variable file, so
+  its four weights are one ~40 kB request. Mono is `preload: false` (§36).
 - Institution logos: WebP, explicit dimensions, ≤ 20 kb each, lazy below fold.
 - Enforced in CI with a bundle-size check (PR-34).
 
@@ -1340,6 +1343,10 @@ report a number that means nothing — a green build that audited 500s is worse
 than no audit. `.github/workflows/lighthouse.yml` is `workflow_dispatch` with a
 URL input, and `lighthouserc.json` carries the budgets: LCP < 2.5 s, CLS < 0.1,
 TBT < 200 ms on throttled mobile, accessibility and SEO at 100.
+
+> **Never actually run, until PR-53.** §36 has the first real numbers, the two
+> site defects and the two harness defects they found, and the command that
+> reproduces them against any serving origin.
 
 **The a11y rules `next/core-web-vitals` ships as warnings are errors here.**
 Every one of them is a mistake that makes the site unusable with a keyboard or
@@ -2669,6 +2676,153 @@ every trigger with an opaque error. The first entry is the client's.
 
 The third is §32.3's: a date helper that was zone-dependent in exactly the way it
 was written to stop being.
+
+---
+
+## 36. Lighthouse, measured (settled in PR-53)
+
+PR-34 wrote the budgets in `lighthouserc.json` and §24 explained why they run on
+demand against a serving URL rather than inside the PR check. What it never did
+was **run them**. This is the first measurement. It found two defects in the site
+(§36.3, §36.5) and one in the harness that wrote the budgets (§36.4), and the
+harness defect was hiding both of the others behind a number that looked fine.
+
+### 36.1 How it was measured
+
+`next build && next start` against a local MySQL with the taxonomy seeded
+(`seed:taxonomy`, `seed:plans`) and **no catalog rows** — the CONES/ANEAES
+sources 403 whole networks (`data-sources.md` §1), so the importers could not
+run here. Chrome 141 headless, `lighthouserc.json`'s own emulation, three runs
+per URL, medians below.
+
+The empty catalog matters when reading the numbers: result lists render their
+empty state, so the DOM and the byte counts below are **floors**. Every figure
+here gets worse with a full index, not better. Re-run it against production
+before treating any of it as the live number:
+
+```
+npm run build && npm run start &
+npm run perf:lighthouse -- --url http://localhost:3000
+```
+
+`scripts/lighthouse.ts` re-hosts the four configured paths onto whatever origin
+you pass and shells out to `lhci autorun`. The workflow calls the same script,
+so the local command and the CI command are one command.
+
+### 36.2 The numbers
+
+Before, with `lighthouserc.json` as PR-34 committed it:
+
+| page             | perf | a11y | best-practices | SEO  | LCP     | CLS       | TBT   |
+| ---------------- | ---- | ---- | -------------- | ---- | ------- | --------- | ----- |
+| `/`              | 0.99 | 1.00 | 1.00           | 0.91 | 1972 ms | 0.000     | 65 ms |
+| `/carreras`      | 0.82 | 1.00 | 1.00           | 0.91 | 3066 ms | **0.235** | 97 ms |
+| `/acreditacion`  | 0.73 | 1.00 | 1.00           | 0.91 | 3045 ms | **0.556** | 95 ms |
+| `/universidades` | 0.98 | 1.00 | 1.00           | 0.91 | 2315 ms | 0.000     | 28 ms |
+
+After the three fixes in this PR:
+
+| page             | perf | a11y | best-practices | SEO  | LCP     | CLS   | TBT   |
+| ---------------- | ---- | ---- | -------------- | ---- | ------- | ----- | ----- |
+| `/`              | 0.99 | 1.00 | 1.00           | 1.00 | 2021 ms | 0.000 | 57 ms |
+| `/carreras`      | 0.97 | 1.00 | 1.00           | 1.00 | 2446 ms | 0.030 | 69 ms |
+| `/acreditacion`  | 0.97 | 1.00 | 1.00           | 1.00 | 2609 ms | 0.000 | 60 ms |
+| `/universidades` | 0.99 | 1.00 | 1.00           | 1.00 | 2005 ms | 0.000 | 56 ms |
+
+`lhci autorun` exits 0: every `error`-level assertion passes. Two caveats on
+reading that as "LCP is under budget", both of which cut against us:
+
+- The tables are **medians**; `lhci`'s default aggregation for a
+  `maxNumericValue` assertion is **optimistic** — the best of the three runs. So
+  `/acreditacion`'s 2609 ms median passes on a faster run. It is over budget by
+  the honest reading and stays on the list.
+- Run-to-run spread on this hardware is roughly ±200 ms on LCP. Differences
+  smaller than that are noise, and the before/after tables were collected the
+  same way on the same machine so that the deltas mean something.
+
+The two `warn`-level assertions still warn: `unused-javascript` scores 0 on every
+page, which is the framework bundle, not our code (§36.6).
+
+### 36.3 The CLS was the loading skeleton (site defect)
+
+Every public route is `force-dynamic` (§3), so Next streams: the shell — header,
+`(public)/loading.tsx`, footer — paints, then the real `<main>` replaces the
+fallback. The fallback was three skeleton bars, about 200 px in a full-height
+layout, so the footer painted **inside the viewport** and the arriving content
+then shoved it down. Chrome's `layout-shift` attribution named it exactly: one
+shift, `<footer>`, `y: 375 → 732`.
+
+Score 0.235 on `/carreras`, 0.556 on `/acreditacion` — against a 0.1 budget, on
+every first visit, on the two pages the October traffic lands on.
+
+The fallback now reserves `min-h-screen`, which is where the footer sits once the
+content arrives too, so nothing visible moves. A page shorter than a viewport
+would still shift slightly, which is why the residual on `/carreras` is 0.030
+rather than 0 — under budget, and the honest floor for a streamed shell whose
+fallback cannot know the height of what replaces it.
+
+### 36.4 The `preset: "desktop"` line cost two audits (harness defect)
+
+`lighthouserc.json` set `preset: "desktop"` and then overrode formFactor,
+screenEmulation and throttling to mobile. Every field the preset sets was
+overridden **except** `emulatedUserAgent`, which nothing below mentioned — so
+three years of budgets written for "throttled mobile" were collected by a
+browser calling itself desktop Chrome.
+
+That single leftover was doing real damage:
+
+- **SEO 0.91 on all four pages.** Next 15 streams metadata to browsers and
+  inlines it in `<head>` only for the HTML-limited bots in its own list. With a
+  plain desktop UA, Lighthouse is a browser: `<title>`, description, canonical
+  and OG tags arrive mid-body and React hoists them at hydration, so
+  `meta-description` audits as **missing** on pages whose `<head>` is correct for
+  every crawler that matters. Every real HTML-only consumer — Bingbot,
+  `facebookexternalhit`, `WhatsApp`, `Twitterbot`, `Slackbot`, Applebot — is in
+  Next's list and gets the blocking copy, and Googlebot renders JS. Nothing was
+  wrong with the site.
+- **The CLS reading was unstable.** With the preset, `/acreditacion` measured
+  0.556 twice and 0.000 once in the same three-run batch.
+
+The preset is gone rather than corrected, and `emulatedUserAgent` is now stated
+explicitly: Lighthouse's own mobile UA plus the `Chrome-Lighthouse` token
+Lighthouse used to append itself and no longer does. That is not a thumb on the
+scale — the SEO category is a proxy for what a crawler sees, so it should be
+collected as a crawler. `scripts/lighthouse.test.ts` asserts both settings so
+neither can drift back.
+
+### 36.5 Mono was preloaded on pages that never paint it (site defect)
+
+`next/font` preloads by default. Plex Sans is one variable file (~40 kB) and
+carries every heading and every line of body copy, so it stays. Plex Mono is two
+static files (~21 kB) with one job — the numeric columns (`design-system.md` §3)
+— and `/`, `/acreditacion` and `/universidades` do not paint a monospace glyph
+between them. All three fetched it anyway: 61.3 kB of font on pages that use
+39.6 kB of it, inside the ~274 kB that decides LCP on this profile.
+
+With `preload: false` the `@font-face` stays and the fetch becomes demand-driven.
+Font transfer on all four pages: 61.3 → 39.6 kB, and `/carreras` LCP a median
+2717 → 2446 ms. Note what the empty catalog does to that last number: with real
+rows `/carreras` renders the numeric columns, so it *will* fetch mono — one round
+trip later, painting in the fallback meanwhile, which is the point. The pages
+that never use it keep the whole 21 kB.
+
+### 36.6 What was measured and deliberately not fixed
+
+- **`unused-javascript` scores 0 on every page.** 135 kB of script transfer, of
+  which the route's own code is 0–7.4 kB: the rest is React 19 + the App Router
+  runtime. `npm run perf:budget` puts every public route at ~130 kB against the
+  150 kB gzipped budget, so this is the framework floor, not our slack. It is a
+  `warn` for that reason and should stay one.
+- **`force-dynamic` routes get no `<link rel="preload" as="font">`.** Static
+  routes do; a streamed dynamic render flushes `<head>` before the font is known,
+  so the preload happens client-side after hydration instead. Confirmed both
+  ways by rebuilding with the flag flipped. It is a real cost of §3's rendering
+  choice and it is not fixable from application code — it is an argument for
+  auditing which routes need `force-dynamic` at all, not for a workaround.
+- **Anything that needs a live deploy.** TTFB, CDN behaviour, real RTT and the
+  ISR cache on Hostinger are not measurable from a laptop, and a number invented
+  for them would be worse than the gap. Re-run the command in §36.1 against
+  production once the domain is serving.
 
 ---
 

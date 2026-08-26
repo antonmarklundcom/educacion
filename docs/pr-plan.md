@@ -1272,6 +1272,41 @@ is mutation-checked; the past-due branch is covered on both sides of the end dat
 behaviour is dropped: the cron rows stay in the table and stay reachable by filter.
 `architecture.md` §35 records all six, and §32.3 no longer claims what it did not have.
 
+---
+
+## Phase 8 — Quality hardening (PR 53–55) — in progress
+
+Feature-complete against the plan, so this phase adds no features. It measures the
+things earlier phases configured and never ran, raises the coverage floor on the
+paths that move money and data, and re-reads what the last few PRs shipped.
+
+### PR-53 — Lighthouse, actually run · **Opus**
+
+PR-34 wrote `lighthouserc.json` and `.github/workflows/lighthouse.yml`; nobody ever ran
+them, and `deployment.md` §7.2 said so. Run locally against `next build && next start`
+over a seeded taxonomy and an empty catalog (the CONES/ANEAES sources 403 this network,
+`data-sources.md` §1), three runs per URL.
+
+The harness was wrong first: `preset: "desktop"` sat above four mobile overrides and won
+the one field none of them mentioned, the user agent. That made Lighthouse a browser
+rather than a crawler, so Next 15 streamed metadata to it and `meta-description` audited
+as missing on all four pages — SEO 0.91 everywhere, on a site whose `<head>` is correct
+for every HTML-only crawler that matters. It also made the CLS reading unstable.
+
+Underneath it were two real defects. `(public)/loading.tsx` was a ~200 px skeleton
+standing in for whole pages, so the streamed shell painted the footer inside the viewport
+and the arriving content shoved it down: CLS 0.235 on `/carreras`, **0.556** on
+`/acreditacion`, against a 0.1 budget, on every first visit. And `next/font` preloads by
+default, so Plex Mono's two files were fetched on `/`, `/acreditacion` and
+`/universidades` — pages that do not paint a monospace glyph between them.
+
+**Deps:** none.
+**Accept:** `lhci autorun` exits 0 on every `error`-level assertion where before it failed
+nine. `scripts/lighthouse.ts` re-hosts the configured paths onto any origin and is what
+both the workflow and a developer run, with tests pinning the two settings that were
+wrong. `architecture.md` §36 records the before/after numbers, the aggregation caveat, and
+what was measured and deliberately not fixed.
+
 ### PR-54 — Coverage where being wrong is expensive · **Opus**
 
 PR-51 printed 55.7 % and set no threshold on purpose. This reads the number instead of
