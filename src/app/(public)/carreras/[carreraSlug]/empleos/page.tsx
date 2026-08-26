@@ -27,7 +27,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Card } from '@/components/ui';
-import { getCareerBySlug, getCareerStats } from '@/db/queries/careers';
+// Through `@/lib/careers`, not `@/db/queries/careers`: the lib module is where
+// the public-read cache lives (PR-55), and importing past it gave this page two
+// uncached round-trips its siblings do not pay.
+import { getCareerBySlug, getCareerStats } from '@/lib/careers';
 import { listJobPostingsForCareer } from '@/db/queries/jobs';
 import { Markdown } from '@/lib/content/Markdown';
 import { hasSalidaLaboral } from '@/lib/careers/salida-laboral';

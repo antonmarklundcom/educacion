@@ -14,6 +14,7 @@ import { asc, eq } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { areas } from '@/db/schema';
+import { expirePublicReads } from '@/lib/cache';
 import { requireRole } from '@/lib/auth/roles';
 import type { SessionUser } from '@/lib/auth/session';
 import type { AreaInput } from '@/lib/admin/validation';
@@ -68,4 +69,16 @@ export async function updateArea(
       after: { ...before, ...row },
     });
   });
+
+  // PR-55 put the área reads behind the public-read cache, and this is the one
+  // write that reaches them: an área's name is not in `program_search`, so
+  // there is no `rebuildProgramSearch()` here to hang the expiry on and the
+  // 150 words an editor writes to lift a hub out of `noindex` would otherwise
+  // wait up to an hour to appear. Same reasoning, and the same call, as
+  // `claims.ts` (`cache/tags.ts`).
+  //
+  // Outside the transaction on purpose: expiring a cache for a write that then
+  // rolls back would serve a cold read of unchanged data, which is merely slow;
+  // expiring nothing after a write that committed is a stale page.
+  expirePublicReads();
 }
