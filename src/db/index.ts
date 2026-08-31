@@ -18,6 +18,9 @@ import * as schema from './schema';
 
 export const POOL_CONFIG = {
   connectionLimit: 8,
+  waitForConnections: true,
+  queueLimit: 24,
+  connectTimeout: 8_000,
   timezone: 'Z',
   /** Guaraní amounts are integers; never let the driver hand us a string. */
   supportBigNumbers: true,
