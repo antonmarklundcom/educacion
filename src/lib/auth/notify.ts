@@ -60,6 +60,10 @@ export async function sendPasswordResetEmail(mail: ResetEmail): Promise<boolean>
         subject: 'Restablecé tu contraseña de educacion.com.py',
         text: resetEmailBody(mail),
       }),
+      // Resend is external; without a bound, a stuck peer holds this Node
+      // process open for up to 300s. Hostinger's shared account caps total
+      // processes across 9 apps (see next.config.ts).
+      signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       console.error(`[auth] reset email failed: HTTP ${response.status}`);

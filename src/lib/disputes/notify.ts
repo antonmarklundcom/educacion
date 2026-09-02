@@ -57,6 +57,10 @@ export async function notifyAdminOfDispute(dispute: DisputeNotification): Promis
         subject: `Disputa de acreditación — institución #${dispute.institutionId}`,
         text: body(dispute),
       }),
+      // Resend is external; without a bound, a stuck peer holds this Node
+      // process open for up to 300s. Hostinger's shared account caps total
+      // processes across 9 apps (see next.config.ts).
+      signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       console.error(`[disputes] notification failed: HTTP ${response.status}`);
