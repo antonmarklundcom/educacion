@@ -65,6 +65,10 @@ async function send(options: {
         subject: options.subject,
         text: options.text,
       }),
+      // Resend is external; without a bound, a stuck peer holds this Node
+      // process open for up to 300s. Hostinger's shared account caps total
+      // processes across 9 apps (see next.config.ts).
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {

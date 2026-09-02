@@ -107,6 +107,10 @@ export async function putObject(
       authorization,
     },
     body: new Uint8Array(body),
+    // The S3-compatible endpoint is external; without a bound, a stuck peer
+    // holds this Node process open indefinitely. Hostinger's shared account
+    // caps total processes across 9 apps (see next.config.ts).
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {

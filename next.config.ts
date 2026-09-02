@@ -45,7 +45,16 @@ const nextConfig: NextConfig = {
    * across deploys was never part of the contract. Residual risk and why no
    * key-shape rule was added instead: §27.2.
    */
-  experimental: { isrFlushToDisk: false },
+  experimental: {
+    isrFlushToDisk: false,
+    // Next defaults its build workers to os.cpus().length - 1, which on
+    // Hostinger's shared box is the physical core count of the host, not
+    // this account's share. Each worker is a Node process, counted against
+    // the account-wide 200 "Max Processes" cap shared by 9 apps. One worker
+    // keeps a deploy from tipping the account over the cap. Same fix as
+    // vendercrm PR #84, propia.node PR #81, trabajo PR #82.
+    cpus: 1,
+  },
 
   images: {
     remotePatterns: remoteImagePatterns(),

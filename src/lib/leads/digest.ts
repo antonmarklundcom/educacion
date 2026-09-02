@@ -87,6 +87,10 @@ async function sendOne(
             : `Tenés ${entry.newCount} solicitudes sin responder`,
         text: digestBody(institutionName, entry, now),
       }),
+      // Resend is external; without a bound, a stuck peer holds this Node
+      // process open for up to 300s. Hostinger's shared account caps total
+      // processes across 9 apps (see next.config.ts).
+      signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       console.error(

@@ -80,6 +80,10 @@ export async function sendStalenessDigest(
         subject: `Datos por reverificar: ${counts.pricesExpired + counts.pricesNeverVerified} aranceles`,
         text: stalenessDigestBody(counts),
       }),
+      // Resend is external; without a bound, a stuck peer holds this Node
+      // process open for up to 300s. Hostinger's shared account caps total
+      // processes across 9 apps (see next.config.ts).
+      signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       console.error(`[freshness] digest failed: HTTP ${response.status}`);
