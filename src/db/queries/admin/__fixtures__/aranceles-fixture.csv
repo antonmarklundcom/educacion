@@ -1,0 +1,5 @@
+institution_slug,program_slug,campus_slug,modality,currency,matricula,monthly_fee,installments_per_year,admission_fee,is_free,source,source_url,valid_from,valid_to,notes,verified_on
+institucion-de-prueba-a,carrera-de-prueba-uno,sede-de-prueba,sin_datos,PYG,500000,1450000,10,150000,no,institucion,https://prueba.test/aranceles,,,"incluye materiales, sin derecho de examen",2026-08-01
+institucion-que-no-existe,carrera-de-prueba-uno,sede-de-prueba,sin_datos,PYG,500000,1450000,10,,no,institucion,,,,,2026-08-01
+institucion-de-prueba-a,carrera-de-prueba-dos,sede-de-prueba,presencial,PYG,500000,1450000,,,no,institucion,,,,sin cuotas por año,2026-08-01
+institucion-de-prueba-a,carrera-de-prueba-tres,sede-de-prueba,distancia,PYG,400000,900000,12,,no,relevamiento,,,,,2024-01-15

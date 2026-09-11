@@ -26,6 +26,7 @@
  * the enum it is keyed by would let the two drift.
  */
 
+import { adminImportCopy } from './admin-import';
 import { brandCopy } from './brand';
 import { browseCopy } from './browse';
 import { dataGapsCopy } from './data-gaps';
@@ -42,6 +43,7 @@ export const esPY = {
   footer: footerCopy,
   browse: { ...browseCopy, filterSheet: filterSheetCopy },
   dataGaps: dataGapsCopy,
+  adminImport: adminImportCopy,
   lead: leadCopy,
   totalCost: totalCostCopy,
   panel: panelCopy,

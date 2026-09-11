@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { ConsoleActionForm } from '@/components/admin/ConsoleActionForm';
+import { PriceCsvImportForm } from '@/components/admin/PriceCsvImportForm';
 import { Badge } from '@/components/ui';
 import { lastCronRuns, type CronRunRecord } from '@/db/queries/admin/cron';
 import {
@@ -14,9 +15,16 @@ import {
 import { CRON_JOBS } from '@/lib/cron/registry';
 import { requireRole } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
+import { adminImportCopy } from '@/lib/copy/admin-import';
 import { formatDate } from '@/lib/format';
 
-import { releaseImportRunAction, runCronJobAction, triggerImportAction } from './actions';
+import {
+  applyPriceCsvAction,
+  dryRunPriceCsvAction,
+  releaseImportRunAction,
+  runCronJobAction,
+  triggerImportAction,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -164,6 +172,15 @@ export default async function ImportsConsolePage() {
           arranca la corrida y vuelve enseguida: el avance se ve abajo, en las corridas. Mientras
           una fuente tiene una corrida abierta no se puede arrancar otra de la misma fuente.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-ink text-sm font-semibold">{adminImportCopy.heading}</h2>
+        <p className="text-muted max-w-prose text-sm">{adminImportCopy.intro}</p>
+        <PriceCsvImportForm dryRunAction={dryRunPriceCsvAction} applyAction={applyPriceCsvAction} />
+        <p className="text-faint max-w-prose text-xs">{adminImportCopy.template}</p>
+        <p className="text-faint max-w-prose text-xs">{adminImportCopy.rowCap}</p>
+        <p className="text-faint max-w-prose text-xs">{adminImportCopy.sizeCap}</p>
       </section>
 
       <section className="flex flex-col gap-3">

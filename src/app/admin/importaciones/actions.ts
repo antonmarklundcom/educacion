@@ -3,9 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
+import { applyPriceCsv, dryRunPriceCsv } from '@/db/queries/admin/price-import';
 import { releaseImportRun, triggerImportJob } from '@/db/queries/admin/imports';
+import { MAX_IMPORT_BYTES } from '@/lib/admin/price-csv';
+import { adminImportCopy } from '@/lib/copy/admin-import';
+import type { PriceImportState } from '@/components/admin/PriceCsvImportForm';
 import { cronJob } from '@/lib/cron/registry';
 import { currentUser } from '@/lib/auth/session';
+// Kept as a separate line: `actions.test.ts`'s structural scan asserts this
+// file reads the session from `currentUser()` by matching that import verbatim,
+// and folding a type into it makes the check silently stop matching.
+import type { SessionUser } from '@/lib/auth/session';
 import { requireRole } from '@/lib/auth/roles';
 
 /**
@@ -136,5 +144,90 @@ export async function runCronJobAction(
       };
     }
     return failed(error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Arancel CSV import (PR-61)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Read the uploaded file, or say why not.
+ *
+ * The size cap is checked on the `File` itself, before anything reads it into a
+ * string: a 40 MB upload should cost one `size` comparison, not 40 MB of memory
+ * on a shared host.
+ *
+ * The role is checked *before* that, even though both query functions check it
+ * again and those checks are the ones that matter (CLAUDE.md rule 4: security is
+ * server-side, in the module that writes). The point of the early check is
+ * narrower — a Server Action is a POST endpoint with a generated URL, and
+ * without it anyone who finds that URL can make the server read half a megabyte
+ * per request before being told no.
+ */
+async function readUpload(
+  actor: SessionUser | null | undefined,
+  formData: FormData,
+): Promise<{ text?: string; error?: string }> {
+  try {
+    requireRole(actor, ['editor']);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'No tenés permiso para esto.' };
+  }
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) return { error: adminImportCopy.noFile };
+  if (file.size > MAX_IMPORT_BYTES) return { error: adminImportCopy.tooLarge };
+  return { text: await file.text() };
+}
+
+function priceImportFailure(error: unknown): PriceImportState {
+  return { error: error instanceof Error ? error.message : 'No se pudo leer el archivo.' };
+}
+
+/** Verdict per row. Writes nothing, ever. */
+export async function dryRunPriceCsvAction(
+  _prevState: PriceImportState,
+  formData: FormData,
+): Promise<PriceImportState> {
+  const user = await currentUser();
+  const upload = await readUpload(user, formData);
+  if (upload.error) return { error: upload.error };
+
+  try {
+    const report = await dryRunPriceCsv(user, upload.text!);
+    return report.error ? { error: report.error } : { report };
+  } catch (error) {
+    return priceImportFailure(error);
+  }
+}
+
+/**
+ * Write the importable rows.
+ *
+ * It re-reads the uploaded file rather than trusting the dry run's report back
+ * from the browser — a report that round-tripped through a client is an input,
+ * and an input that says "write price X to offering Y" is the last thing this
+ * action should take on faith.
+ */
+export async function applyPriceCsvAction(
+  _prevState: PriceImportState,
+  formData: FormData,
+): Promise<PriceImportState> {
+  const user = await currentUser();
+  const upload = await readUpload(user, formData);
+  if (upload.error) return { error: upload.error };
+
+  try {
+    const report = await applyPriceCsv(user, upload.text!);
+    if (report.error) return { error: report.error };
+    revalidatePath('/admin/aranceles');
+    revalidatePath('/admin/importaciones');
+    return {
+      report,
+      message: adminImportCopy.appliedMessage(report.applied ?? 0, report.counts.error),
+    };
+  } catch (error) {
+    return priceImportFailure(error);
   }
 }
