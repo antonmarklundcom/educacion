@@ -2526,6 +2526,56 @@ hPanel does, and this page cannot know whether the entry was ever created. What
 it shows is the last run we observed beside the cadence we believe is
 configured — and the gap between those two is the finding.
 
+### 33.6 The arancel CSV importer (PR-61)
+
+The register half of this console had a button; the arancel half — the one
+`plan.md` §6 calls the actual bottleneck — still had a form that takes one price
+at a time, while the person filling it works in a spreadsheet. This is the other
+end of that spreadsheet. The CSV contract itself is `data-sources.md` §5.1; what
+belongs here is why the code is shaped the way it is.
+
+**Validation is not forked, it is called.** Every row becomes a `FormData` and
+goes through `parsePriceInput` — the same function the admin form calls, so the
+dry run's error text *is* the form's error text and there is no second set of
+price rules to drift. The importer adds exactly the three checks a form does not
+need: the four-slug resolution, `verified_on`, and `is_free`'s spelling (an
+unrecognised word there would pass as "not free" and publish a price for a
+gratuita, so it is refused rather than coerced).
+
+**`is_current` has one implementation.** `supersedeCurrentPrice` was extracted
+out of `createPrice` rather than reimplemented for bulk: demote the current row,
+insert the new one, log both, inside whatever transaction the caller opened.
+`createPrice` gives it one row's worth; the importer batches. A bulk path with
+its own `is_current` handling would be a second place for the
+`current_offering_id` UNIQUE to be violated and a second place to fix.
+
+**`verified_at` became a parameter.** It used to be `new Date()` unconditionally,
+which is right for the form — filling it *is* the act of verifying — and wrong
+for a sheet, where the assistant checked the number in March. Stamping today
+would move the 12-month clock forward and suppress the "dato desactualizado"
+warning the number has earned (§23).
+
+**One transaction per row, not one per file.** A 500-row transaction holds locks
+on `prices` for as long as the slowest row takes, on a host with a
+`connectionLimit` of 8, and one bad row would roll back 499 good ones the
+operator then has to find by hand. Per-row means the report is the truth —
+"escribimos 480, fallaron 20". `rebuildProgramSearch` runs once, after the loop,
+because it is a full replace.
+
+**The confirm re-uploads the file.** Nothing is staged server-side between the
+dry run and the apply. A report that round-tripped through a browser is an
+input, and an input saying "write price X to offering Y" is the last thing a
+write path should take on faith; a staging table would buy a stricter guarantee
+and cost a migration, a purge policy and a second thing to get stale. If the
+sheet changed between the clicks, the apply acts on what it can see and reports
+what it did.
+
+**No CSV dependency.** `architecture.md` §1's excluded list and CLAUDE.md's "no
+new dependency" both apply, so the parser is ~60 lines in
+`src/lib/admin/price-csv.ts`. The cases that actually occur are pinned by tests:
+a quoted `notes` field containing a comma, a doubled `""` inside one, CRLF from
+a laptop, and the BOM Excel writes.
+
 ---
 
 ## 34. Input validation & the Server-Action tests (settled in PR-51)

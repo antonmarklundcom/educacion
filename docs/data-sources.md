@@ -277,6 +277,78 @@ Per record capture: matrícula, cuota, number of cuotas per year, admission fee,
 
 **Re-verification:** annually, before the October season. The staleness cron flags anything over 10 months and emails the admin digest.
 
+## 5.1 The arancel CSV contract (PR-61)
+
+The assistant works in a sheet; `/admin/importaciones` ingests it through the
+same validation the one-price-at-a-time admin form uses. The template lives at
+[`data/templates/aranceles.csv`](../data/templates/aranceles.csv) — header row
+plus one obviously fake example row, never a plausible price (rule 1 covers
+templates as much as seed data).
+
+**The header, exactly and in this order.** A reordered header is refused rather
+than read positionally: a sheet with the columns moved is a sheet somebody
+edited, and reading it anyway is how `monthly_fee` ends up in `matricula`.
+
+```
+institution_slug, program_slug, campus_slug, modality, currency, matricula,
+monthly_fee, installments_per_year, admission_fee, is_free, source, source_url,
+valid_from, valid_to, notes, verified_on
+```
+
+**Why the key is four slugs and not `offering_id`.** The header is a document a
+human fills in for a year. An offering id is the convenient thing for us and the
+hostile thing for them: a number they cannot look up, cannot sanity-check and
+cannot notice they have mistyped — `4711` is as plausible as `4171`, and the
+wrong one writes a real price onto a real, different carrera. The four slugs are
+the same four things that identify the offering in its own URL, so a filled row
+is legible to whoever filled it and a typo produces an error row instead of a
+wrong write.
+
+`modality` is in the key because `offerings_uq` is
+`(program_id, campus_id, modality, shift)` — one campus can run the same
+programme presencial and a distancia at different prices. `sin_datos` is a legal
+value there since PR-59 and is what most rows carry. `shift` is deliberately
+**not** in the key: neither register prints a turno, every imported offering is
+`flexible`, and a column that is the same word on every row is how a template
+gets abandoned. A key matching more than one offering is an error row, not a
+tiebreak.
+
+**What an unresolvable row does.** Nothing. It is an error row with the reason
+in it. The importer never creates an institution, a programme, a campus or an
+offering — §4.6's refusals apply to a spreadsheet exactly as they do to a
+register.
+
+**Supersede, not duplicate.** A valid row for an offering that already has a
+current price flips the old row to `is_current = false` and inserts the new one
+in the same transaction, through `supersedeCurrentPrice` — the same function
+the admin form's `createPrice` calls. There is one implementation of "one
+current row per offering + history", so the `current_offering_id` UNIQUE has one
+place to be honoured. A second identical import therefore supersedes; it never
+duplicates.
+
+**Dates and staleness.** `verified_on` is required — it becomes
+`prices.verified_at`, the clock the 12-month rule is measured from, and
+defaulting it to today would fabricate the one fact that makes an arancel
+trustworthy. A future date is refused (it would suppress a warning the number
+has earned). A date already past 12 months is **imported and flagged** in the
+dry run — "se importará como dato desactualizado" — because rule 3 shows stale
+prices with their warning rather than hiding them.
+
+**Money and currency.** A missing `currency` is an error row; nothing assumes
+guaraníes. Amounts accept `1.450.000` and refuse a decimal separator rather than
+rounding it — the number is what a family budgets against.
+
+**Caps.** 500 rows and 512 KB per run, with the reason shown in the UI: each row
+is its own transaction plus an `activity_log` entry, and a batch this size
+finishes inside the proxy's patience. A bad batch is then 500 rows to review,
+not 5,000.
+
+**The two clicks.** Upload → dry-run table with a per-row verdict
+(`create` / `supersede` / `error`, the error in `parsePriceInput`'s own Spanish)
+→ confirm, which **re-uploads and re-reads the same file** rather than trusting
+a report that round-tripped through a browser. If the sheet changed in between,
+the apply acts on what it can see and reports what it did.
+
 ## 6. Freshness contract (shown publicly)
 
 | Data                            | Target freshness       | Displayed                                                                                              |

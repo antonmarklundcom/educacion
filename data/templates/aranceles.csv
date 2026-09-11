@@ -1,0 +1,2 @@
+institution_slug,program_slug,campus_slug,modality,currency,matricula,monthly_fee,installments_per_year,admission_fee,is_free,source,source_url,valid_from,valid_to,notes,verified_on
+ejemplo-institucion,ejemplo-carrera,ejemplo-sede,sin_datos,PYG,0,0,10,0,no,institucion,https://ejemplo.test/aranceles,,,fila de ejemplo — borrar,2026-01-01

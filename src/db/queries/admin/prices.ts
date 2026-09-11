@@ -44,6 +44,16 @@ import type { AdminListPage } from './institutions';
 
 export type PriceRow = typeof prices.$inferSelect;
 
+/**
+ * What a price write needs, whether it is holding a transaction or the pool.
+ *
+ * Drizzle's transaction object is structurally a `Db` minus `$client`, so a
+ * helper typed as `Db` cannot be handed one. Naming the three verbs is also
+ * the honest signature: `supersedeCurrentPrice` reads, demotes and inserts,
+ * and nothing else.
+ */
+export type PriceWriter = Pick<Db, 'select' | 'insert' | 'update'>;
+
 export interface PriceListRow {
   id: number;
   offeringId: number;
@@ -141,7 +151,19 @@ export async function listPriceHistory(
     .limit(50);
 }
 
-function toRow(input: PriceInputData, userId: number): typeof prices.$inferInsert {
+/**
+ * `verifiedAt` is a parameter rather than always `new Date()` because PR-61's
+ * CSV import carries the date the assistant actually checked the number
+ * (`verified_on`). Stamping today on a row verified in March would move the
+ * 12-month clock forward and suppress the "dato desactualizado" warning the
+ * number has earned — rule 3's whole point. The admin form still passes
+ * nothing and gets now, because filling that form *is* the act of verifying.
+ */
+function toRow(
+  input: PriceInputData,
+  userId: number,
+  verifiedAt: Date = new Date(),
+): typeof prices.$inferInsert {
   return {
     offeringId: input.offeringId,
     currency: input.currency,
@@ -156,9 +178,67 @@ function toRow(input: PriceInputData, userId: number): typeof prices.$inferInser
     validFrom: input.validFrom,
     validTo: input.validTo,
     isCurrent: true,
-    verifiedAt: new Date(),
+    verifiedAt,
     verifiedByUserId: userId,
   };
+}
+
+/**
+ * The supersede itself: demote the current row, insert the new one, log both.
+ *
+ * Exported to this module's siblings (PR-61's CSV import) so there is exactly
+ * one implementation of "one current row per offering + history". A bulk
+ * importer that wrote its own `is_current` handling would be a second place for
+ * the `current_offering_id` UNIQUE to be violated, and a second place to fix
+ * when the rule changes.
+ *
+ * Takes a transaction rather than a `Db`: the caller decides how much is
+ * atomic. `createPrice` gives it one row's worth; the importer batches.
+ */
+export async function supersedeCurrentPrice(
+  tx: PriceWriter,
+  row: typeof prices.$inferInsert,
+  userId: number,
+): Promise<number> {
+  const [previous] = await tx
+    .select()
+    .from(prices)
+    .where(and(eq(prices.offeringId, row.offeringId), eq(prices.isCurrent, true)))
+    .limit(1);
+
+  if (previous) {
+    await tx.update(prices).set({ isCurrent: false }).where(eq(prices.id, previous.id));
+  }
+
+  const [result] = await tx.insert(prices).values(row);
+  const insertId = Number(result.insertId);
+
+  await logActivity(tx, {
+    userId,
+    entityType: 'price',
+    entityId: insertId,
+    action: 'create',
+    // The superseded row is the `before`: that is what the site was showing
+    // until this save, and it is the question an institution disputing an
+    // arancel actually asks.
+    before: previous ? { ...previous, supersededPriceId: previous.id } : null,
+    after: { ...row },
+  });
+
+  return insertId;
+}
+
+/** What a caller needs to know before it writes: is this a create or a supersede? */
+export async function currentPriceIdFor(
+  tx: PriceWriter,
+  offeringId: number,
+): Promise<number | null> {
+  const [previous] = await tx
+    .select({ id: prices.id })
+    .from(prices)
+    .where(and(eq(prices.offeringId, offeringId), eq(prices.isCurrent, true)))
+    .limit(1);
+  return previous?.id ?? null;
 }
 
 /**
@@ -178,34 +258,7 @@ export async function createPrice(
 
   const row = toRow(input, user.id);
 
-  const id = await database.transaction(async (tx) => {
-    const [previous] = await tx
-      .select()
-      .from(prices)
-      .where(and(eq(prices.offeringId, input.offeringId), eq(prices.isCurrent, true)))
-      .limit(1);
-
-    if (previous) {
-      await tx.update(prices).set({ isCurrent: false }).where(eq(prices.id, previous.id));
-    }
-
-    const [result] = await tx.insert(prices).values(row);
-    const insertId = Number(result.insertId);
-
-    await logActivity(tx, {
-      userId: user.id,
-      entityType: 'price',
-      entityId: insertId,
-      action: 'create',
-      // The superseded row is the `before`: that is what the site was showing
-      // until this save, and it is the question an institution disputing an
-      // arancel actually asks.
-      before: previous ? { ...previous, supersededPriceId: previous.id } : null,
-      after: { ...row },
-    });
-
-    return insertId;
-  });
+  const id = await database.transaction((tx) => supersedeCurrentPrice(tx, row, user.id));
 
   await rebuildProgramSearch({ db: database });
   return id;

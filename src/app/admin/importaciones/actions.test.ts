@@ -17,6 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const triggerImportJob = vi.fn();
 const releaseImportRun = vi.fn();
 const requireRole = vi.fn();
+const dryRunPriceCsv = vi.fn();
+const applyPriceCsv = vi.fn();
 
 let sessionUser: unknown = { id: 7, role: 'editor', institutionId: null };
 let requestHeaders = new Headers({ host: 'educacion.com.py' });
@@ -29,13 +31,31 @@ vi.mock('@/db/queries/admin/imports', () => ({
   triggerImportJob: (...a: unknown[]) => triggerImportJob(...a),
   releaseImportRun: (...a: unknown[]) => releaseImportRun(...a),
 }));
+vi.mock('@/db/queries/admin/price-import', () => ({
+  dryRunPriceCsv: (...a: unknown[]) => dryRunPriceCsv(...a),
+  applyPriceCsv: (...a: unknown[]) => applyPriceCsv(...a),
+}));
 
-const { triggerImportAction, releaseImportRunAction, runCronJobAction } =
-  await import('./actions');
+const {
+  triggerImportAction,
+  releaseImportRunAction,
+  runCronJobAction,
+  dryRunPriceCsvAction,
+  applyPriceCsvAction,
+} = await import('./actions');
 
 function form(entries: Record<string, string>): FormData {
   const data = new FormData();
   for (const [key, value] of Object.entries(entries)) data.set(key, value);
+  return data;
+}
+
+const EMPTY_REPORT = { rows: [], counts: { create: 0, supersede: 0, error: 0 } };
+
+/** A `File` the way the browser sends one from `<input type="file">`. */
+function upload(text: string, name = 'aranceles.csv'): FormData {
+  const data = new FormData();
+  data.set('file', new File([text], name, { type: 'text/csv' }));
   return data;
 }
 
@@ -51,6 +71,8 @@ beforeEach(() => {
   triggerImportJob.mockReset().mockResolvedValue({ message: 'Importación iniciada.' });
   releaseImportRun.mockReset().mockResolvedValue(undefined);
   requireRole.mockReset().mockReturnValue(undefined);
+  dryRunPriceCsv.mockReset().mockResolvedValue(EMPTY_REPORT);
+  applyPriceCsv.mockReset().mockResolvedValue({ ...EMPTY_REPORT, applied: 0 });
   process.env.CRON_SECRET = 'un-secreto';
   vi.stubGlobal('fetch', vi.fn(okResponse));
 });
@@ -227,5 +249,67 @@ describe('runCronJobAction', () => {
   it('reports success with the job’s label', async () => {
     const state = await runCronJobAction({}, form({ job: 'rebuild-search' }));
     expect(state.message).toContain('Reconstrucción del índice de búsqueda');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* PR-61 — the arancel CSV actions                                            */
+/* -------------------------------------------------------------------------- */
+
+describe('the arancel CSV actions', () => {
+  it('hands the session and the file text to the dry run, which owns the gate', async () => {
+    const state = await dryRunPriceCsvAction({}, upload('institution_slug\nuna'));
+    expect(dryRunPriceCsv).toHaveBeenCalledWith(sessionUser, 'institution_slug\nuna');
+    expect(state.report).toEqual(EMPTY_REPORT);
+  });
+
+  it('refuses a submission with no file', async () => {
+    const state = await dryRunPriceCsvAction({}, new FormData());
+    expect(state.error).toContain('Elegí un archivo');
+    expect(dryRunPriceCsv).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A Server Action is a POST endpoint with a generated URL. Reading half a
+   * megabyte per request for a caller we are about to refuse is work anybody
+   * who finds that URL can ask for.
+   */
+  it('checks the role before it reads a byte of the upload', async () => {
+    requireRole.mockImplementation(() => {
+      throw new Error('No tenés permiso para esto.');
+    });
+    const state = await applyPriceCsvAction({}, upload('lo que sea'));
+    expect(state.error).toBe('No tenés permiso para esto.');
+    expect(applyPriceCsv).not.toHaveBeenCalled();
+  });
+
+  it('refuses a file over the size cap without reading it', async () => {
+    const state = await dryRunPriceCsvAction({}, upload('x'.repeat(512 * 1024 + 1)));
+    expect(state.error).toContain('512 KB');
+    expect(dryRunPriceCsv).not.toHaveBeenCalled();
+  });
+
+  it('reports an unreadable file as the query worded it, and shows no table', async () => {
+    dryRunPriceCsv.mockResolvedValue({ ...EMPTY_REPORT, error: 'El encabezado no coincide.' });
+    const state = await dryRunPriceCsvAction({}, upload('mal,encabezado'));
+    expect(state.error).toBe('El encabezado no coincide.');
+    expect(state.report).toBeUndefined();
+  });
+
+  it('re-reads the uploaded file on apply rather than trusting the previous report', async () => {
+    const previous = { report: { rows: [{ line: 2 }], counts: EMPTY_REPORT.counts } } as never;
+    await applyPriceCsvAction(previous, upload('contenido nuevo'));
+    expect(applyPriceCsv).toHaveBeenCalledWith(sessionUser, 'contenido nuevo');
+  });
+
+  it('summarises what was actually written, partial failures included', async () => {
+    applyPriceCsv.mockResolvedValue({
+      rows: [],
+      counts: { create: 1, supersede: 0, error: 2 },
+      applied: 1,
+    });
+    const state = await applyPriceCsvAction({}, upload('filas'));
+    expect(state.message).toContain('Importamos 1 arancel');
+    expect(state.message).toContain('dejamos 2 sin importar');
   });
 });

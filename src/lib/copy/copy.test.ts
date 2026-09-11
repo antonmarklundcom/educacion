@@ -156,6 +156,36 @@ const ADDED: Record<string, string> = {
   'totalCost.compareLabel': 'Costo total',
   'totalCost.cheapest': 'el más barato',
 
+  'adminImport.heading': 'Importar aranceles (CSV)',
+  'adminImport.intro':
+    'Subí la planilla del relevamiento. Primero te mostramos fila por fila qué va a pasar; recién después escribimos.',
+  'adminImport.fileLabel': 'Archivo CSV',
+  'adminImport.dryRun': 'Ver qué va a pasar',
+  'adminImport.dryRunPending': 'Leyendo…',
+  'adminImport.apply': 'Confirmar e importar',
+  'adminImport.applyPending': 'Importando…',
+  'adminImport.applyNote':
+    'Al confirmar volvemos a leer el mismo archivo. Si lo editaste después de la vista previa, se importa lo que diga ahora.',
+  'adminImport.template':
+    'La plantilla está en data/templates/aranceles.csv. El encabezado tiene que coincidir exactamente: si reordenás las columnas, no lo leemos.',
+  'adminImport.rowCap':
+    'Máximo 500 filas por corrida: cada fila es una transacción y un registro de actividad, y una tanda de este tamaño termina antes de que el servidor se canse de esperar. Una planilla más grande se parte en varias.',
+  'adminImport.sizeCap':
+    'Máximo 512 KB por archivo. Es mucho más de lo que ocupan 500 filas de esta planilla: si tu archivo pesa más, casi seguro no es esta planilla.',
+  'adminImport.noFile': 'Elegí un archivo CSV.',
+  'adminImport.tooLarge': 'El archivo pesa más de 512 KB. Revisá que sea la planilla de aranceles.',
+  'adminImport.verdicts.create': 'Nuevo arancel',
+  'adminImport.verdicts.supersede': 'Reemplaza al actual',
+  'adminImport.verdicts.error': 'No se importa',
+  'adminImport.summary': '«arg0» nuevos · «arg1» reemplazan al actual · «arg2» con error',
+  'adminImport.appliedMessage':
+    'Importamos «arg0» aranceles y dejamos «arg1» sin importar. Corregí esas filas y volvé a subir solo esas.',
+  'adminImport.emptyResult': 'No hay filas para mostrar.',
+  'adminImport.columns.line': 'Fila',
+  'adminImport.columns.offering': 'Oferta',
+  'adminImport.columns.verdict': 'Qué pasa',
+  'adminImport.columns.detail': 'Detalle',
+
   'dataGaps.modality': 'Sin datos',
   'dataGaps.modalityInline': 'modalidad sin datos',
   'dataGaps.modalityCityIntroNone':
