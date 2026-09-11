@@ -5,7 +5,7 @@
 **Stack:** Next.js 15 (App Router, TS) + Drizzle + MySQL on Hostinger managed Node.js
 **Language of the product:** Paraguayan Spanish (voseo). Language of the repo/docs: English.
 
-> Companion docs: [`docs/architecture.md`](docs/architecture.md) · [`docs/data-model.md`](docs/data-model.md) · [`docs/data-sources.md`](docs/data-sources.md) · [`docs/monetization.md`](docs/monetization.md) · [`docs/seo.md`](docs/seo.md) · [`docs/design-system.md`](docs/design-system.md) · [`docs/risks.md`](docs/risks.md) · [`docs/pr-plan.md`](docs/pr-plan.md) · [`docs/agent-workflow.md`](docs/agent-workflow.md) · [`docs/deployment.md`](docs/deployment.md) · [`docs/student-engagement.md`](docs/student-engagement.md)
+> Companion docs: [`docs/architecture.md`](docs/architecture.md) · [`docs/data-model.md`](docs/data-model.md) · [`docs/data-sources.md`](docs/data-sources.md) · [`docs/monetization.md`](docs/monetization.md) · [`docs/seo.md`](docs/seo.md) · [`docs/design-system.md`](docs/design-system.md) · [`docs/risks.md`](docs/risks.md) · [`docs/pr-plan.md`](docs/pr-plan.md) · [`docs/agent-workflow.md`](docs/agent-workflow.md) · [`docs/deployment.md`](docs/deployment.md) · [`docs/student-engagement.md`](docs/student-engagement.md) · [`docs/review-2026-09.md`](docs/review-2026-09.md) · [`docs/domains.md`](docs/domains.md) · [`docs/launch-runbook.md`](docs/launch-runbook.md)
 
 ---
 
@@ -107,6 +107,24 @@ nudges + in-panel plan status, the admin import/cron console, Server-Action test
 public inputs.
 **Exit:** the data-ops loop runs from the browser; conversion surfaces sharpened; the write paths users trigger are tested.
 
+### Phase 8 — Quality hardening (PR 52–58) — shipped
+Lighthouse actually run, coverage on the money and data paths, the `force-dynamic` audit, the
+SEO-surface sweep, the last uncached reads, the remaining admin actions covered.
+
+### Phase 9 — Launch (PR 59–66) — planned, next
+Decided in [`docs/review-2026-09.md`](docs/review-2026-09.md): the code is finished and the
+data never arrived. Offerings without a stated modality (the CONES blocker), the price CSV
+import for the data assistant, the canonical-host middleware, the ANEAES transcription, career
+hub copy, the accreditation posts, then the docs diet. Opus lane first (PR-59, PR-61), Sonnet
+lane after. One prompt per PR in `prompts/`.
+**Exit:** live on `educacion.com.py`, `universidad.com.py` redirecting, `program_search`
+populated from CONES, ANEAES accreditations on the pages, the top 40 career hubs indexable,
+the data assistant importing aranceles from a sheet.
+
+### Phase 10 — Colegios — designed, not scheduled
+A K-12 directory under `/colegios` on the same domain. Shape and trigger in
+[`docs/domains.md`](docs/domains.md) §3. Nothing is prepared in code.
+
 ### Designed, not scheduled — student engagement
 Student accounts, the "Mi lista" decision dashboard, inscription alerts, the vocational
 quiz and any second language are fully specified in
@@ -123,6 +141,7 @@ permitted ahead of activation; the spec is the preparation.
 The Paraguayan academic year starts in **February/March**, with a second intake around **July/August**. Search traffic for "carreras", "inscripciones", "examen de ingreso" peaks **October–February**.
 
 - Public MVP must be live and indexed by **early October** to catch the main season.
+- **Status 2026-09-11:** not yet deployed. `docs/launch-runbook.md` is the ordered checklist; Phase 9 is what the site needs to be worth indexing.
 - Institutional sales conversations happen **August–October**, when marketing budgets for the admission campaign are set. Selling in March is selling to an empty budget.
 
 If the build slips past November, do not rush a bad launch into the peak — launch anyway to start accruing index age, but plan monetization for the *following* cycle.
@@ -192,6 +211,6 @@ Per-PR ownership is assigned in [`docs/pr-plan.md`](docs/pr-plan.md); prompt tem
 
 ## 10. Pull requests
 
-**37 PRs shipped across 6 phases; 12 more planned across Phases 6–7.** Complete enumerated list with scope, owner model, dependencies and acceptance criteria: [`docs/pr-plan.md`](docs/pr-plan.md).
+**58 PRs shipped across 9 phases (0–8); 7 planned in Phase 9.** Complete enumerated list with scope, owner model, dependencies and acceptance criteria: [`docs/pr-plan.md`](docs/pr-plan.md).
 
 Sizing principle: one PR = one reviewable concern = deployable on its own. If a PR needs a paragraph to explain why it contains two things, split it.

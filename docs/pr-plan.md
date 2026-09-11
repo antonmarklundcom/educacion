@@ -1,7 +1,7 @@
 # Pull Request Plan
 
-**Status (2026-08-20):** PR-01–36, PR-39 and PR-40–46 are merged; the rest of Phases 6–7
-below are planned and not started. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
+**Status (2026-09-11):** PR-01–58 are merged (Phases 0–8). Phase 9 (PR 59–66) is planned
+and not started; it is the launch phase decided in `docs/review-2026-09.md`, prompts in `prompts/`. PR-37 and PR-38 were never used — the numbering jumped to 39 and the gap is
 left as-is rather than backfilled, so branch names in git history stay truthful.
 
 **Sizing principle:** one PR = one reviewable concern, deployable on its own. If explaining the scope takes a paragraph, split it.
@@ -1383,6 +1383,192 @@ both, keeping §5's "the two can never disagree" true. `architecture.md` §39 an
 
 ---
 
+## Phase 9 — Launch: data unblocked, content written (PR 59–66) — planned
+
+Decided in `docs/review-2026-09.md` (2026-09-11). No feature, no hardening. Every PR here
+either lets real data reach the catalog, lets a money page enter the index, or removes a
+launch hazard. **The Opus lane runs first, sequentially; the Sonnet lane follows.** One prompt
+per PR in `prompts/`; a session runs one prompt and ends. PR-65 is reserved and unused so the
+numbers below stay stable.
+
+Order: PR-59 → PR-61 (Opus) → PR-60 → PR-62 → PR-63 → PR-64 → PR-66 (Sonnet, each with its
+review where marked).
+
+### PR-59 — Offerings without a stated modality · **Opus**
+
+CONES stopped printing modality (`data-sources.md` §1.1), and `buildProposals` refuses to
+create an offering without one (`src/lib/curate/pipeline.ts`, the `if (!placement.modality)`
+branch). The consequence is an empty `program_search` and an empty site. Rule 1 asks for the
+honest gap to be shown, not for the row to be withheld — `enrollment_status` already carries
+`sin_datos` for the same reason.
+
+Scope:
+- `MODALITY` gains `'sin_datos'` (schema, `program_search.modality`, a migration via
+  `npm run db:generate`; `docs/data-model.md` "Programs & offerings" + "The search table").
+- `mapModality(null)` stays `null`; the pipeline maps a `null` placement modality to
+  `'sin_datos'` **only for CONES rows** and creates the offering. The uniqueness key keeps
+  `modality` in it, so a later row with a real modality creates a second offering rather than
+  overwriting; when a real-modality offering exists for the same program + campus, the
+  `sin_datos` twin is superseded (unpublished) by the pipeline, never deleted.
+- Search: `sin_datos` never matches a `modalities` filter value; the facet shows "Sin datos"
+  with its count but is not selectable; sort and everything else unaffected.
+- UI: `labels.ts` renders `Modalidad: sin datos`; cards, the table view, the comparador row,
+  `OfferingsBlock`, the OG programme card and the city-page intro all use the label through the
+  copy catalog (`src/lib/copy`), never inline.
+- JSON-LD: `catalog-schema.ts` omits `courseMode` for `sin_datos`; `timeRequired` /
+  `educationalCredentialAwarded` rules unchanged.
+- Admin: the offering form (`parseOfferingInput`) accepts `sin_datos` so an editor can leave it
+  honest; the panel's offering editor lets an institution set a real modality, which is the
+  intended correction path.
+- `data-sources.md` §1.1 updated: "PR-06 will not create offerings from CONES" becomes the
+  new rule.
+
+**Deps:** none.
+**Accept:** `npm run curate` against a CONES snapshot with null modality creates one
+`published` offering per (program, campus) with `modality = 'sin_datos'` (test in
+`pipeline.test.ts` replacing "does not invent a modality"); `program_search` rebuild includes
+them; a `?modalities=presencial` query excludes them; no string `sin datos` in JSX outside the
+catalog; `Course` JSON-LD for such an offering has no `courseMode`; `npm run build`, `lint`,
+`test` green; the `docs/data-model.md` and `data-sources.md` edits are in the same PR.
+
+### PR-60 — Canonical-host middleware · **Sonnet → Opus review**
+
+There is no `src/middleware.ts`. Once deployed, the `*.hostingersite.com` preview and
+`universidad.com.py` serve full duplicates. `docs/domains.md` §1 is the contract.
+
+Scope:
+- `src/middleware.ts`: if the request host (`x-forwarded-host` first, then `host`) differs
+  from the host of `NEXT_PUBLIC_SITE_URL`, respond `301` to the same path + query on the
+  canonical origin. `www.` is non-canonical. Exempt: `/api/cron/*`, `/api/client-error`, any
+  request without a resolvable canonical (env unset → pass through, log once).
+- `robots.ts`: on a non-canonical host return disallow-all (belt and braces for a crawler that
+  arrives before DNS settles).
+- `docs/deployment.md` §2 step 6–7 and `docs/launch-runbook.md` reference it; `.env.example`
+  documents that `NEXT_PUBLIC_SITE_URL` is now load-bearing for routing.
+
+**Deps:** none. **Review:** it runs on every request; the reviewer checks it cannot loop, never
+touches `/api/cron`, and passes `x-forwarded-proto` handling the same way `runCronJobAction`'s
+test pins ("https,http" builds one URL).
+**Accept:** unit tests for the matcher (canonical passes; `www.`, preview host and
+`universidad.com.py` 301 with path + query preserved; cron path exempt; env unset passes);
+`npm run build` green; the middleware matcher excludes `_next/static`, `_next/image`, `og/*`
+is **not** excluded (a shared OG image must also live on the canonical host).
+
+### PR-61 — Price bulk import: CSV → `prices` · **Opus**
+
+The data assistant works in a sheet (`data-sources.md` §5). The site ingests it through the
+same rules as the form, with a dry run.
+
+Scope:
+- CSV contract, documented in `docs/data-sources.md` §5.1 and shipped as
+  `data/templates/aranceles.csv` (header row + one example row that is clearly a template,
+  never real data): `institution_slug, program_slug, campus_slug, modality, currency,
+  matricula, monthly_fee, installments_per_year, admission_fee, is_free, source, source_url,
+  valid_from, valid_to, notes, verified_on`. The offering is resolved from the four slugs;
+  `sin_datos` modality is a legal value after PR-59.
+- `/admin/importaciones` gains "Importar aranceles (CSV)": upload → **dry-run table** with a
+  per-row verdict (create / supersede current / error with the same Spanish message
+  `parsePriceInput` produces) → confirm → apply in one transaction per row batch, writing
+  `verified_at`, `verified_by_user_id` = the session user, and an `activity_log` entry per row.
+  Every row goes through `parsePriceInput` (build a `FormData` from the row; do not fork the
+  validation). `is_current` handling reuses the existing supersede query in
+  `db/queries/admin/prices.ts`.
+- `requireRole('admin' | 'editor')`; file size cap; max rows per run (500) with the reason in
+  the UI copy.
+
+**Deps:** PR-59 (modality value). **Accept:** a fixture CSV with one valid row, one unknown
+slug, one price without installments and one stale `verified_on` (> 12 months) produces four
+correct verdicts in dry run; apply writes exactly the valid row and one activity-log entry; a
+second identical apply supersedes rather than duplicates (`current_offering_id` uniqueness
+holds); no SQL outside `src/db/queries/`; docs updated in the same PR.
+
+### PR-62 — ANEAES 2024 transcription · **Sonnet → Opus review**
+
+`data-sources.md` §1.2 decided: transcribe. Requires the PDF committed by Anton at
+`data/sources/aneaes/Listado_de_acreditaciones_2024.pdf` (human input; the session stops per
+`prompts/README.md` if it is absent).
+
+Scope:
+- `data/sources/aneaes/listado-2024.csv` in the §1.2 header contract, one row per programme,
+  `Fuente` = the PDF's public URL on every row, `Resolucion` empty, no vigencia columns.
+- `data/sources/aneaes/README.md`: per-section counts read off the PDF (expected 122 nacional,
+  6 ARCU-SUR, 18 postgrado, 1 institution) and the exact page each section starts on.
+- A test that parses the CSV through `parseAneaesCsv` and asserts the section counts match the
+  README, every row is `citable`, and every institution name maps to a CONES institution or is
+  listed in the README's "unmatched" table with the reason.
+- `npm run import:aneaes -- --file data/sources/aneaes/listado-2024.csv --dry-run` output
+  pasted into the PR body.
+
+**Deps:** none in code. **Review:** the reviewer spot-checks 20 random rows against the PDF
+pages and the unmatched table; any row it cannot find is a blocker.
+**Accept:** counts match; `citable: true` on every row; no `Resolucion` value invented; the
+`curate` dry run proposes accreditation writes only for matched programmes.
+
+### PR-63 — Career hub editorial copy · **Sonnet → Opus review**
+
+Every career hub is `noindex` until `description_md` has 150 words (`src/lib/careers/copy.ts`).
+
+Scope:
+- `data/editorial/careers/<slug>.md` for the 40 careers with the most published offerings after
+  PR-59 (the list is produced by a query at session start and committed as
+  `data/editorial/careers/_index.md`). 180–260 words each, voseo, Paraguayan context. **No
+  number of any kind** — no durations, prices, counts, salaries, employability, percentages,
+  years. Those are rendered by the page from the database. No institution named. No
+  accreditation claim.
+- `scripts/seed-editorial.ts` + `npm run seed:editorial`: idempotent, writes
+  `careers.description_md` **only where it is null**, never overwrites an admin edit, logs
+  what it skipped.
+- A test that scans every markdown file for digits and for institution names from the
+  taxonomy and fails on either.
+
+**Deps:** PR-59. **Review:** the fabrication scan (`agent-workflow.md` §5 item 5) on every
+file; a paragraph that could be about any career is rewritten or the file is dropped.
+**Accept:** 40 files pass the scan; seed is idempotent (second run writes nothing); hubs for
+those careers render `index, follow` in `generateMetadata` on a seeded local DB.
+
+### PR-64 — Accreditation hub posts · **Sonnet → Opus review**
+
+`seo.md` §8 items 1 and 3: the explainer and the maintained list. Requires
+`data/editorial/sources/acreditacion.md` from Anton: the URLs and quoted sentences of every
+source (ANEAES statement, MEC resolution, ABC Color coverage) the posts may cite. The session
+stops if the file is absent.
+
+Scope:
+- Three posts as `data/editorial/posts/*.md` seeded through the same `seed:editorial` script
+  (extend it; posts by slug, `draft` status so an admin publishes): "¿Qué significa que una
+  carrera esté acreditada por ANEAES?", "¿Qué pasa con tu título si la carrera no está
+  acreditada?", "Cómo verificar si tu carrera está acreditada (paso a paso)". Every factual
+  claim footnoted to a line in the sources file; anything not in it is not written.
+- Each post links the checker (`/acreditacion`) and at least one career hub with descriptive
+  anchor text; none targets a career hub's transactional query.
+
+**Deps:** PR-63 (the seed script). **Review:** every claim traced to the sources file.
+**Accept:** posts seed as drafts; the citation test (claim sentence ↔ source line) passes;
+`Article` JSON-LD renders on publish.
+
+### PR-66 — Docs diet · **Sonnet**
+
+`docs/architecture.md` is 3,100 lines, most of it "settled in PR-NN" narrative every session
+is told to read.
+
+Scope:
+- Move each `## N. … (settled in PR-NN)` section verbatim to `docs/decisions/pr-NN.md`
+  (one file per PR, the section heading preserved). Leave in `architecture.md` §1–§10 plus a
+  short "current state" paragraph per moved section that says what is true now and links the
+  decision file. Target ≤ 700 lines.
+- Same treatment for `docs/pr-plan.md`: shipped phases 0–8 collapse to their tables with
+  one-line entries linking `docs/decisions/pr-NN.md`; planned phases stay in full.
+- `CLAUDE.md` table: add `docs/decisions/` and `docs/domains.md`, `docs/review-2026-09.md`,
+  `docs/launch-runbook.md`, `prompts/`.
+- No wording changes inside moved text; a `git diff --stat` that shows only moves plus the
+  new summaries is the review.
+
+**Deps:** after PR-59–64 merge (so nothing in flight references a moved anchor).
+**Accept:** every internal `docs/*.md#anchor` link resolves (add a link check to `npm test`
+or a script); `architecture.md` ≤ 700 lines; nothing deleted, only moved.
+
+---
+
 ## Designed, not scheduled
 
 Student accounts, the "Mi lista" decision dashboard, inscription alerts, the vocational
@@ -1408,7 +1594,9 @@ storage decision and return only with the migration that creates institution med
 | **Shipped**                      |       | **37** | **13** | **16** | **8**                |
 | 6 — Hardening & SEO debt (plan)  | 40–46 | 7      | 2      | 2      | 3                    |
 | 7 — Growth & polish (plan)       | 47–51 | 5      | 0      | 3      | 2                    |
-| **Total incl. planned**          |       | **49** | **15** | **21** | **13**               |
+| 8 — Quality hardening (shipped)  | 52–58 | 7      | 7      | 0      | 0                    |
+| 9 — Launch (plan)                | 59–66 | 7      | 2      | 1      | 4                    |
+| **Total incl. planned**          |       | **63** | **24** | **22** | **17**               |
 
 Across the 37 shipped PRs Sonnet wrote **24 (65%)** and, weighted by lines of code, closer
 to **80%** — the heavy-line-count PRs (pages, admin CRUD, components) are all Sonnet's.

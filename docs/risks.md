@@ -297,3 +297,34 @@ log-volume amplifier — so the answer is in the
 Hostinger log rather than in a support ticket. There is no admin view of the limiter's
 state and no unlock button — a durable per-account backstop needs a table and a deliberate
 unlock path, and it is not worth building before there is evidence anybody is trying.
+
+---
+
+## R-17 — The honest gap becoming no page at all
+
+**Severity: High · Mitigate: PR-59, then continuously**
+
+Rule 1 (never fabricate) has a failure mode of its own: a gate written to refuse an invented
+value can silently refuse the whole row. That is what happened with modality — CONES stopped
+printing it, the pipeline declined to create any offering, and the catalog stayed empty for a
+month while twenty hardening PRs shipped on top of it (`docs/review-2026-09.md` F-1).
+
+**Mitigation:** the honest gap is a *displayed* `sin_datos`, never an absent row. Every enum
+that a source can leave blank carries a `sin_datos` value (`enrollment_status` already did;
+`modality` gets one in PR-59). A pipeline gate that drops rows must report the dropped count in
+`curate`'s summary, and a dropped count above zero on a full run is a defect to schedule, not a
+statistic to record.
+
+---
+
+## R-18 — Secondary hosts as duplicate content
+
+**Severity: Medium · Mitigate: PR-60**
+
+`universidad.com.py`, `www.`, and the `*.hostingersite.com` preview all resolve to the same
+app. Without a host rule each is a complete duplicate of the site, and the preview URL is
+the one Google finds first because it exists before DNS does.
+
+**Mitigation:** `docs/domains.md` §1 — one canonical host, 301 from every other, disallow-all
+robots on a non-canonical host, enforced in middleware rather than in the hosting panel.
+

@@ -43,9 +43,10 @@ the parsers were reading a shape that no longer existed.**
   (`Grado` / `Postgrado` / `Pregrado`). Both were missing from PR-05's header
   vocabulary, which is the second reason the archive parsed zero.
 - **There is no modality column any more.** `modalityRaw` is null on every
-  program row, so PR-06 will not create offerings from CONES — its "no offering
-  without a stated modality" gate holds, and that is the correct outcome. An
-  honest gap; do not default it to `presencial`.
+  program row. PR-06's "no offering without a stated modality" gate therefore
+  produced no offerings at all — an empty catalog is not the honest gap, it is
+  no page. **PR-59 reverses it:** CONES rows become offerings with
+  `modality = 'sin_datos'`, shown as such. Still never defaulted to `presencial`.
 - **`Estado`** is empty or `INACTIVO` (31 of 845 on the UNA page). It is carried
   as `offeringStatusRaw` — deliberately _not_ `statusRaw` — because it is the
   standing of the offering and must never reach `mapAccreditationStatus`. CONES
@@ -90,14 +91,14 @@ is ignored — a citation nobody can open is not a citation.
 a dead URL and reporting a truthful-looking zero, and `collectAneaes` refuses to
 hand a PDF to the HTML reader.
 
-## 1.2 The ANEAES PDF: parse it or transcribe it (open)
+## 1.2 The ANEAES PDF: parse it or transcribe it (decided 2026-09-11: transcribe — PR-62)
 
 | Option                                    | Cost                                                                                                                                            | Risk                                                                                                                                                                                                                                                                                                                                                                                  |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Parse the PDF**                         | A permanent dependency: `unpdf` 1.8.0 ≈ 2.1 MB, `pdf2json` 4.0.3 ≈ 8.2 MB, `pdf-parse` 2.4.5 ≈ 21.3 MB, `pdfjs-dist` 6.2.108 ≈ 34.5 MB unpacked | PDF text extraction loses column boundaries on tabular layouts. The failure mode is a row whose institution and programme come from different lines — a wrong accreditation on a real university's page. **Extraction quality against this specific document is unverified: `*.gov.py` is unreachable from here, so nobody has run the 12 pages through any of these libraries yet.** |
 | **Transcribe once into a checked-in CSV** | ~147 rows by hand, once a year                                                                                                                  | None at parse time. The CSV is reviewable in a diff, ingests through the existing `--file` path with no new code, and carries the PDF URL per row as `source_url`                                                                                                                                                                                                                     |
 
-**Recommendation: transcribe.** ANEAES publishes this listing roughly once a
+**Decision: transcribe** (`docs/review-2026-09.md` F-2; the work is `pr-plan.md` PR-62, from a PDF Anton commits at `data/sources/aneaes/`). ANEAES publishes this listing roughly once a
 year — a permanent runtime dependency is a poor trade for one annual document,
 and the row count is an afternoon, not a project. The deciding argument is not
 size, though: it is that the parse cannot be validated from here, and the field

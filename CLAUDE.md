@@ -16,6 +16,10 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
 | `docs/agent-workflow.md` | Opus/Sonnet split, prompt templates, review checklist               |
 | `docs/deployment.md`     | Hostinger specifics and the gotchas not to rediscover               |
 | `docs/student-engagement.md` | Student accounts / Mi lista / alerts — specified, NOT scheduled |
+| `docs/review-2026-09.md` | The September 2026 review: findings and the decisions behind Phase 9 |
+| `docs/domains.md`        | One canonical domain; `universidad.com.py` redirects; colegios = Phase 10 |
+| `docs/launch-runbook.md` | The ordered human checklist to go live                              |
+| `prompts/`               | One prompt file per Phase 9 PR; a session runs one and ends         |
 
 ## Non-negotiable rules
 
