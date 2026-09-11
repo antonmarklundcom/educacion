@@ -105,7 +105,7 @@ programs
 
 offerings         // what the user actually compares
   id, program_id, campus_id,
-  modality enum('presencial','semipresencial','distancia'),
+  modality enum('presencial','semipresencial','distancia','sin_datos')  // NOT NULL, default 'sin_datos'
   shift enum('manana','tarde','noche','flexible')   // NOT NULL, default 'flexible'
   duration_months,              // integer — NEVER a free-text "5 años" string
   credits, plan_url,
@@ -119,6 +119,24 @@ offerings         // what the user actually compares
 **Why `duration_months` as an integer:** sorting and comparing is the product. "5 años" as a string is unsortable and uncomparable. Format for display at render time (`es-PY`).
 
 **Why `shift` is NOT NULL:** MySQL treats NULLs as distinct inside a UNIQUE index, so a nullable `shift` would let the importer write the same offering twice and the unique key would never fire. `'flexible'` is the honest value for "not stated by the institution".
+
+**Why `modality` has a `sin_datos` value (PR-59):** CONES stopped printing a modality column, so every register row now arrives without one (`data-sources.md` §1.1). Three shapes were available and only one works here:
+
+| Shape                    | Why not / why                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| nullable `modality`      | MySQL ignores NULLs inside a UNIQUE index, so `offerings_uq` would stop firing and the importer would write the same offering on every run — the exact reason `shift` is NOT NULL. `program_search.modality` is NOT NULL too, and a nullable facet column means a three-valued `WHERE` in both engines. |
+| a separate `modality_unknown` flag | Two columns that must agree, and every reader has to remember to check the second one. The first reader that forgets renders a guess.               |
+| **an enum value**        | The uniqueness index and `program_search` both key on `modality`, so the gap has to *be* a value to be keyed on. `enrollment_status` and `accreditation_status` already carry `sin_datos` for the same reason, and the UI already knows how to render it. |
+
+The column default is `sin_datos`, never `presencial`: a default is a guess written by the schema.
+
+**The contract other PRs build against:**
+
+- **Filter.** A `modalities` filter never matches a `sin_datos` row. `?modalidad=sin_datos` is dropped when the URL is parsed (`MODALITY_FILTER_VALUES` in `src/lib/search/params.ts`), so neither engine ever sees it.
+- **Facet.** The modalities facet shows `Sin datos` with its real count and the option is **not selectable** (`FacetOption.selectable`, set from `FacetGroupDef.isSelectable`). How much of the catalog lacks a modality is worth seeing; it is not a criterion anyone can search by.
+- **Supersede.** When a real-modality offering exists for the same `(program_id, campus_id)`, the curation pipeline **unpublishes** the `sin_datos` twin (`status = 'archived'`) and never deletes it — prices, admissions and inbound links hang off that id (§3's soft-delete rule).
+- **JSON-LD.** `CourseInstance` omits `courseMode` entirely for `sin_datos`. schema.org has no "unknown" member and a fallback would publish an unsourced claim in the one format a crawler reads literally.
+- **Correction path.** `/panel/ofertas/[id]` lets the institution set the real modality; it is a `REVIEW_FIELDS` entry, so it proposes rather than publishes.
 
 ### Money
 
@@ -349,7 +367,7 @@ program_search     // denormalized, rebuilt by script — see architecture.md §
   institution_name, institution_short, institution_logo, brand_color,
   campus_name, city_name, department_name,
 
-  level, modality, shift, management, institution_type, duration_months,
+  level, modality, shift, management, institution_type, duration_months,   // modality carries 'sin_datos' — PR-59
 
   price_currency, matricula_gs, monthly_fee_gs, installments_per_year,
   admission_fee_gs, annual_cost_gs, is_free,

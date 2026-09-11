@@ -137,6 +137,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * — the accent means "primary CTA" and nothing else on this page.
  */
 function OptionLink({ option, href }: { option: FacetOption; href: string }) {
+  // `modalidad: sin datos` — shown for its count, never a link. Filtering on a
+  // gap would answer "mostrame las presenciales" with rows nobody has stated a
+  // modality for, which is the guess the value exists to avoid (PR-59).
+  if (!option.selectable) return <OptionRow option={option} />;
+
   return (
     <a
       href={href}
@@ -164,6 +169,17 @@ function OptionLink({ option, href }: { option: FacetOption; href: string }) {
       </span>
       <span className="text-faint font-mono text-xs">{option.count}</span>
     </a>
+  );
+}
+
+/** A facet option that is readable but not actionable: no checkbox, no link. */
+function OptionRow({ option }: { option: FacetOption }) {
+  return (
+    <div className="text-muted flex items-center gap-2.5 text-sm">
+      <span aria-hidden className="inline-flex size-5 shrink-0" />
+      <span className="flex-1">{option.label}</span>
+      <span className="text-faint font-mono text-xs">{option.count}</span>
+    </div>
   );
 }
 

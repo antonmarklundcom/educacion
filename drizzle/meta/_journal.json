@@ -78,6 +78,13 @@
       "when": 1787224725707,
       "tag": "0010_activity_log_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1789161717820,
+      "tag": "0011_modality_sin_datos",
+      "breakpoints": true
     }
   ]
 }

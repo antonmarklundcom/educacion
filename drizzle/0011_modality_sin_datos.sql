@@ -1,0 +1,2 @@
+ALTER TABLE `offerings` MODIFY COLUMN `modality` enum('presencial','semipresencial','distancia','sin_datos') NOT NULL DEFAULT 'sin_datos';--> statement-breakpoint
+ALTER TABLE `program_search` MODIFY COLUMN `modality` enum('presencial','semipresencial','distancia','sin_datos') NOT NULL;

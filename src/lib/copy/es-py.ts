@@ -28,6 +28,7 @@
 
 import { brandCopy } from './brand';
 import { browseCopy } from './browse';
+import { dataGapsCopy } from './data-gaps';
 import { filterSheetCopy } from './filter-sheet';
 import { footerCopy } from './footer';
 import { leadCopy } from './lead';
@@ -40,6 +41,7 @@ export const esPY = {
   nav: navCopy,
   footer: footerCopy,
   browse: { ...browseCopy, filterSheet: filterSheetCopy },
+  dataGaps: dataGapsCopy,
   lead: leadCopy,
   totalCost: totalCostCopy,
   panel: panelCopy,

@@ -75,6 +75,8 @@ export interface SnapshotOffering {
   campusId: number;
   modality: string;
   shift: string;
+  /** Read so the supersede rule can tell "already unpublished" from "not yet". */
+  status: string;
 }
 
 export interface SnapshotAccreditation {
@@ -195,6 +197,8 @@ interface Context {
   programByKey: Map<string, SnapshotProgram>;
   campusByKey: Map<string, SnapshotCampus>;
   offeringByKey: Map<string, SnapshotOffering>;
+  /** Every offering of one (program, campus), for the supersede rule. */
+  offeringsByPlacement: Map<string, SnapshotOffering[]>;
   accreditationByProgram: Map<string, SnapshotAccreditation>;
   aliasCandidates: Map<string, AliasCandidate>;
   knownAliasKeys: Set<string>;
@@ -227,11 +231,16 @@ function buildContext(snapshot: CurationSnapshot): Context {
   }
 
   const offeringByKey = new Map<string, SnapshotOffering>();
+  const offeringsByPlacement = new Map<string, SnapshotOffering[]>();
   for (const offering of snapshot.offerings) {
     offeringByKey.set(
       `${offering.programId}:${offering.campusId}:${offering.modality}:${offering.shift}`,
       offering,
     );
+    const placementKey = `${offering.programId}:${offering.campusId}`;
+    const siblings = offeringsByPlacement.get(placementKey) ?? [];
+    siblings.push(offering);
+    offeringsByPlacement.set(placementKey, siblings);
   }
 
   const accreditationByProgram = new Map<string, SnapshotAccreditation>();
@@ -252,6 +261,7 @@ function buildContext(snapshot: CurationSnapshot): Context {
     programByKey,
     campusByKey,
     offeringByKey,
+    offeringsByPlacement,
     accreditationByProgram,
     aliasCandidates: new Map(),
     knownAliasKeys: new Set(snapshot.aliases.map((alias) => alias.matchKey)),
@@ -448,6 +458,9 @@ function conesProposals(context: Context, record: SourceRecordRow): CurationProp
   return out;
 }
 
+/** The modality value that means "the source does not say" (PR-59). */
+const SIN_DATOS = 'sin_datos' satisfies Modality;
+
 /** Campus + offering, from the register's `sede`/`modalidad` columns. */
 function placementProposals(
   context: Context,
@@ -494,14 +507,40 @@ function placementProposals(
     return out;
   }
 
-  if (!placement.modality) {
-    // Modality is a facet on every card. Defaulting it to `presencial`
-    // because most programs are presencial is exactly rule 1's fabrication.
-    context.stats.deferred += 1;
-    return out;
+  const siblings = context.offeringsByPlacement.get(`${programId}:${existingCampus.id}`) ?? [];
+  const twin = siblings.find((offering) => offering.modality === SIN_DATOS);
+  const stated = siblings.find((offering) => offering.modality !== SIN_DATOS);
+
+  // **Supersede, never delete.** Once somebody has established a real modality
+  // for this program + campus — a later register row, an admin, the
+  // institution's own panel — the `sin_datos` twin is a duplicate of a fact we
+  // now have. It is unpublished rather than removed: an offering id is
+  // referenced by prices, admissions and inbound links, and `data-model.md` §3
+  // soft-deletes for exactly that reason.
+  if (twin && stated && twin.status !== 'archived') {
+    out.push(
+      proposal(
+        'offering',
+        twin.id,
+        certain,
+        { status: twin.status },
+        { status: 'archived' },
+        record.id,
+      ),
+    );
   }
 
-  const key = `${programId}:${existingCampus.id}:${placement.modality}:flexible`;
+  // This is the CONES path (`conesProposals` is its only caller) and CONES no
+  // longer prints a modality column at all (`data-sources.md` §1.1). Refusing
+  // the offering made the honest gap into an empty catalog; `presencial` would
+  // be the fabrication rule 1 forbids. `sin_datos` is the third answer: the
+  // offering exists and says what we do not know.
+  const modality: Modality = placement.modality ?? SIN_DATOS;
+
+  // Nothing to add on top of a modality somebody already established.
+  if (modality === SIN_DATOS && stated) return out;
+
+  const key = `${programId}:${existingCampus.id}:${modality}:flexible`;
   const existingOffering = context.offeringByKey.get(key);
   if (existingOffering) return out;
 
@@ -514,10 +553,15 @@ function placementProposals(
       {
         programId,
         campusId: existingCampus.id,
-        modality: placement.modality,
+        modality,
         // `shift` is NOT NULL with a 'flexible' default precisely so the
         // uniqueness index works (schema.ts). Neither register prints a turno.
         shift: 'flexible',
+        // The register is the catalog. An offering carries no claim of its own
+        // — its price, its accreditation and its parent programme each gate
+        // themselves — so there is nothing here for a human to approve before
+        // it can be indexed.
+        status: 'published',
       },
       record.id,
     ),

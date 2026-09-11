@@ -274,6 +274,27 @@ describe('courseSchema — shape', () => {
     expect((instances[0].location as Record<string, unknown>).name).toBe('Sede Central');
   });
 
+  /**
+   * PR-59. schema.org has no "unknown" member of `courseMode`, so an offering
+   * whose modality nobody has stated ships without the property rather than
+   * with a guess — rule 1 in the one format a crawler reads literally.
+   */
+  it('omits courseMode entirely for a sin_datos offering', () => {
+    const schema = courseSchema(
+      [
+        offering({ modality: 'sin_datos' }),
+        offering({ offeringId: 2, modality: 'presencial', campusName: 'Sede Central' }),
+      ],
+      NOW,
+    );
+    const instances = schema!.hasCourseInstance as Record<string, unknown>[];
+
+    expect(instances[0]).not.toHaveProperty('courseMode');
+    expect(JSON.stringify(instances[0])).not.toContain('sin_datos');
+    // The offering that does state one is unaffected.
+    expect(instances[1].courseMode).toBe('onsite');
+  });
+
   it('omits a Course-level duration and credential when the offerings disagree', () => {
     const schema = courseSchema(
       [

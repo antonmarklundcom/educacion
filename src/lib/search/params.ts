@@ -50,6 +50,22 @@ export const LEVEL_VALUES = Object.keys(LEVEL_LABELS) as Level[];
 export const MANAGEMENT_VALUES = Object.keys(MANAGEMENT_LABELS) as Management[];
 export const INSTITUTION_TYPE_VALUES = Object.keys(INSTITUTION_TYPE_LABELS) as InstitutionType[];
 export const MODALITY_VALUES = Object.keys(MODALITY_LABELS) as Modality[];
+/**
+ * What `?modalidad=` may legally contain — every modality **except**
+ * `sin_datos` (PR-59).
+ *
+ * The contract is that a `modalities` filter never matches a `sin_datos` row:
+ * "mostrame las presenciales" is a request for programmes we know are
+ * presencial, and answering it with the ones whose modality nobody has stated
+ * would be the guess the enum value exists to avoid. Enforcing it here rather
+ * than in the two engines means a hand-edited URL drops the value on the way
+ * in — the SQL path and the in-memory path cannot disagree about something
+ * that never reaches them. The facet still shows the count; it is just not
+ * selectable (`groups.ts`).
+ */
+export const MODALITY_FILTER_VALUES: Modality[] = MODALITY_VALUES.filter(
+  (value) => value !== 'sin_datos',
+);
 export const SHIFT_VALUES = Object.keys(SHIFT_LABELS) as Shift[];
 export const ACCREDITATION_STATUS_VALUES = Object.keys(
   ACCREDITATION_STATUS_LABELS,
@@ -79,7 +95,7 @@ const ARRAY_FILTER_VALUES: Record<ArrayFilterKey, readonly string[] | 'slug'> = 
   levels: LEVEL_VALUES,
   managements: MANAGEMENT_VALUES,
   institutionTypes: INSTITUTION_TYPE_VALUES,
-  modalities: MODALITY_VALUES,
+  modalities: MODALITY_FILTER_VALUES,
   shifts: SHIFT_VALUES,
   citySlugs: 'slug',
   departmentSlugs: 'slug',

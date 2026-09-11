@@ -45,8 +45,17 @@ the parsers were reading a shape that no longer existed.**
 - **There is no modality column any more.** `modalityRaw` is null on every
   program row. PR-06's "no offering without a stated modality" gate therefore
   produced no offerings at all — an empty catalog is not the honest gap, it is
-  no page. **PR-59 reverses it:** CONES rows become offerings with
-  `modality = 'sin_datos'`, shown as such. Still never defaulted to `presencial`.
+  no page. **PR-59 shipped the reversal:** a CONES row whose modality is null
+  becomes a `published` offering with `modality = 'sin_datos'`, rendered as
+  "Modalidad: sin datos" everywhere. `mapModality(null)` still returns `null` —
+  the staging vocabulary is unchanged, and the substitution happens in the
+  pipeline's placement branch, which is the CONES path only. Still never
+  defaulted to `presencial`, in the schema default or anywhere else. The
+  register is not the only party who knows: `/panel/ofertas/[id]` lets the
+  institution set the real modality as a review request, and when a real
+  modality exists for the same program + campus the pipeline **unpublishes**
+  the `sin_datos` twin rather than deleting it. The filter, facet and JSON-LD
+  rules are in `data-model.md` "Programs & offerings".
 - **`Estado`** is empty or `INACTIVO` (31 of 845 on the UNA page). It is carried
   as `offeringStatusRaw` — deliberately _not_ `statusRaw` — because it is the
   standing of the offering and must never reach `mapAccreditationStatus`. CONES
@@ -235,7 +244,7 @@ Same approach for careers, using `careers.synonyms_json` as the alias store ("Me
 
 - **A new institution never auto-applies.** Neither register prints `management` (pública/privada), and that field appears on every card and in a facet. The proposal is honestly classified `new` and queued — the general rule is that a create whose NOT NULL fields the source does not supply is never invented into existence.
 - **A program with an unmapped level queues**, rather than defaulting to `grado`.
-- **An offering is not created without a stated modality**, and a campus is not created for a locality that is not in the seeded `cities`.
+- **An offering without a stated modality is created as `sin_datos`, not refused** (PR-59 — this line used to read "an offering is not created without a stated modality"). What is still refused is the guess: nothing maps an absent modality to `presencial`. A campus is still not created for a locality that is not in the seeded `cities`.
 - **No accreditation without a citation.** A positive status requires `resolution_number` or an `http(s)` `source_url`, and a row the ANEAES parser flagged `citable: false` can never produce one — including via the document URL, which is only used as a citation when the row was citable and the URL is not a local file path from a `--file` run.
 - **A negative never auto-applies.** `no_acreditada` is only ever written by a human, and absence of a row is `sin_datos` — represented by proposing _no accreditation row at all_.
 - **CONES never becomes an accreditation.** A CONES habilitación resolution lands in `programs.cones_resolution`; the staging layer for CONES has no accreditation field, and the apply gate rejects `agency = CONES` with `kind = acreditacion` regardless.

@@ -6,7 +6,10 @@ import { PanelForm } from '@/components/panel/PanelForm';
 import { PanelNav } from '@/components/panel/PanelNav';
 import { getOwnCurrentPrice, getOwnOffering } from '@/db/queries/panel/catalog';
 import { priceFreshness } from '@/db/invariants';
+import { MODALITY } from '@/db/schema';
+import { panelCopy } from '@/lib/copy/panel';
 import { formatMonthYear } from '@/lib/format';
+import { MODALITY_LABELS } from '@/lib/search/labels';
 import { AuthError } from '@/lib/auth/roles';
 import { currentUser } from '@/lib/auth/session';
 
@@ -138,7 +141,7 @@ export default async function PanelOfferingPage({
           <PanelForm
             action={savePanelOfferingAction.bind(null, offeringId)}
             submitLabel="Guardá"
-            note="El plan de estudio y los créditos se publican al instante. La modalidad, el turno y la duración vienen del registro, así que los revisamos antes."
+            note={panelCopy.offering.note}
           >
             <label className="text-body flex flex-col gap-1.5 text-sm font-medium">
               Plan de estudio (URL)
@@ -152,6 +155,23 @@ export default async function PanelOfferingPage({
                 defaultValue={offering.credits ?? ''}
                 className={input}
               />
+            </label>
+            {/*
+              The correction path for PR-59's `sin_datos`. CONES no longer
+              prints a modality, so most offerings arrive without one and the
+              institution is the only party that actually knows. It is a
+              REVIEW_FIELD, so this proposes rather than publishes — the same
+              gate as the nombre oficial, for the same reason.
+            */}
+            <label className="text-body flex flex-col gap-1.5 text-sm font-medium">
+              {panelCopy.offering.modalityLabel}
+              <select name="modality" defaultValue={offering.modality} className={input}>
+                {MODALITY.map((value) => (
+                  <option key={value} value={value}>
+                    {MODALITY_LABELS[value]}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="text-body flex flex-col gap-1.5 text-sm font-medium">
               Duración (meses)

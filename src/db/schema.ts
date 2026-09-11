@@ -52,7 +52,22 @@ export const PROGRAM_LEVEL = [
   'maestria',
   'doctorado',
 ] as const;
-export const MODALITY = ['presencial', 'semipresencial', 'distancia'] as const;
+/**
+ * `sin_datos` is a displayed value, not a guess (PR-59).
+ *
+ * CONES stopped printing a modality column, so every register row now arrives
+ * without one. Refusing the offering made the honest gap into "no catalog";
+ * defaulting it to `presencial` would be fabrication (CLAUDE.md rule 1). The
+ * third option is the one `enrollment_status` and `accreditation_status`
+ * already take: carry the gap as a value and render it as such.
+ *
+ * It is an enum member rather than a nullable column or a separate flag
+ * because `offerings_uq` and `program_search.modality` both key on it — MySQL
+ * treats NULLs as distinct inside a UNIQUE index, so a nullable `modality`
+ * would let the importer write the same offering twice and the unique key
+ * would never fire, exactly the reasoning that made `shift` NOT NULL.
+ */
+export const MODALITY = ['presencial', 'semipresencial', 'distancia', 'sin_datos'] as const;
 export const SHIFT = ['manana', 'tarde', 'noche', 'flexible'] as const;
 export const ENROLLMENT_STATUS = ['abiertas', 'proximamente', 'cerradas', 'sin_datos'] as const;
 export const PUBLICATION_STATUS = ['draft', 'published', 'archived'] as const;
@@ -392,7 +407,8 @@ export const offerings = mysqlTable(
     campusId: int('campus_id', { unsigned: true })
       .notNull()
       .references(() => campuses.id),
-    modality: mysqlEnum('modality', MODALITY).notNull().default('presencial'),
+    /** Default `sin_datos`, never `presencial`: the gap is shown, not guessed. */
+    modality: mysqlEnum('modality', MODALITY).notNull().default('sin_datos'),
     shift: mysqlEnum('shift', SHIFT).notNull().default('flexible'),
     /** Integer months. NEVER a free-text "5 años" string — sorting is the product. */
     durationMonths: smallint('duration_months', { unsigned: true }),

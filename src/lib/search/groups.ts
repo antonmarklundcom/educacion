@@ -43,6 +43,13 @@ export interface FacetGroupDef {
   labels?: Record<string, string>;
   valueOf: (row: ProgramSearchRow) => string | null;
   labelOf: (row: ProgramSearchRow) => string;
+  /**
+   * Whether one option of this group may be filtered on. Defaults to "all of
+   * them"; only `modalities` says no, and only for `sin_datos` — see
+   * `MODALITY_FILTER_VALUES` in `./params`, which is the same rule applied on
+   * the way in from the URL.
+   */
+  isSelectable?: (value: string) => boolean;
 }
 
 export const FACET_GROUPS: readonly FacetGroupDef[] = [
@@ -76,6 +83,7 @@ export const FACET_GROUPS: readonly FacetGroupDef[] = [
     labels: MODALITY_LABELS,
     valueOf: (row) => row.modality,
     labelOf: (row) => MODALITY_LABELS[row.modality],
+    isSelectable: (value) => value !== 'sin_datos',
   },
   {
     key: 'shifts',

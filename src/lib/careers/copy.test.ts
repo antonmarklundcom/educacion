@@ -143,6 +143,33 @@ describe('buildAreaIntro', () => {
 describe('buildCareerCityIntro', () => {
   const career = { nameEs: 'Medicina' };
 
+  /**
+   * PR-59. "Toda la oferta es de modalidad sin datos" is a sentence about our
+   * register wearing the grammar of a sentence about the city. The gap gets
+   * its own clause; the modality clause is built only from stated values.
+   */
+  it('says the modality is unpublished rather than calling it a modality', () => {
+    const [paragraph] = buildCareerCityIntro(career, 'Encarnación', [
+      offering(1, { institutionShort: 'UNA', modality: 'sin_datos' }),
+      offering(2, { institutionShort: 'UC', modality: 'sin_datos' }),
+    ]);
+
+    expect(paragraph.text).toContain('Ninguna de esas instituciones publica la modalidad');
+    expect(paragraph.text).not.toMatch(/modalidad sin datos/i);
+    expect(paragraph.text).not.toContain('presencial');
+  });
+
+  it('names only the stated modalities when some offerings have none', () => {
+    const [paragraph] = buildCareerCityIntro(career, 'Encarnación', [
+      offering(1, { institutionShort: 'UNA', modality: 'presencial' }),
+      offering(2, { institutionShort: 'UC', modality: 'sin_datos' }),
+    ]);
+
+    expect(paragraph.text).toContain('modalidad presencial');
+    expect(paragraph.text).toContain('el resto no publica la modalidad');
+    expect(paragraph.text).not.toMatch(/modalidad sin datos/i);
+  });
+
   it('composes distinguishing content only from the offerings it is given', () => {
     const offerings = [
       offering(1, {

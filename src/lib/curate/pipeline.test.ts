@@ -237,7 +237,13 @@ describe('buildProposals — CONES', () => {
     expect(decideApply(offering).apply).toBe(true);
   });
 
-  it('does not invent a modality the register did not print', () => {
+  /**
+   * PR-59 replaces PR-06's "does not invent a modality" refusal. The refusal
+   * was right about `presencial` and wrong about the outcome: CONES prints no
+   * modality for anyone now, so refusing the row meant refusing the catalog.
+   * The offering is created and says what we do not know.
+   */
+  it('creates a sin_datos offering when the register prints no modality', () => {
     const { proposals } = buildProposals(snapshot(), [
       conesRecord({
         institutionName: INSTITUTION_A,
@@ -246,6 +252,124 @@ describe('buildProposals — CONES', () => {
         modalityRaw: null,
       }),
     ]);
+
+    const [offering] = find(proposals, 'offering');
+    expect(offering.proposed).toMatchObject({
+      programId: 100,
+      campusId: 1000,
+      modality: 'sin_datos',
+      shift: 'flexible',
+      status: 'published',
+    });
+    expect(decideApply(offering).apply).toBe(true);
+  });
+
+  it('never defaults an unstated modality to presencial', () => {
+    const { proposals } = buildProposals(snapshot(), [
+      conesRecord({
+        institutionName: INSTITUTION_A,
+        programName: PROGRAM_ONE,
+        locationRaw: 'Asunción',
+        modalityRaw: null,
+      }),
+    ]);
+
+    expect(
+      find(proposals, 'offering').map((proposal) => (proposal.proposed as { modality: string }).modality),
+    ).not.toContain('presencial');
+  });
+
+  it('proposes nothing a second time over the same sin_datos offering', () => {
+    const existing = {
+      id: 5000,
+      programId: 100,
+      campusId: 1000,
+      modality: 'sin_datos',
+      shift: 'flexible',
+      status: 'published',
+    };
+    const { proposals } = buildProposals(snapshot({ offerings: [existing] }), [
+      conesRecord({
+        institutionName: INSTITUTION_A,
+        programName: PROGRAM_ONE,
+        locationRaw: 'Asunción',
+        modalityRaw: null,
+      }),
+    ]);
+
+    expect(find(proposals, 'offering')).toHaveLength(0);
+  });
+
+  it('supersedes the sin_datos twin once a real modality exists, and never deletes it', () => {
+    const { proposals } = buildProposals(
+      snapshot({
+        offerings: [
+          {
+            id: 5000,
+            programId: 100,
+            campusId: 1000,
+            modality: 'sin_datos',
+            shift: 'flexible',
+            status: 'published',
+          },
+          {
+            id: 5001,
+            programId: 100,
+            campusId: 1000,
+            modality: 'presencial',
+            shift: 'flexible',
+            status: 'published',
+          },
+        ],
+      }),
+      [
+        conesRecord({
+          institutionName: INSTITUTION_A,
+          programName: PROGRAM_ONE,
+          locationRaw: 'Asunción',
+          modalityRaw: null,
+        }),
+      ],
+    );
+
+    const offerings = find(proposals, 'offering');
+    expect(offerings).toHaveLength(1);
+    expect(offerings[0].entityId).toBe(5000);
+    expect(offerings[0].proposed).toEqual({ status: 'archived' });
+    expect(decideApply(offerings[0]).apply).toBe(true);
+  });
+
+  it('does not re-propose a supersede that already happened', () => {
+    const { proposals } = buildProposals(
+      snapshot({
+        offerings: [
+          {
+            id: 5000,
+            programId: 100,
+            campusId: 1000,
+            modality: 'sin_datos',
+            shift: 'flexible',
+            status: 'archived',
+          },
+          {
+            id: 5001,
+            programId: 100,
+            campusId: 1000,
+            modality: 'presencial',
+            shift: 'flexible',
+            status: 'published',
+          },
+        ],
+      }),
+      [
+        conesRecord({
+          institutionName: INSTITUTION_A,
+          programName: PROGRAM_ONE,
+          locationRaw: 'Asunción',
+          modalityRaw: null,
+        }),
+      ],
+    );
 
     expect(find(proposals, 'offering')).toHaveLength(0);
   });
