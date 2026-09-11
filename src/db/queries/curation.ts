@@ -127,6 +127,10 @@ export async function loadSnapshot(db: Db): Promise<CurationSnapshot> {
         campusId: offerings.campusId,
         modality: offerings.modality,
         shift: offerings.shift,
+        // The supersede rule (PR-59) needs to know whether a `sin_datos` twin
+        // has already been unpublished, or it would re-propose the same change
+        // on every run and the queue would never settle.
+        status: offerings.status,
       })
       .from(offerings),
     db
@@ -257,7 +261,20 @@ const PROGRAM_COLUMNS = [
   'titleAwarded',
   'conesResolution',
 ] as const;
-const OFFERING_COLUMNS = ['programId', 'campusId', 'modality', 'shift', 'durationMonths'] as const;
+/**
+ * `status` is writable by the importer since PR-59, for two reasons: a created
+ * offering is `published` (it carries no claim of its own — price and
+ * accreditation gate themselves), and a `sin_datos` twin is `archived` once a
+ * real modality exists for the same program + campus. Never deleted.
+ */
+const OFFERING_COLUMNS = [
+  'programId',
+  'campusId',
+  'modality',
+  'shift',
+  'durationMonths',
+  'status',
+] as const;
 const ACCREDITATION_COLUMNS = [
   'scope',
   'institutionId',

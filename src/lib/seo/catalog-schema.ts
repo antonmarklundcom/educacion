@@ -35,11 +35,21 @@ import type { OfferingSummary } from '@/lib/search';
 
 import { siteUrl } from './site-url';
 
-/** schema.org's controlled vocabulary for `courseMode`. */
-const COURSE_MODE: Record<OfferingSummary['modality'], string> = {
+/**
+ * schema.org's controlled vocabulary for `courseMode`.
+ *
+ * `sin_datos` maps to `undefined` and the key is then omitted from the
+ * `CourseInstance` altogether (PR-59). schema.org has no "unknown" member and
+ * inventing one — or falling back to `onsite` because most programmes are —
+ * would publish a machine-readable claim we cannot source, which is rule 1 in
+ * the one format a search engine reads literally. An absent property is the
+ * honest encoding of an absent fact.
+ */
+const COURSE_MODE: Record<OfferingSummary['modality'], string | undefined> = {
   presencial: 'onsite',
   semipresencial: 'blended',
   distancia: 'online',
+  sin_datos: undefined,
 };
 
 /**
@@ -144,9 +154,10 @@ export function courseSchema(
 
   const instances = offerings.map((offering) => {
     const offer = offerFor(offering, now);
+    const courseMode = COURSE_MODE[offering.modality];
     return {
       '@type': 'CourseInstance',
-      courseMode: COURSE_MODE[offering.modality],
+      ...(courseMode ? { courseMode } : {}),
       location: {
         '@type': 'Place',
         name: offering.campusName,

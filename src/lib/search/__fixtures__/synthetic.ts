@@ -24,7 +24,12 @@ import { buildSearchText } from '../normalize';
 import type { ProgramSearchRow } from '../row';
 
 const LEVELS = ['tecnicatura', 'grado', 'especializacion', 'maestria', 'doctorado'] as const;
-const MODALITIES = ['presencial', 'semipresencial', 'distancia'] as const;
+/**
+ * `sin_datos` is in the rotation because it is the value most of the real
+ * index carries since PR-59 — a fixture without it would test a catalog we do
+ * not have.
+ */
+const MODALITIES = ['presencial', 'semipresencial', 'distancia', 'sin_datos'] as const;
 const SHIFTS = ['manana', 'tarde', 'noche', 'flexible'] as const;
 const MANAGEMENTS = ['publica', 'privada'] as const;
 const INSTITUTION_TYPES = [

@@ -245,6 +245,14 @@ export interface FacetOption {
   count: number;
   /** True when this option is part of the current filter set. */
   selected: boolean;
+  /**
+   * False for an option that is shown for its count and cannot be filtered on
+   * — `modalidad: sin datos` (PR-59). A gap is a fact worth showing (how much
+   * of the catalog is missing a modality is exactly what a user should be able
+   * to see) but it is not a criterion anyone can search by, so the rail renders
+   * it as a row, not a link.
+   */
+  selectable: boolean;
 }
 
 /**

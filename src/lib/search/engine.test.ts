@@ -16,6 +16,7 @@ import { makeSyntheticRows, SYNTHETIC_AREA_OPTIONS } from './__fixtures__/synthe
 import type { SearchFilters } from './contract';
 import { compareRows, isPriceFilterable, searchInMemory, sortableAnnualCost } from './engine';
 import { parseQuery } from './normalize';
+import { parseSearchFilters } from './params';
 import type { ProgramSearchRow } from './row';
 
 const NOW = new Date('2026-08-02T12:00:00Z');
@@ -134,6 +135,41 @@ describe('facets', () => {
     for (const [level, count] of countBy(scope, (row) => row.level)) {
       expect(optionCount(facets.levels, level)).toBe(count);
     }
+  });
+});
+
+/**
+ * PR-59. `sin_datos` is a modality *value* but never a modality *criterion*:
+ * the count is shown because how much of the catalog is missing a modality is
+ * worth seeing, and the option is dead because answering "mostrame las
+ * presenciales" with unstated rows is the guess the value exists to avoid.
+ */
+describe('modalidad sin datos', () => {
+  it('never matches a modalities filter', () => {
+    const { results, total } = run({ modalities: ['presencial'], pageSize: 200 });
+    expect(total).toBe(PUBLISHED.filter((row) => row.modality === 'presencial').length);
+    expect(results.every((result) => result.modality === 'presencial')).toBe(true);
+    expect(results.some((result) => result.modality === 'sin_datos')).toBe(false);
+  });
+
+  it('is dropped from the URL rather than filtered on', () => {
+    const filters = parseSearchFilters(new URLSearchParams('modalidad=sin_datos'));
+    expect(filters.modalities).toBeUndefined();
+
+    const both = parseSearchFilters(new URLSearchParams('modalidad=presencial&modalidad=sin_datos'));
+    expect(both.modalities).toEqual(['presencial']);
+  });
+
+  it('shows its count in the facet but is not selectable', () => {
+    const { facets } = run({});
+    const option = facets.modalities.find((entry) => entry.value === 'sin_datos');
+    expect(option).toBeDefined();
+    expect(option!.count).toBe(PUBLISHED.filter((row) => row.modality === 'sin_datos').length);
+    expect(option!.count).toBeGreaterThan(0);
+    expect(option!.selectable).toBe(false);
+    expect(facets.modalities.filter((entry) => entry.value !== 'sin_datos')).toSatisfy(
+      (options: { selectable: boolean }[]) => options.every((entry) => entry.selectable),
+    );
   });
 });
 

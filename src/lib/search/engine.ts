@@ -304,6 +304,7 @@ export function buildFacetGroup(
     label,
     count: byValue.get(value)?.count ?? 0,
     selected: selected.has(value),
+    selectable: def.isSelectable?.(value) ?? true,
   });
 
   if (def.universe === 'enum') {
@@ -318,7 +319,9 @@ export function buildFacetGroup(
     .filter((entry) => entry.count > 0 || selected.has(entry.value))
     .map((entry) => option(entry.value, entry.label));
   for (const value of selected) {
-    if (!byValue.has(value)) options.push({ value, label: value, count: 0, selected: true });
+    if (!byValue.has(value)) {
+      options.push({ value, label: value, count: 0, selected: true, selectable: true });
+    }
   }
   return options.sort((a, b) => b.count - a.count || collator.compare(a.label, b.label));
 }

@@ -41,6 +41,7 @@ import { EventBeacon } from '@/components/analytics';
 import { RelatedPrograms } from '@/components/program/RelatedPrograms';
 import { LeadModal, WhatsAppButton } from '@/components/lead';
 import { Badge } from '@/components/ui';
+import { dataGapsCopy } from '@/lib/copy/data-gaps';
 import { getInstitutionBySlug } from '@/lib/institutions';
 import { getPlacementFlags } from '@/lib/entitlements';
 import { formatDurationMonths } from '@/lib/format';
@@ -82,7 +83,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const description = [
     `${primary.programName} en ${primary.institutionName}:`,
     duration ? `${duration},` : '',
-    `modalidad ${MODALITY_LABELS[primary.modality].toLowerCase()},`,
+    // A meta description supplies no term of its own, so `Sin datos` cannot
+    // travel here as a bare label — the catalog's full phrasing does (PR-59).
+    primary.modality === 'sin_datos'
+      ? `${dataGapsCopy.modalityInline},`
+      : `modalidad ${MODALITY_LABELS[primary.modality].toLowerCase()},`,
     `${arancel} y estado de acreditación.`,
     'Compará con otras universidades del Paraguay.',
   ]

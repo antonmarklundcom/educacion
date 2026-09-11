@@ -8,6 +8,8 @@
  * `No acreditada` (CLAUDE.md rule 2).
  */
 
+import { dataGapsCopy } from '@/lib/copy/data-gaps';
+
 import type {
   AccreditationStatus,
   EnrollmentStatus,
@@ -40,10 +42,17 @@ export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
   otro: 'Otro',
 };
 
+/**
+ * `sin_datos` renders "Modalidad: sin datos" wherever the surface supplies the
+ * term, and it is never selectable as a filter (`groups.ts`). The string comes
+ * from the copy catalog (CLAUDE.md rule 12) rather than being typed here, so
+ * the six surfaces that show it cannot drift from each other.
+ */
 export const MODALITY_LABELS: Record<Modality, string> = {
   presencial: 'Presencial',
   semipresencial: 'Semipresencial',
   distancia: 'A distancia',
+  sin_datos: dataGapsCopy.modality,
 };
 
 export const SHIFT_LABELS: Record<Shift, string> = {

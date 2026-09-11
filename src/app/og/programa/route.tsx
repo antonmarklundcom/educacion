@@ -20,6 +20,7 @@ import { ImageResponse } from 'next/og';
 
 import { priceImageLines } from '@/components/browse/price';
 import { formatDurationMonths } from '@/lib/format';
+import { MODALITY_LABELS } from '@/lib/search';
 import { findProgramOfferings } from '@/lib/programs/lookup';
 
 export const runtime = 'nodejs';
@@ -78,6 +79,16 @@ export async function GET(request: Request): Promise<Response> {
         {primary.durationMonths != null
           ? formatDurationMonths(primary.durationMonths)
           : 'Duración sin datos'}
+      </div>
+      {/*
+        Modality is a fact the card has room for and the preview has no page
+        around it to supply — and since PR-59 it is also the fact most often
+        missing, so it is drawn exactly as every other surface draws it:
+        "Modalidad: sin datos", never a guess and never an omission that reads
+        as presencial.
+      */}
+      <div style={{ display: 'flex', fontSize: 24, color: MUTED, marginTop: 6 }}>
+        {`Modalidad: ${MODALITY_LABELS[primary.modality].toLowerCase()}`}
       </div>
       {priceLines.map((line) =>
         line.kind === 'amount' ? (

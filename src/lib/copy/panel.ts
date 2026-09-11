@@ -67,4 +67,15 @@ export const panelCopy = {
     pastDueDetail: (endsOn: string, graceEndsOn: string) =>
       `El período terminó el ${endsOn} y tu plan sigue activo hasta el ${graceEndsOn} mientras se acredita la transferencia. Si ya la hiciste, escribinos y lo cerramos.`,
   },
+
+  /** The offering editor at `/panel/ofertas/[offeringId]` (PR-59). */
+  offering: {
+    modalityLabel: 'Modalidad',
+    /**
+     * The note under the form. It names the gap plainly — the institution is
+     * the only party that knows the modality now that CONES stopped printing
+     * it, and the form is the correction path (`data-sources.md` §1.1).
+     */
+    note: 'El plan de estudio y los créditos se publican al instante. La modalidad, el turno y la duración vienen del registro, así que los revisamos antes. Si el registro no publicó la modalidad, la oferta figura sin ese dato: elegí la real y la corregimos.',
+  },
 } as const;

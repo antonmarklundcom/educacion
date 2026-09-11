@@ -150,6 +150,38 @@ describe('parseProgramInput', () => {
 });
 
 describe('parseOfferingInput', () => {
+  /**
+   * PR-59. An editor must be able to leave the modality honest — the form is
+   * the same surface that shows the gap, and forcing a choice here is how a
+   * guess gets typed in to make the save go through.
+   */
+  it('accepts sin_datos as a modality', () => {
+    const result = parseOfferingInput(
+      fd({
+        programId: '1',
+        campusId: '1',
+        modality: 'sin_datos',
+        shift: 'flexible',
+        status: 'published',
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.modality).toBe('sin_datos');
+  });
+
+  it('still rejects a modality that is not in the enum', () => {
+    const result = parseOfferingInput(
+      fd({
+        programId: '1',
+        campusId: '1',
+        modality: 'virtual',
+        shift: 'flexible',
+        status: 'published',
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
   it('rejects a non-positive duration', () => {
     const result = parseOfferingInput(
       fd({

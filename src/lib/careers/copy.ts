@@ -24,6 +24,7 @@
  * reused. Two cities never read the same, because their supply never is.
  */
 
+import { dataGapsCopy } from '@/lib/copy/data-gaps';
 import { formatGs } from '@/lib/format';
 import { MODALITY_LABELS, type OfferingSummary } from '@/lib/search';
 
@@ -163,9 +164,18 @@ export function buildCareerCityIntro(
   }
 
   const institutionNames = [...new Set(offerings.map((o) => o.institutionShort))].sort();
-  const modalities = [
-    ...new Set(offerings.map((o) => MODALITY_LABELS[o.modality].toLowerCase())),
+  // `sin_datos` is a stated gap, not a modality, and it cannot be spoken as
+  // one: "toda la oferta es de modalidad sin datos" is a sentence about our
+  // register pretending to be a sentence about the city (PR-59). The gap gets
+  // its own clause from the copy catalog instead.
+  const statedModalities = [
+    ...new Set(
+      offerings
+        .filter((o) => o.modality !== 'sin_datos')
+        .map((o) => MODALITY_LABELS[o.modality].toLowerCase()),
+    ),
   ].sort();
+  const someUnstated = offerings.some((o) => o.modality === 'sin_datos');
 
   const sentences: string[] = [];
 
@@ -175,11 +185,17 @@ export function buildCareerCityIntro(
       `${joinNatural(institutionNames)}.`,
   );
 
-  sentences.push(
-    modalities.length > 1
-      ? `La oferta combina modalidad ${joinNatural(modalities)}, según la sede y el turno.`
-      : `Toda la oferta que publicamos en ${cityName} es de modalidad ${modalities[0]}.`,
-  );
+  if (statedModalities.length === 0) {
+    sentences.push(dataGapsCopy.modalityCityIntroNone(cityName));
+  } else if (someUnstated) {
+    sentences.push(dataGapsCopy.modalityCityIntroPartial(joinNatural(statedModalities)));
+  } else {
+    sentences.push(
+      statedModalities.length > 1
+        ? `La oferta combina modalidad ${joinNatural(statedModalities)}, según la sede y el turno.`
+        : `Toda la oferta que publicamos en ${cityName} es de modalidad ${statedModalities[0]}.`,
+    );
+  }
 
   const durations = offerings
     .map((o) => o.durationMonths)

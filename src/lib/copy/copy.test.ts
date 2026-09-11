@@ -16,7 +16,12 @@
  *    are the ones a non-Paraguayan writer reaches for by reflex.
  */
 
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
+
+import { MODALITY_LABELS } from '@/lib/search/labels';
 
 import { copy, messages, DEFAULT_LOCALE } from './index';
 import { esPY } from './es-py';
@@ -151,6 +156,13 @@ const ADDED: Record<string, string> = {
   'totalCost.compareLabel': 'Costo total',
   'totalCost.cheapest': 'el más barato',
 
+  'dataGaps.modality': 'Sin datos',
+  'dataGaps.modalityInline': 'modalidad sin datos',
+  'dataGaps.modalityCityIntroNone':
+    'Ninguna de esas instituciones publica la modalidad de cursado, así que no la mostramos en «arg0».',
+  'dataGaps.modalityCityIntroPartial':
+    'Parte de la oferta es de modalidad «arg0»; el resto no publica la modalidad de cursado.',
+
   'panel.leadSla.badge': 'Sin responder',
   'panel.leadSla.waitingDays': 'hace «arg0» días',
   'panel.leadSla.bannerHeading': 'Solicitudes esperando hace más de 48 horas',
@@ -183,6 +195,10 @@ const ADDED: Record<string, string> = {
     'El período va hasta el «arg0» y el pago sigue pendiente. Si ya lo hiciste, escribinos y lo cerramos.',
   'panel.plan.pastDueDetail':
     'El período terminó el «arg0» y tu plan sigue activo hasta el «arg1» mientras se acredita la transferencia. Si ya la hiciste, escribinos y lo cerramos.',
+
+  'panel.offering.modalityLabel': 'Modalidad',
+  'panel.offering.note':
+    'El plan de estudio y los créditos se publican al instante. La modalidad, el turno y la duración vienen del registro, así que los revisamos antes. Si el registro no publicó la modalidad, la oferta figura sin ese dato: elegí la real y la corregimos.',
 };
 
 describe('the es-PY catalog', () => {
@@ -236,5 +252,42 @@ describe('the locale seam', () => {
   it('resolves the default locale to the only catalog that exists', () => {
     expect(copy).toBe(messages[DEFAULT_LOCALE]);
     expect(Object.keys(messages)).toEqual([DEFAULT_LOCALE]);
+  });
+});
+
+/**
+ * PR-59's copy rule, as a scan.
+ *
+ * "Sin datos" is the site's word for several different gaps — duration, price,
+ * accreditation, inscripción — and those predate the catalog. What PR-59 adds
+ * is the *modality* gap, on six surfaces at once, and the failure mode is
+ * obvious: somebody types "Modalidad: sin datos" into the seventh. The label
+ * lives in `dataGaps` and reaches every surface through `MODALITY_LABELS`, so
+ * a modality gap spelled out in a component is by definition a second source
+ * of truth.
+ */
+describe('the modality gap is never typed into a component', () => {
+  const SRC = resolve(__dirname, '../..');
+  /** Line and block comments, so the reasoning may name the string it forbids. */
+  const COMMENTS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*/g;
+  const MODALITY_GAP = /modalidad[^\n]{0,24}sin\s+datos/i;
+
+  function walk(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) return walk(full);
+      return /\.tsx$/.test(full) && !/\.test\.tsx$/.test(full) ? [full] : [];
+    });
+  }
+
+  it('finds no inline "modalidad sin datos" in any .tsx file', () => {
+    const offenders = walk(SRC).filter((file) =>
+      MODALITY_GAP.test(readFileSync(file, 'utf8').replace(COMMENTS, '')),
+    );
+    expect(offenders.map((file) => relative(SRC, file))).toEqual([]);
+  });
+
+  it('renders the modality gap from the catalog, on every surface that shows it', () => {
+    expect(MODALITY_LABELS.sin_datos).toBe(copy.dataGaps.modality);
   });
 });
