@@ -50,7 +50,7 @@ sequence.
 
 - [ ] Ask Hostinger support whether a managed Node.js app can carry a second mapped domain
       (needed by `docs/domains.md` §4, nothing else).
-- [ ] Decide on `colegio.com.py` / `escuelas.com.py` purchase — defensive redirect at most.
+- [ ] Buy `colegio.com.py` and `escuelas.com.py` when convenient; point both at `educacion.com.py` as 301s (`docs/domains.md` §1). No content on them before Phase 10.
 
 ## What "launched" means
 

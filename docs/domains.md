@@ -9,7 +9,7 @@
 | `educacion.com.py` | yes | **The site.** Canonical host for every URL, the only value `NEXT_PUBLIC_SITE_URL` ever takes. |
 | `universidad.com.py` | yes | 301 → `https://educacion.com.py/universidades` (root) and `https://educacion.com.py/<path>` (any path). Never serves content. |
 | `*.hostingersite.com` preview | n/a | 301 → canonical, and `robots` disallow-all if reached. |
-| `colegio.com.py`, `escuelas.com.py` | no | Not bought for a product. At most one as a cheap defensive redirect. |
+| `colegio.com.py`, `escuelas.com.py` | buy | **Buy both now** (cheap, and the obvious K-12 names). Parked as 301s to `educacion.com.py` until Phase 10; never a live mirror. Whether Phase 10 ships under `/colegios` or on `colegio.com.py` is decided at activation (§4). |
 
 Two rules the app enforces (PR-60), so the decision does not depend on hosting-panel
 discipline:
@@ -21,6 +21,7 @@ discipline:
 
 ## 2. Why not two sites, and why not a rebrand
 
+- **Head-term volume is not the argument.** "escuelas" at 9,900/month is one word with no intent and is falling 18 % a year; "colegio" at 3,600 is growing. Neither is what a directory ranks for.
 - **The traffic model is the long tail** (`seo.md` §1): `[carrera] + [ciudad]`,
   `[universidad] + aranceles`. Exact-match head words on a domain do not move that; splitting
   the same pages across two hosts halves the authority each accumulates and creates
@@ -50,6 +51,15 @@ turno, idioma) → price (cuota, matrícula) → comparador — with `institutio
 instituciones educativas (codes, names, department, district, gestión), not CONES/ANEAES;
 prices are fieldwork exactly like aranceles. No accreditation axis; the wedge there is
 price transparency plus MEC registration status.
+
+**The AI layer, when it comes.** The one feature that makes "all education in one app"
+more than a bigger sitemap is an assistant that answers a parent's or a student's question
+("colegio bilingüe en Fernando de la Mora hasta Gs. 1.500.000", "medicina acreditada en
+Encarnación") **from verified rows only** — the same search index and price rows the pages
+render, with the same staleness warnings, cited per answer. It never answers from model
+knowledge; a question the data cannot answer gets the honest gap. It works identically over
+universities and colegios, which is the real reason to keep both in one app and one
+database. Phase 10 backlog, after the data exists to answer from.
 
 **Activation trigger:** the first paying university plan (`risks.md` §R-15), the October–
 February peak passed with the university index live and indexed, and a second data assistant
