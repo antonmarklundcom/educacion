@@ -1,0 +1,7 @@
+Esta carrera forma a quien interviene directamente con personas, familias y comunidades en situación de vulnerabilidad: pobreza, violencia intrafamiliar, adicciones, migración o falta de acceso a derechos básicos, con el objetivo de acompañar y conectar a esas personas con recursos y políticas que las ayuden. El plan combina teoría social, políticas públicas, metodología de intervención comunitaria y prácticas de campo desde etapas tempranas de la carrera.
+
+Buena parte de la formación ocurre en territorio: prácticas supervisadas en organizaciones sociales, municipios, hospitales o centros comunitarios, donde se aprende a hacer diagnósticos sociales, acompañar casos concretos y trabajar en red con otras instituciones. Es una carrera que exige compromiso emocional sostenido, además de rigor metodológico para intervenir sin improvisar.
+
+La salida laboral incluye organismos públicos de desarrollo social, hospitales y centros de salud, municipios, organizaciones no gubernamentales y programas de atención a la niñez, la familia o la vejez. El ejercicio profesional suele requerir después la matrícula correspondiente según el ámbito de trabajo.
+
+Antes de elegir dónde cursarla, averiguá en qué organizaciones vas a hacer las prácticas de campo, qué modalidad tiene cada tramo —la práctica de campo exige presencialidad—, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente.

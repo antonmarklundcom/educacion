@@ -76,6 +76,8 @@ Otherwise the city filter is a query param on the hub, `noindex`. Ten thin city 
 
 **A career or area hub with no editorial `description_md` ships `noindex, follow`, not fabricated copy.** Nobody has written the 150 words yet — there is no admin UI to write them before PR-19/20, and §8 below lists this copy as first-90-days content work, not something PR-12 auto-generates. Inventing enthusiastic career-outlook prose to hit the word count would be exactly the fabrication CLAUDE.md rule 1 bans. Instead the hub renders an honest paragraph built only from real `program_search` counts (`src/lib/careers/copy.ts`) and stays out of the index until `description_md` clears `MIN_EDITORIAL_WORDS` (150) — at which point it starts indexing itself, no code change required. The gated city page has no such gap and ships indexed immediately: its intro is composed entirely from the offerings already fetched for that city (real institution names, modalities, price range, accreditation counts), which is genuinely unique per city without being hand-written.
 
+**Where that 150+ words comes from (PR-63):** hand-written markdown checked in at `data/editorial/careers/<slug>.md`, one file per career, scanned for fabrication (`src/lib/careers/editorial-copy.test.ts`) and applied to `careers.description_md` by `npm run seed:editorial`, which writes only where the column is still null and never overwrites a later admin edit.
+
 ## 5. Structured data
 
 | Page                                                     | JSON-LD                                                                                                                                                |

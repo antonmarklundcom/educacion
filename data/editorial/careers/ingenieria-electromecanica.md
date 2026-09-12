@@ -1,0 +1,7 @@
+Esta carrera combina electricidad y mecánica aplicadas a la industria: diseño y mantenimiento de máquinas, instalaciones eléctricas industriales, motores, sistemas de automatización y gestión energética de una planta. El plan recorre física y matemática aplicada, mecánica de materiales, circuitos eléctricos, automatización industrial y gestión del mantenimiento.
+
+La formación combina cálculo y teoría con laboratorios de electricidad y mecánica, donde se arman circuitos, se prueban motores y se diagnostican fallas en equipos industriales. Hacia el final de la carrera suele haber pasantías o trabajos aplicados en plantas industriales reales, donde se ve de cerca cómo funciona el mantenimiento programado de maquinaria pesada. Requiere comodidad tanto con la parte eléctrica como con la mecánica, sin inclinarse solo por una de las ramas.
+
+La salida laboral incluye plantas industriales de distintos rubros, empresas de energía, mantenimiento de maquinaria pesada, automatización de procesos y consultoría técnica industrial. Es una carrera con demanda estable en zonas con fuerte actividad fabril y agroindustrial.
+
+Antes de elegir dónde cursarla, fijate si la institución tiene laboratorio de electricidad y mecánica equipado, qué convenios tiene con industrias para prácticas o pasantías, qué modalidad ofrece, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente.

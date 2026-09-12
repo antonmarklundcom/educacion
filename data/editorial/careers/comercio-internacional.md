@@ -1,0 +1,7 @@
+Esta carrera prepara para gestionar operaciones de exportación e importación, entender tratados y normas aduaneras, y moverse en el comercio entre países, algo especialmente relevante para un país que produce para exportar y comparte fronteras activas con vecinos grandes. El plan combina economía internacional, logística, normativa aduanera, negociación y algo de finanzas y marketing internacional.
+
+La cursada suele incluir simulaciones de operaciones de comercio exterior, análisis de mercados externos, estudio de tratados regionales y trabajo con documentación aduanera real, además de materias de idiomas orientadas a negocios. Es una carrera que pide comodidad con normativa cambiante y atención al detalle, porque un error en un documento de exportación puede frenar un embarque entero.
+
+La salida laboral incluye despachos de aduana, áreas de comercio exterior de empresas exportadoras e importadoras, logística internacional, organismos públicos vinculados al comercio y consultoría para pymes que quieren empezar a exportar. También es una base habitual para seguir en logística o negocios internacionales.
+
+Antes de elegir dónde cursarla, fijate si el plan de estudios incluye prácticas con documentación real de comercio exterior y no solo teoría, qué modalidad ofrece la institución para las materias más prácticas, y confirmá el estado de acreditación de la carrera en la fuente oficial antes de inscribirte.

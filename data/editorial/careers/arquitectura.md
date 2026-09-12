@@ -1,0 +1,7 @@
+Esta carrera forma a quien diseña los espacios donde vivimos, trabajamos y circulamos: desde una vivienda familiar hasta un edificio público, pensando tanto la forma como la función, la estructura, el clima local y el entorno urbano. La cursada mezcla taller de diseño —donde se dibuja, se maqueta y se defiende un proyecto frente a un jurado docente—, con materias técnicas de estructuras, instalaciones, materiales y normativa de construcción, además de historia y teoría de la arquitectura.
+
+El taller suele ser el corazón de la carrera: se trabaja por entregas sucesivas, con correcciones constantes, y exige muchas horas fuera del aula dibujando y maquetando. También hay materias más técnicas donde se aprende a calcular estructuras y a coordinar instalaciones eléctricas y sanitarias dentro de un proyecto. Manejar herramientas de dibujo digital es parte central de la formación desde los primeros años.
+
+La salida laboral típica pasa por estudios de arquitectura propios o de terceros, dirección de obra, urbanismo municipal, diseño de interiores y paisajismo, además de la gestión de proyectos de construcción de principio a fin.
+
+Antes de inscribirte, averiguá si la sede tiene taller equipado y espacio para maquetas, qué software enseña el plan de estudios, la modalidad de cursada —el taller casi siempre exige presencialidad— y el estado de acreditación de la carrera, un dato que vale la pena confirmar en la fuente y no suponer.

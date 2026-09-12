@@ -1,0 +1,7 @@
+Esta carrera forma a quien lleva y audita las cuentas de una organización: registrar operaciones, preparar estados financieros, calcular impuestos y asesorar sobre la salud económica de una empresa, un profesional independiente o un organismo público. El plan de estudios combina contabilidad general y de costos, auditoría, derecho tributario, finanzas y normativa laboral y comercial paraguaya.
+
+Es una carrera con fuerte carga de práctica contable desde los primeros ciclos: registrar asientos, cerrar balances, calcular liquidaciones de impuestos y sueldos, y trabajar con software contable que se usa después en el ejercicio real de la profesión. También exige mantenerse al tanto de cambios normativos, porque la legislación tributaria se actualiza con frecuencia.
+
+La salida laboral es amplia: estudios contables propios o en relación de dependencia, áreas de administración y finanzas de empresas de cualquier tamaño, auditoría interna y externa, y asesoría impositiva a pequeños comercios y profesionales independientes. Es también uno de los títulos con matrícula profesional habilitante para firmar balances.
+
+Antes de inscribirte, fijate si el plan de estudios incluye práctica con software contable actualizado, qué modalidad tiene cada materia —la práctica contable suele pedir presencialidad—, y confirmá el estado de acreditación de la carrera en la fuente correspondiente antes de decidirte por una institución.

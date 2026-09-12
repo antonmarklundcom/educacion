@@ -1,0 +1,7 @@
+Esta carrera estudia cómo se produce, circula y se interpreta la información en una sociedad: medios de prensa, radio, televisión, comunicación institucional y, cada vez más, plataformas digitales. El plan de estudios suele combinar teoría de la comunicación y semiótica con talleres prácticos de redacción, producción audiovisual, fotografía y comunicación organizacional, buscando que quien egresa entienda tanto el porqué como el cómo de comunicar.
+
+La cursada tiene un componente fuerte de producción: escribir notas, editar audio y video, armar campañas de comunicación para una marca o institución ficticia, y presentar trabajos frente a la clase. También hay materias más teóricas sobre el rol de los medios en la vida pública, que ayudan a leer críticamente lo que se consume todos los días.
+
+La salida laboral es variada: prensa institucional de empresas y organismos públicos, agencias de comunicación, producción de contenido para plataformas digitales, relaciones públicas y comunicación interna de organizaciones. Muchos egresados combinan esta base con una especialización posterior en marketing digital o producción audiovisual.
+
+Antes de elegir dónde estudiarla, revisá si la sede tiene estudio de radio o televisión y equipo de producción disponible para los estudiantes, qué modalidad tiene cada materia práctica, y confirmá el estado de acreditación de la carrera consultando la fuente correspondiente en lugar de asumirlo por el nombre de la institución.

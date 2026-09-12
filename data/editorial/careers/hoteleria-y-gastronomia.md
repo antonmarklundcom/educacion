@@ -1,0 +1,7 @@
+Esta carrera forma para gestionar hoteles, restaurantes y servicios de alimentación y hospedaje: desde la administración de un establecimiento hasta la producción culinaria y la atención al huésped, con una mirada que combina gestión, servicio y técnica de cocina. El plan suele incluir administración hotelera, gastronomía y técnicas de cocina, gestión de eventos, atención al cliente y normativa de higiene alimentaria.
+
+La formación combina teoría de gestión con práctica intensiva en cocina y en simulaciones de recepción y servicio, muchas veces en espacios equipados como un hotel o restaurante real. Se aprende a planificar un menú, a calcular costos de un servicio gastronómico y a coordinar un equipo de trabajo bajo presión, algo habitual en este rubro. También hay contenidos sobre turismo y gestión de eventos que se conectan con el sector.
+
+La salida laboral incluye hoteles, restaurantes, empresas de catering y eventos, y roles de gestión en el sector gastronómico y hotelero en general, tanto en relación de dependencia como en emprendimientos propios. Es un sector con fuerte estacionalidad y horarios que no siempre coinciden con los de otros trabajos.
+
+Antes de elegir dónde cursarla, fijate si la institución cuenta con cocina o espacio de práctica equipado, qué modalidad ofrece para las materias prácticas, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente.

@@ -1,0 +1,7 @@
+Si te interesa cómo funciona un sistema informático por dentro —cómo se ordena una base de datos, cómo se diseña una aplicación antes de programarla, cómo se conectan procesos de una empresa con el software que los soporta— esta carrera te da esa mirada. A diferencia de una ingeniería más extensa, suele tener foco práctico: lógica de programación, estructuras de datos, bases de datos, redes, análisis y diseño de sistemas, y algo de gestión de proyectos.
+
+Las clases combinan teoría con laboratorio de computación desde el comienzo: vas a programar, armar diagramas de procesos, levantar requerimientos como si tuvieras un cliente real y trabajar en proyectos grupales que simulan un sistema completo, de la idea inicial a una versión funcional. Es una carrera que exige práctica constante frente a la computadora, más que memorización.
+
+La salida laboral incluye áreas de sistemas de empresas de cualquier rubro, desarrollo de software, soporte técnico avanzado, análisis de procesos y, cada vez más, trabajo remoto para clientes fuera del país. También es una base habitual para seguir estudiando programación o ciberseguridad más adelante.
+
+Antes de elegir dónde cursarla, revisá qué lenguajes y herramientas enseña el plan de estudios de cada institución, si la sede tiene laboratorio propio o depende de traer tu equipo, la modalidad disponible y el estado real de acreditación, que conviene confirmar antes de inscribirte y no asumir por el prestigio de la marca.

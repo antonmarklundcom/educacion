@@ -1,0 +1,7 @@
+Esta carrera estudia la vida en todas sus formas: desde una célula hasta un ecosistema entero, pasando por plantas, animales, hongos y microorganismos. El plan combina materias de laboratorio —biología celular, genética, microbiología, bioquímica— con trabajo de campo en botánica, zoología y ecología, algo especialmente relevante en un país con la biodiversidad del Chaco, el Pantanal y los bosques del este.
+
+Buena parte de la formación ocurre fuera del aula tradicional: prácticas de laboratorio con microscopio, salidas a campo para relevar especies o ecosistemas, y proyectos de investigación guiados por un docente. Requiere paciencia para el trabajo minucioso y curiosidad genuina por observar y clasificar, más que memorizar listas.
+
+La salida laboral incluye docencia en distintos niveles, laboratorios de análisis clínicos o ambientales, organismos públicos y privados de gestión ambiental, parques y áreas protegidas, y proyectos de conservación con organizaciones no gubernamentales. También es una base habitual para seguir en biotecnología o ciencias ambientales.
+
+Antes de elegir dónde cursarla, fijate si la institución tiene laboratorio propio y convenios para salidas de campo reales, no solo teoría con diapositivas, qué modalidad ofrece cada tramo —el trabajo de laboratorio difícilmente se dicta a distancia— y verificá el estado de acreditación de la carrera en la fuente oficial correspondiente antes de decidirte.

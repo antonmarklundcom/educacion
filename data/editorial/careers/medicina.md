@@ -1,0 +1,7 @@
+Estudiar esta carrera significa formarte para diagnosticar, tratar y acompañar a personas enfermas a lo largo de toda la vida, desde el recién nacido hasta el paciente de edad avanzada. Los primeros ciclos giran en torno a materias básicas como anatomía, fisiología, bioquímica y microbiología, que te dan el mapa del cuerpo humano antes de tocar a un paciente real. Después vienen las rotaciones clínicas: pasás por salas de internación, consultorios y guardias, observando y luego asistiendo bajo supervisión en especialidades como clínica médica, cirugía, pediatría, ginecología y obstetricia.
+
+Es una carrera exigente en tiempo: combina clases teóricas, prácticas de laboratorio y horas de hospital que no siempre coinciden con un horario cómodo, y pide constancia sostenida más que picos de esfuerzo. La salida no termina con el título: para ejercer con responsabilidad plena, la mayoría elige después una residencia o una especialización, y el camino hacia una especialidad concreta —cardiología, cirugía, medicina interna— se construye recién ahí.
+
+Quien la curse suele terminar trabajando en hospitales públicos o privados, sanatorios, consultorios propios o equipos de salud comunitaria, con guardias como parte habitual de la rutina.
+
+Antes de elegirla, conviene averiguar en qué sede vas a cursar las prácticas clínicas, qué modalidad tiene cada tramo de la carrera —hay materias que no se pueden dictar a distancia— y si el programa cuenta con acreditación vigente, un dato que conviene chequear institución por institución y no dar por sentado.
