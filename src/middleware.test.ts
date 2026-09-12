@@ -129,6 +129,31 @@ describe('canonicalRedirectUrl', () => {
     const redirectedHost = new URL(target!).host;
     expect(canonicalRedirectUrl(headersFor(redirectedHost), '/carreras', '', SITE_URL)).toBeNull();
   });
+
+  // Regression, found in review: `canonicalOrigin` compared `URL.host`, which
+  // carries the port, against a `requestHost()` that strips it. A canonical
+  // URL with a port therefore matched nothing — including itself — so the
+  // redirect target redirected again. `.env.example` ships
+  // `http://localhost:3000`, so this was every local `npm run dev` request.
+  describe('a canonical URL that carries a port', () => {
+    const PORTED = 'http://localhost:3000';
+
+    it('passes a request already on the canonical origin through', () => {
+      expect(canonicalRedirectUrl(headersFor('localhost:3000'), '/carreras', '', PORTED)).toBeNull();
+    });
+
+    it('keeps the port on the redirect target', () => {
+      expect(canonicalRedirectUrl(headersFor('127.0.0.1:3000'), '/carreras', '?a=1', PORTED)).toBe(
+        'http://localhost:3000/carreras?a=1',
+      );
+    });
+
+    it('cannot loop: the target it points at is a pass-through', () => {
+      const target = canonicalRedirectUrl(headersFor('127.0.0.1:3000'), '/carreras', '', PORTED);
+      const redirectedHost = new URL(target!).host;
+      expect(canonicalRedirectUrl(headersFor(redirectedHost), '/carreras', '', PORTED)).toBeNull();
+    });
+  });
 });
 
 describe('canonicalOrigin warnings', () => {

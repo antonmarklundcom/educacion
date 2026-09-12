@@ -55,7 +55,12 @@ export function canonicalOrigin(
   }
   try {
     const url = new URL(siteUrl);
-    return { host: url.host.toLowerCase(), origin: url.origin };
+    // `hostname`, not `host`: `host` carries the port and `requestHost()`
+    // strips it, so comparing the two would make a ported canonical
+    // (`http://localhost:3000`, the `.env.example` dev default) differ from
+    // every request that reaches it — redirecting the canonical origin to
+    // itself, forever. `origin` keeps the port, so the target stays reachable.
+    return { host: url.hostname.toLowerCase(), origin: url.origin };
   } catch {
     if (warnedUnparsableSiteUrl !== siteUrl) {
       warnedUnparsableSiteUrl = siteUrl;

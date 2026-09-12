@@ -16,7 +16,8 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const canonicalHost = (() => {
     try {
-      return new URL(siteUrl).host.toLowerCase();
+      // `hostname`, not `host`: see the note in `canonicalOrigin`.
+      return new URL(siteUrl).hostname.toLowerCase();
     } catch {
       return null;
     }
