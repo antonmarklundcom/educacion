@@ -117,36 +117,62 @@ const NUMBER_WORDS = [
 
 const RANKING_WORDS = ['mejor', 'mejores', 'top', 'lider', 'líder', 'lideres', 'líderes'];
 
-/** Real names/acronyms — see the module doc for why this is hand-maintained. */
+/**
+ * Real full names — see the module doc for why this is hand-maintained.
+ *
+ * Matched accent- and case-insensitively (`normalize()` below), because the
+ * likely way one of these reaches a file is a writer typing it without the
+ * accent or in lower case. Review finding: this list was originally matched
+ * with a plain case-sensitive `RegExp`, so `universidad nacional de asuncion`
+ * sailed straight through the scan that exists to stop it.
+ */
 const INSTITUTION_NAMES = [
   'Universidad Nacional de Asunción',
-  'UNA',
   'Universidad Católica',
-  'UCA',
   'Universidad Autónoma de Asunción',
-  'UAA',
   'Universidad Americana',
   'Universidad Iberoamericana',
-  'UNIBE',
   'Universidad del Pacífico',
-  'UPAP',
   'Universidad Columbia',
   'Universidad Privada del Este',
-  'UPE',
   'Universidad San Carlos',
   'Universidad Tecnológica Intercontinental',
-  'UTIC',
   'Universidad Nacional de Itapúa',
   'Universidad Nacional del Este',
-  'UNE',
   'Universidad Nacional de Caaguazú',
-  'UNCA',
   'Universidad Nacional de Concepción',
   'Universidad Nacional de Pilar',
-  'UNP',
   'Instituto Superior de Educación',
+];
+
+/**
+ * Acronyms are matched **case-sensitively and in upper case only**, and that
+ * is deliberate rather than an oversight: `UNA`, `UNE` and `UPE` are also
+ * ordinary Spanish words or fragments ("una carrera"), so folding their case
+ * would fail every file in the directory. An acronym only carries
+ * institutional meaning in caps.
+ */
+const INSTITUTION_ACRONYMS = [
+  'UNA',
+  'UCA',
+  'UAA',
+  'UNIBE',
+  'UPAP',
+  'UPE',
+  'UTIC',
+  'UNE',
+  'UNCA',
+  'UNP',
   'ISE',
 ];
+
+/** Lower-cased and accent-stripped, so a missing tilde cannot hide a name. */
+function normalize(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
 
 function listCareerFiles(): string[] {
   return readdirSync(CAREERS_DIR)
@@ -191,11 +217,19 @@ describe('career editorial copy — fabrication scan', () => {
     }
   });
 
-  it.each(files)('%s names no institution', (file) => {
-    const text = read(file);
+  it.each(files)('%s names no institution, however it is accented or cased', (file) => {
+    const text = normalize(read(file));
     for (const name of INSTITUTION_NAMES) {
-      const found = new RegExp(`\\b${name}\\b`).test(text);
+      const found = new RegExp(`\\b${normalize(name)}\\b`).test(text);
       expect(found, `found institution name "${name}" in ${file}`).toBe(false);
+    }
+  });
+
+  it.each(files)('%s names no institution by acronym', (file) => {
+    const text = read(file);
+    for (const acronym of INSTITUTION_ACRONYMS) {
+      const found = new RegExp(`\\b${acronym}\\b`).test(text);
+      expect(found, `found institution acronym "${acronym}" in ${file}`).toBe(false);
     }
   });
 
