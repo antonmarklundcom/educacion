@@ -1,0 +1,7 @@
+Esta carrera forma a quien cuida directamente al paciente: administra medicación, controla signos vitales, acompaña procedimientos médicos y sostiene buena parte de la atención diaria en hospitales, sanatorios y centros de salud. El plan combina anatomía, fisiología, farmacología y técnicas de enfermería con prácticas clínicas tempranas, a diferencia de otras carreras de salud donde el contacto con el paciente llega más tarde.
+
+Desde los primeros ciclos hay prácticas en centros de salud, bajo supervisión, donde se aplican técnicas como toma de signos vitales, curaciones y administración de medicación. Más adelante las rotaciones cubren áreas como internación, urgencias, salud materno infantil y salud comunitaria. Es una carrera exigente en horas de práctica y que suele incluir guardias, con contacto humano constante como parte central del trabajo diario.
+
+La salida laboral incluye hospitales públicos y privados, sanatorios, centros de salud comunitaria, atención domiciliaria y equipos de salud en empresas. Es también una base habitual para especializarse después en áreas como cuidados intensivos o salud materno infantil.
+
+Antes de elegir dónde cursarla, averiguá en qué centros de salud vas a hacer las prácticas clínicas, qué modalidad tiene cada tramo —las prácticas exigen presencialidad—, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente antes de inscribirte.

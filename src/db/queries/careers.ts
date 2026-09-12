@@ -11,7 +11,7 @@
  * no accreditation status, both still come from `searchPrograms()`.
  */
 
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 
 import { db as defaultDb, type Db } from '@/db';
 import { areas, careers, programSearch as ps } from '@/db/schema';
@@ -218,6 +218,42 @@ export async function listCareersByArea(
     areaName: null,
     stats: statsById.get(row.id) ?? EMPTY_STATS,
   }));
+}
+
+/**
+ * All career slugs, for `scripts/seed-editorial.ts` (PR-63) to match against
+ * `data/editorial/careers/*.md` filenames. No `status` filter: a draft career
+ * can still receive its editorial copy ahead of publication.
+ */
+export async function listAllCareerSlugs(
+  database: Db = defaultDb,
+): Promise<Array<{ id: number; slug: string }>> {
+  return database.select({ id: careers.id, slug: careers.slug }).from(careers);
+}
+
+/**
+ * Writes `description_md` for one career **only if it is currently NULL**
+ * (PR-63 — "never overwrites an admin edit"). The `WHERE ... AND
+ * description_md IS NULL` is the whole guarantee: a concurrent admin edit
+ * between the read and the write still loses the race safely, because the
+ * write itself is conditioned on the column still being null, not on a value
+ * read earlier. Returns whether a row was actually written.
+ *
+ * No `requireRole()` — this is a build-time content seed run from a shell
+ * with `DATABASE_URL`, the same trust level as `scripts/seed-taxonomy.ts` and
+ * `scripts/seed-plans.ts`, neither of which goes through an admin session.
+ */
+export async function setCareerDescriptionIfNull(
+  slug: string,
+  descriptionMd: string,
+  database: Db = defaultDb,
+): Promise<boolean> {
+  const [result] = await database
+    .update(careers)
+    .set({ descriptionMd })
+    .where(and(eq(careers.slug, slug), isNull(careers.descriptionMd)));
+
+  return result.affectedRows > 0;
 }
 
 /**

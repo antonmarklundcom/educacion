@@ -1,0 +1,7 @@
+Este profesorado forma a quien enseña educación física en la escuela y también a quien entrena, planifica actividad física o promueve hábitos saludables fuera del aula. El plan combina anatomía y fisiología del movimiento, didáctica de la educación física, deportes específicos, entrenamiento y planificación de actividades para distintas edades y capacidades.
+
+La cursada mezcla teoría en aula con muchísima práctica en cancha, gimnasio o pileta: se aprende a dar clase de distintos deportes, a planificar una sesión de entrenamiento y a adaptar actividades para personas con capacidades diferentes. También hay prácticas docentes supervisadas en escuelas, igual que en cualquier otro profesorado, además de instancias de práctica deportiva y recreativa fuera del ámbito escolar.
+
+La salida laboral incluye la docencia en escuelas, la conducción de clases en gimnasios y clubes, el entrenamiento deportivo, la actividad física adaptada y proyectos de promoción de la salud en municipios y organizaciones. Es una carrera con mucha actividad al aire libre y contacto directo con grupos de personas.
+
+Antes de anotarte, fijate si la institución cuenta con instalaciones deportivas propias para las prácticas y no solo teoría, qué modalidad ofrece para las materias con componente físico —difícilmente se dictan a distancia—, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente.

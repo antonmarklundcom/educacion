@@ -1,0 +1,7 @@
+Este profesorado forma a quien trabaja con niños en sus primeros años de escolaridad, antes de la escuela primaria: estimulación temprana, juego como herramienta de aprendizaje, desarrollo del lenguaje y la motricidad, y el vínculo con las familias en una etapa donde ese vínculo es central. El plan combina psicología del desarrollo infantil temprano, didáctica del nivel inicial, literatura infantil y talleres de juego y expresión artística.
+
+Buena parte de la formación pasa por observar y luego practicar en salas de jardín reales, planificando actividades adecuadas a cada edad y recibiendo devolución de un tutor sobre cómo se comunicó la propuesta a un grupo de niños pequeños. También se trabaja mucho la organización del espacio y de los materiales, porque en esta etapa el ambiente educa tanto como la actividad en sí.
+
+La salida laboral es principalmente la docencia en jardines de infantes públicos y privados, aunque también hay espacio en centros de estimulación temprana y en el diseño de materiales didácticos para esta franja de edad. El ejercicio en instituciones públicas requiere después los trámites de habilitación correspondientes.
+
+Antes de elegir dónde estudiarla, averiguá si la institución tiene jardines asociados para las prácticas desde temprano en la carrera, qué modalidad ofrece, y verificá el estado de acreditación de la carrera consultando la fuente correspondiente.

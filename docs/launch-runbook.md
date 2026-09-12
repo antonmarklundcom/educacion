@@ -40,8 +40,15 @@ sequence.
 - [ ] **Write `data/editorial/sources/acreditacion.md`** for PR-64: the URL and the quoted
       sentence for every claim the posts may make (ANEAES's July 2026 statement, the MEC
       accreditation mandate, ABC Color's coverage). Agents cannot reach `*.gov.py`.
+- [ ] After PR-63 merges: **re-derive the real top-40 list.** PR-63's forty slugs were
+      compiled without a database (none is reachable from an agent session), so they are a
+      coverage list, not the forty careers with the most published offerings —
+      `data/editorial/careers/_index.md` says so and says what to do. With `DATABASE_URL` set,
+      query the real ranking, add a file for every career in it that has none, and re-run the
+      scan (`npx vitest run src/lib/careers/editorial-copy.test.ts`).
 - [ ] After PR-63 merges: `npm run seed:editorial` from a local machine, then re-run
-      `search:rebuild`. Check three career hubs render `index, follow`.
+      `search:rebuild`. Check three career hubs render `index, follow`. A slug with no matching
+      `careers` row is skipped and logged, never an error — read the counts the script prints.
 - [ ] After PR-64 merges: publish the three posts from `/admin/blog` after reading them.
 - [ ] After PR-62 merges: `import:aneaes --file data/sources/aneaes/listado-2024.csv`,
       `curate`, review the queue at `/admin/moderacion`, `search:rebuild`.

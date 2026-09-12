@@ -1,0 +1,7 @@
+Esta carrera forma a la persona que después va a estar del lado de la gestión: organizar equipos, planificar recursos, tomar decisiones sobre qué producir, cómo vender y cómo cuidar la plata de una organización, sea una pyme familiar, una cooperativa o una empresa grande. El plan de estudios combina materias de contabilidad básica, finanzas, marketing, recursos humanos, procesos operativos y estrategia, con la idea de que quien egresa entienda el negocio como un todo y no solo un área.
+
+Buena parte de la cursada es analítica: leer estados financieros, armar planes de negocio, estudiar casos reales de empresas paraguayas y regionales, y trabajar en equipo en proyectos que simulan decisiones gerenciales. También suele haber una fuerte carga de materias cuantitativas al inicio, que conviene tener presente si venís de un bachillerato más orientado a letras.
+
+La salida laboral es amplia precisamente por esa formación generalista: administración de pymes, áreas comerciales o de recursos humanos en empresas medianas y grandes, emprendimientos propios, cooperativas, ONG y organismos públicos que necesitan gestión ordenada. Muchos egresados terminan especializándose después en un área puntual, como finanzas o marketing, mediante una maestría.
+
+Antes de anotarte, fijate en la sede donde vas a cursar, si la modalidad presencial, semipresencial o a distancia se ajusta a tu rutina de trabajo o estudio, y verificá el estado de acreditación de la carrera en la institución que elijas, en lugar de darlo por sentado.

@@ -1,0 +1,7 @@
+Esta carrera forma a quien diseña, gestiona e investiga procesos educativos más allá del aula: currículos, políticas educativas, formación docente y evaluación de aprendizajes en instituciones de distinto nivel. A diferencia de un profesorado enfocado en dar clase, aquí el eje está en pensar el sistema educativo como conjunto: cómo se arma un plan de estudios, cómo se mide si algo funciona, cómo se forma a otros docentes.
+
+El plan combina pedagogía, psicología del aprendizaje, didáctica general, sociología de la educación e investigación educativa, con instancias de práctica en instituciones reales donde se observa y se colabora en proyectos concretos. Es una carrera que exige lectura constante y capacidad de análisis sobre procesos, más que sobre contenidos de una sola materia.
+
+La salida laboral incluye equipos técnicos de instituciones educativas, gestión y coordinación pedagógica, diseño de material didáctico, formación docente continua y roles técnicos en organismos públicos y organizaciones que trabajan en educación. También habilita a seguir después en una maestría de gestión o política educativa.
+
+Antes de anotarte, averiguá qué convenios tiene la institución para las prácticas, si la modalidad de cursada se adapta a tu horario si ya trabajás en el sistema educativo, y verificá el estado real de acreditación de la carrera consultando la fuente correspondiente, sin darlo por sentado.
