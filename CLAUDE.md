@@ -5,7 +5,8 @@ Read `plan.md` first, then the doc for the area you're touching. Do not re-deriv
 | Doc                      | What it holds                                                       |
 | ------------------------ | ------------------------------------------------------------------- |
 | `plan.md`                | Positioning, phases, timing, the summary of everything              |
-| `docs/architecture.md`   | Stack, app shape, rendering, search design, auth, cron              |
+| `docs/architecture.md`   | Stack, app shape, rendering, search design, auth, cron — current state |
+| `docs/decisions/`        | One file per PR, the verbatim "why", moved out of `architecture.md`/`pr-plan.md` |
 | `docs/data-model.md`     | Schema. **Opus owns this.** Sonnet may add columns, not restructure |
 | `docs/data-sources.md`   | Ingestion, matching, arancel collection, freshness contract         |
 | `docs/monetization.md`   | Plans, pricing, billing ops                                         |
