@@ -16,7 +16,7 @@ Follows the `nextjs-deploy-hostinger` and `nodejs-mysql-hostinger-stack` playboo
 4. Add every env var from `.env.example` in hPanel. **Paste only the raw value into the Value field** — pasting `KEY=value` into Value is the `ERR_INVALID_URL` mistake.
 5. Deploy, verify on the `*.hostingersite.com` URL first.
 6. Map `educacion.com.py`. DNS is at NIC.py → create the A/CNAME record Hostinger specifies. SSL issues automatically once DNS resolves.
-7. Update `NEXT_PUBLIC_SITE_URL` (and anything else absolute) to `https://educacion.com.py`, then **redeploy** — env var changes need a redeploy, a restart is not enough.
+7. Update `NEXT_PUBLIC_SITE_URL` (and anything else absolute) to `https://educacion.com.py`, then **redeploy** — env var changes need a redeploy, a restart is not enough. After this redeploy, `src/middleware.ts` (PR-60) 301s the `*.hostingersite.com` preview URL and any other host to `https://educacion.com.py` with the path and query preserved, and `robots.ts` disallows all on that non-canonical host — so the preview URL keeps working as a smoke-test target but stops being crawlable or linkable as a second copy of the site.
 
 ## 3. Database
 
