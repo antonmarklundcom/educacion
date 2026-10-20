@@ -39,6 +39,7 @@ import type { LeadErrorCode } from './contract';
 import { notifyInstitution } from './notify';
 import { checkRate } from './rate-limit';
 import { validateLead } from './validate';
+import { sendLeadToVenderCrm } from './vendercrm';
 
 export type { LeadRecord, LeadInsert } from '@/db/queries/leads';
 export { listLeadsForInstitution, markLeadDelivered } from '@/db/queries/leads';
@@ -134,17 +135,36 @@ export async function submitLead(request: Request, payload: unknown): Promise<Su
   const contact = (await getInstitutionContacts([offering.institutionId])).get(
     offering.institutionId,
   );
-  const delivered = await notifyInstitution({
-    leadId,
-    institutionName: contact?.nameOfficial ?? offering.institutionName,
-    to: contact?.email ?? null,
-    programName: offering.programName,
-    name: lead.name,
-    phoneE164: lead.phoneE164,
-    email: lead.email,
-    message: lead.message,
-    sourcePage: lead.sourcePage,
-  });
+  const institutionName = contact?.nameOfficial ?? offering.institutionName;
+  // The CRM copy runs alongside the institution mail: both never throw, both
+  // are bounded to 10 s, and neither decides the student's success. The CRM
+  // result does not touch `delivered_at` — that column means "the institution
+  // was told", which the retry cron depends on.
+  const [delivered] = await Promise.all([
+    notifyInstitution({
+      leadId,
+      institutionName,
+      to: contact?.email ?? null,
+      programName: offering.programName,
+      name: lead.name,
+      phoneE164: lead.phoneE164,
+      email: lead.email,
+      message: lead.message,
+      sourcePage: lead.sourcePage,
+    }),
+    sendLeadToVenderCrm({
+      leadId,
+      phoneE164: lead.phoneE164,
+      name: lead.name,
+      email: lead.email,
+      message: lead.message,
+      institutionName,
+      programName: offering.programName,
+      offeringId: offering.offeringId,
+      ageBracket: lead.ageBracket,
+      sourcePage: lead.sourcePage,
+    }),
+  ]);
   if (delivered) await markLeadDelivered(leadId);
 
   return { ok: true, leadId, delivered };
